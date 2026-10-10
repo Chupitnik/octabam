@@ -10,7 +10,7 @@ EMPH, TILT_DB = 0.9, 9.0
 RELEASE_MS = 10.0                 # the envelope is a peak detector: instant attack
 MAKEUP_SHIFT = 8
 NOTE_LO, NOTE_HI = 24, 84                    # C1 .. C6, NOTE step 0 .. 60
-K_BLEP = 11                                  # 1/du is held as 1/(du 2^11)
+K_BLEP = 12                                  # 1/du is held as 1/(du 2^12): C0 fits Q23
 HP_FC, HP_Q = 4000.0, (0.5176, 0.7071, 1.9319)
 NOTE_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
@@ -51,3 +51,85 @@ def note_inc(step):
 def note_idt(step):
     """1/(du 2^11), du = inc / 2^24 the phase step as a fraction of a cycle (Q23 < 1)."""
     return (1 << 24) / note_inc(step) / (1 << K_BLEP)
+
+
+# ---- 0.2: continuous pitch (NOTE + BEND, GLIDE), GEND, WHSP -------------------------------
+# Pitch is a log value P, in semitones above C0, times 2^16 (a Q23 word: P/2^23 = p/128).
+# NOTE step n (C1 + n) is p = n + 12; BEND (a bipolar knob, y = value/128 - 1/2) adds 24 y,
+# so +-12 semitones. GLIDE smooths P per call, P_s += (n7 K) (P - P_s), 48-bit.
+# Then x = P_s 4/3 is octaves/8: o = floor(8x), r = frac(8x); inc = OCT[o] (2^r / 2).
+C0_HZ = 440.0 * 2 ** ((12 - 69) / 12)                    # 16.35 Hz, MIDI 12
+OCT = tuple(round(C0_HZ * (1 << 24) / FS * (1 << (o + 1))) for o in range(8))   # inc of C(o) x 2
+EXP2 = (0.5, 0.34657731, 0.12007039, 0.02793164, 0.00447311, 0.00094755)  # 2^r / 2, r in [0, 1)
+GLIDE_MS = (8.0, 30.0, 80.0, 200.0, 500.0)                # OFF is 8 ms: it de-zippers BEND's steps
+GLIDE_LABELS = ("OFF", "30", "80", "200", "500")
+GLD = tuple(round((1 << 23) / (FS * ms * 1e-3)) for ms in GLIDE_MS)   # per sample; x n7 per call
+THIRD = 0x2AAAAB                                          # 1/3, Q23
+# GEND scales the voice's formants by alpha = 2^t (octaves), t = y for y >= 0 and y/2 below:
+# -64 is x0.84 (-3 semitones, a bigger, male voice), 0 is x1, +63 is x1.41 (+6, a female one;
+# Ignorato, by ear, 5 Oct 2026: +-3 was too subtle). The analysis pairs run at f x A, A = 1/alpha = 2^-t,
+# so they listen LOWER for a female voice. A/2 by a cubic in t over [-1/4, 1/2).
+GEND_POLY = (0.5, -0.346695, 0.12034944, -0.02555639)          # 2^-t / 2, t in [-1/4, 1/2)
+# WHSP: a 24-bit LCG, x' = A x + C mod 2^24 (period 2^24, 6.3 s); the sample is x, signed.
+LCG_A, LCG_C = 1664525, 1013904223 & 0xFFFFFF
+LCG_SEED = 0x2A5F31
+
+
+def q23(v):
+    return min(round(v * (1 << 23)), 0x7FFFFF) & 0xFFFFFF
+
+
+def sq23(v):
+    """Q23 as a signed integer (a coefficient the DSP loads with #>)."""
+    return round(v * (1 << 23))
+
+
+def s24(w):
+    """A 24-bit word as a signed integer."""
+    w &= 0xFFFFFF
+    return w - (1 << 24) if w & 0x800000 else w
+
+
+def fmul(a, b):
+    """mpy a,b then move a1: floor(a b / 2^23), both signed Q23 integers (truncating, no rounding)."""
+    return (a * b) >> 23
+
+
+def pitch_target(note_raw, bend_raw):
+    """P from the two knob words as the DSP reads them (value << 16)."""
+    n = min((note_raw & 0x7F0000) >> 16, 60)
+    y = (bend_raw & 0x7F0000) - 0x400000
+    return ((n + 12) << 16) + ((y * 0x180000) >> 23)
+
+
+def inc_of(ps):
+    """The phase increment for a glided P (an integer, Q23 semitones/128), exactly as the DSP."""
+    x = ps + fmul(ps, THIRD)                               # octaves / 8
+    o = x >> 20
+    r = (x << 3) & 0x7FFFFF
+    t = sq23(EXP2[5])
+    for c in EXP2[4::-1]:
+        t = sq23(c) + fmul(r, t)                            # Horner, each step truncated
+    return fmul(OCT[o], t) if o < 8 else fmul(OCT[7], 0x7FFFFF)
+
+
+def idt_of(inc):
+    """1/(du 2^12) as Q23: floor(2^35 / inc), the DSP's integer division."""
+    return (1 << 35) // inc
+
+
+def gend_half(gend_raw):
+    """A/2 for the GEND knob word, by the DSP's truncating Horner."""
+    y = (gend_raw & 0x7F0000) - 0x400000
+    x = y if y >= 0 else y >> 1                              # asr, then tpl: the halving below 0
+    t = sq23(GEND_POLY[3])
+    for c in GEND_POLY[2::-1]:
+        t = sq23(c) + fmul(x, t)
+    return t
+
+
+def lcg(x):
+    return (s24(x) * LCG_A + LCG_C) & 0xFFFFFF
+
+WHSP_G = 0.31622777                          # uniform noise x G has the sawtooth mix's RMS
+TABLE_BAND, TABLE_OCT, TABLE_GLD = 0, 30, 38   # P table offsets: BAND[10] x {W/2, f1, f2}, OCT[8], GLD[5]

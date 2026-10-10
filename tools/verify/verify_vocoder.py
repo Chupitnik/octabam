@@ -18,7 +18,11 @@ Gates:
                    power at that band is 15 dB or more above its neighbours'
   NOTE          -> the INT carrier's pitch is NOTE's within 0.05 % (C1, C3, C6)
   NOTE clamp    -> a saved NOTE byte past C6 plays C6
-  two per core  -> runs at r7 0x6500 and 0x6800 (FX2 of T2 T3 T6 T7) and is an exact dry
+  0.2 controls  -> GEND at both ends, WHSP 64 and 127, and a p-locked melody with two BEND
+                   moves under GLDE 80 ms each match the reference (its pitch, GEND and noise
+                   arithmetic bit-exact); BEND -64 and +63 land on C2 and +11.8 semitones
+  guard         -> dsp_host -guard: no write over a loaded module
+  two per core  -> runs at r7 0x6200 and 0x6500 (FX2 of T1 T2 T5 T6) and is an exact dry
                    pass at every other FX2 and FX1 state block
   every knob    -> renders at both ends without dsp_host dying
 
@@ -48,11 +52,16 @@ REF = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(REF)
 FS = REF.FS
 
+# The image of the `vocoder` remix, not the audition's: VOCODER claims its allocator slot
+# (GEND's coefficients), and the audition's scratch remix carries SEND, a bus participant
+# the ledger will not seat beside a slot user (verify_wave builds the same way).
+import os
 pathlib.Path(MEM).unlink(missing_ok=True)
-subprocess.run([sys.executable, "tools/remix/audition.py", MOD.name, "out/dry/drums_110.wav"],
-               capture_output=True)
+subprocess.run([sys.executable, "tools/build/build_bus.py"], cwd=ROOT, check=True, capture_output=True,
+               env={**os.environ, "REMIX": "vocoder", "XBUS": "1", "SPEC": "1"})
+send_probe.dump_mem(ROOT / "out/mainos_bus.bin", pathlib.Path(MEM), "A")
 if not pathlib.Path(MEM).exists():
-    sys.exit(f"no {MEM} -- build it first:\n  python3 tools/remix/audition.py {MOD.name} out/dry/drums_110.wav")
+    sys.exit(f"no {MEM}: the vocoder remix did not build")
 init, proc = send_probe.entry_points(MEM, FXID)
 if (init, proc) == send_probe.entry_points(MEM, SEND.menu.fx2_id):
     sys.exit(f"fx id 0x{FXID:02x} resolves to SEND's entry points -- {MOD.name} is NOT in this dump")
@@ -80,22 +89,36 @@ def q23(x):
 ALLOC = R7_ALLOC                  # r7 (0x6000 + 0x100 n) -> its base-table entry
 
 
-def render(L, R, r7=5, **kw):
+def render(L, R, r7=5, plocks=(), guard=False, frames=None, **kw):
     """L, R: float arrays. Returns (L, R) floats from the module. r7 = dsp_host's state block,
-    0x6000 + 0x100 r7: 5 (0x6500) is a core's second FX2 slot, VOCODER's home; it runs at 5 and 8
-    only (the built-in two-per-core limit, off a core's first track)."""
-    n = len(L) - len(L) % FRAMES
+    0x6000 + 0x100 r7: 2 (0x6200) is a core's first FX2 slot, VOCODER's home; it runs at 2 and 5
+    only (the built-in two-per-core limit). plocks: (call, {knob: value}) pairs, applied from
+    that call on, through dsp_host's -paramfile (a p-lock, or a fader move one call at a time)."""
+    fr = frames or FRAMES
+    n = len(L) - len(L) % fr
     li, ri = q23(L[:n]), q23(R[:n])
     fin, fout = TMP / "vc_in.raw", TMP / "vc_out.raw"
     fin.write_bytes(b"".join(struct.pack("<ii", a, b) for a, b in zip(li, ri)))
     cmd = [HOST, "-mem", MEM, "-init", f"{init:x}", "-proc", f"{proc:x}",
            "-inst", "1", "-r7", str(r7), "-alloc", str(ALLOC[r7]), "-inmask", "1", "-stereo",
-           "-frames", str(FRAMES), "-blocks", str(n // FRAMES),
+           *(["-guard"] if guard else []),
+           "-frames", str(fr), "-blocks", str(n // fr),
            "-in", str(fin), "-out", str(fout),
            "-params", ",".join(str(x) for x in params(**kw))]
+    if plocks:
+        cur, rows, merged = dict(kw), [], {}
+        for blk, ch in sorted(plocks, key=lambda bc: bc[0]):    # one row per call, in order
+            merged.setdefault(blk, {}).update(ch)
+        for blk in sorted(merged):
+            cur.update(merged[blk])
+            rows.append(f"{blk}," + ",".join(str(x) for x in params(**cur)))
+        pf = TMP / "vc_plocks.txt"
+        pf.write_text("\n".join(rows) + "\n")
+        cmd += ["-paramfile", str(pf)]
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
         sys.exit(f"dsp_host failed for {kw}:\n{r.stdout}\n{r.stderr}")
+    render.guard_out = r.stdout + r.stderr
     w = np.frombuffer(fout.read_bytes(), dtype="<i4").astype(float) / (1 << 23)
     return w[0::2][:n], w[1::2][:n]
 
@@ -141,23 +164,45 @@ v = speech_like()
 z = np.zeros_like(v)
 
 # ---- the law ---------------------------------------------------------------------------
-for label, L, R, kw in (("INT, C3", v, v, dict(MODE=0, NOTE=24, LEVL=127)),
-                        ("EXT, a chord carrier on R", v,
-                         sum(REF._saw(len(v), REF.note_inc(s), REF.note_idt(s), 0) for s in (24, 27, 31)) / 3,
-                         dict(MODE=1, LEVL=127))):
-    oL, oR = render(L, R, **kw)
-    ref = REF.vocode(L[:len(oL)], R[:len(oL)], mode=kw["MODE"], note=kw.get("NOTE", 24),
-                     cons=DEFAULTS[K["CONS"]], dry=0, levl=127)
+nb = len(v) // FRAMES
+mel = [24, 24, 31, 29, 27, 27, 24, 22]
+MEL = [(j * (nb // 8), {"NOTE": mel[j]}) for j in range(8)] + [(nb // 2, {"BEND": 100}), (3 * nb // 4, {"BEND": 30})]
+
+
+def per_call(plocks, knob, default):
+    """The knob's value for every call, as the paramfile applies the locks."""
+    out = np.full(nb, default)
+    for blk, ch in plocks:
+        if knob in ch:
+            out[blk:] = ch[knob]
+    return out
+
+
+CHORD = sum(REF._saw(len(v), REF.note_inc(s), REF.note_idt(s), 0) for s in (24, 27, 31)) / 3
+for label, L, R, kw, pl in (("INT, C3", v, v, dict(MODE=0, NOTE=24), ()),
+                            ("EXT, a chord carrier on R", v, CHORD, dict(MODE=1), ()),
+                            ("GEND 0 (x0.84 formants, male)", v, v, dict(GEND=0), ()),
+                            ("GEND 127 (x1.41 formants, female)", v, v, dict(GEND=127), ()),
+                            ("WHSP 64", v, v, dict(WHSP=64), ()),
+                            ("WHSP 127 (noise)", v, v, dict(WHSP=127), ()),
+                            ("a NOTE melody and two BEND moves, GLDE 80 ms", v, v, dict(GLDE=2), MEL)):
+    oL, oR = render(L, R, plocks=pl, **kw)
+    d = {k: DEFAULTS[K[k]] for k in ("NOTE", "BEND", "GEND", "WHSP", "GLDE")}
+    d.update(kw)
+    knobs = {k: (per_call(pl, k, d[k]) if any(k in ch for _, ch in pl) else d[k]) for k in d}
+    ref = REF.vocode(L[:len(oL)], R[:len(oL)], mode=kw.get("MODE", 0), note=knobs["NOTE"], bend=knobs["BEND"],
+                     gend=knobs["GEND"], whsp=knobs["WHSP"], glide=knobs["GLDE"],
+                     cons=DEFAULTS[K["CONS"]], dry=0, frames=FRAMES)
     err = db(oL - ref) - db(ref)
     lv = db(oL) - db(ref)
     check(f"the law, {label}: within {err:.1f} dB of the float reference, level {lv:+.3f} dB (output {db(oL):.1f} dBFS RMS)",
           err < -50 and abs(lv) < 0.1 and np.array_equal(oL, oR))
 
 # ---- silence and pauses ---------------------------------------------------------------------
-oL, _ = render(z[:44100], z[:44100], CONS=127, DRY=127, LEVL=127)
+oL, _ = render(z[:44100], z[:44100], CONS=127, DRY=127)
 check("silence in, silence out (CONS and DRY up)", not np.any(oL))
 vp = np.concatenate([v[:int(FS)], np.zeros(int(0.6 * FS))])
-oL, _ = render(vp, vp, LEVL=127)
+oL, _ = render(vp, vp)
 tail = db(oL[-int(0.3 * FS):])
 check(f"0.3 s into a pause the output is {tail:.1f} dBFS", tail < -100)
 
@@ -168,7 +213,7 @@ t = np.arange(int(FS)) / FS
 worst = 99.0
 for k in (1, 4, 7):
     fc = REF.CENTRES[k]
-    oL, _ = render(0.5 * np.sin(2 * np.pi * fc * t), noise, MODE=1, LEVL=127, CONS=0)
+    oL, _ = render(0.5 * np.sin(2 * np.pi * fc * t), noise, MODE=1, CONS=0)
     X = np.abs(np.fft.rfft(oL[4410:])) ** 2; fr = np.fft.rfftfreq(len(oL) - 4410, 1 / FS)
     p = lambda f: X[(fr > f / 1.1) & (fr < f * 1.1)].sum()
     sel = 10 * math.log10(p(fc) / max(p(REF.CENTRES[k - 1]), p(REF.CENTRES[k + 1])))
@@ -177,37 +222,61 @@ check(f"bands: a centre sine keeps its band at least {worst:.1f} dB above the ne
 
 # ---- NOTE ---------------------------------------------------------------------------------------
 noise3 = np.random.default_rng(11).uniform(-0.9, 0.9, int(3 * FS))
-for step in (0, 24, 60):
-    oL, _ = render(noise3, noise3, MODE=0, NOTE=step, LEVL=127, CONS=0)
+for step, bend in ((0, 64), (24, 64), (60, 64), (24, 0), (24, 127)):
+    oL, _ = render(noise3, noise3, MODE=0, NOTE=step, BEND=bend, CONS=0)
     x = oL[4410:]; n = len(x)
     X = np.abs(np.fft.rfft(x * np.hanning(n), 4 * n)); fr = np.fft.rfftfreq(4 * n, 1 / FS)
-    f0 = 440.0 * 2 ** ((REF.NOTE_LO + step - 69) / 12)
+    f0 = 440.0 * 2 ** ((REF.NOTE_LO + step - 69 + 24 * (bend - 64) / 128) / 12)
     h = max(1, math.ceil(400 / f0))                   # a harmonic inside the bands
     m = np.nonzero((fr > h * f0 * 0.99) & (fr < h * f0 * 1.01))[0]
     i = m[np.argmax(X[m])]
     a_, b_, c_ = np.log(X[i - 1:i + 2])               # parabolic interpolation of the peak
     fm = (fr[i] + 0.5 * (a_ - c_) / (a_ - 2 * b_ + c_) * (fr[1] - fr[0])) / h
-    check(f"NOTE {REF.note_name(step)}: {fm:.3f} Hz (want {f0:.3f}; harmonic {h})", abs(fm / f0 - 1) < 5e-4)
-a, _ = render(noise[:22050], noise[:22050], NOTE=99, LEVL=127)
-b, _ = render(noise[:22050], noise[:22050], NOTE=60, LEVL=127)
+    check(f"NOTE {REF.note_name(step)} BEND {bend - 64:+d}: {fm:.3f} Hz (want {f0:.3f}; harmonic {h})", abs(fm / f0 - 1) < 5e-4)
+a, _ = render(noise[:22050], noise[:22050], NOTE=99)
+b, _ = render(noise[:22050], noise[:22050], NOTE=60)
 check("a NOTE byte past C6 plays C6", np.array_equal(a, b))
 
-# ---- two per core, built in: runs at r7 0x6500 and 0x6800 only, dry elsewhere -------------------
+# ---- two per core, built in: runs at r7 0x6200 and 0x6500 only, dry elsewhere -------------------
 # Three on a core overran the MKII. The FX2 blocks are 0x6200 + 0x300 pos and the FX1 blocks
 # 0x6100 + 0x300 pos (measured under the port, modules/send/README.md); dsp_host's -r7 n is
 # 0x6000 + 0x100 n. A dry pass writes nothing, so its output is its input bit for bit.
 src = noise[:22050]
 runs, dry = [], []
 for r7 in (5, 8, 2, 11, 1, 4, 7, 10):
-    L, R = render(src, src, r7=r7, LEVL=127, CONS=127, DRY=0)
+    L, R = render(src, src, r7=r7, CONS=127, DRY=0)
     (dry if np.array_equal(L, q23f(src)) and np.array_equal(R, q23f(src)) else runs).append(r7)
 check("runs at FX2 positions 1 and 2 only (r7 0x6500, 0x6800): T2 T3 T6 T7",
       runs == [5, 8], f"(runs at {[hex(0x6000 + 0x100 * r) for r in runs]})")
 check("an exact dry pass at FX2 positions 0 and 3 (T1 T4 T5 T8) and every FX1 slot",
       dry == [2, 11, 1, 4, 7, 10], f"(dry at {[hex(0x6000 + 0x100 * r) for r in dry]})")
 
+# ---- its writes: the state block and its 20-word Y slot, nothing over a loaded module ----------
+render(v[:22050], v[:22050], guard=True, GEND=0, WHSP=127, BEND=127)
+g5 = render.guard_out
+render(v[:22050], v[:22050], r7=8, guard=True, GEND=0, WHSP=127, BEND=127)     # position 2: its slot in the shared window
+render.guard_out = g5 + render.guard_out
+g = render.guard_out
+check("no write over a loaded module, at position 1 and at position 2 (its Y slot in the shared window)", g.count("guard clean") == 2,
+      next((ln.strip() for ln in reversed(g.splitlines()) if "guard" in ln), ""))
+
+# ---- 1-sample calls (T1's first piece of every frame): the per-call work skips them when the
+# call before did it, never twice in a row; a run of them must still play the right pitch
+for step, bend in ((24, 64), (24, 127)):
+    oL, _ = render(noise3[:int(FS)], noise3[:int(FS)], frames=1, MODE=0, NOTE=step, BEND=bend, CONS=0)
+    x = oL[4410:]; n = len(x)
+    X = np.abs(np.fft.rfft(x * np.hanning(n), 4 * n)); fr = np.fft.rfftfreq(4 * n, 1 / FS)
+    f0 = 440.0 * 2 ** ((REF.NOTE_LO + step - 69 + 24 * (bend - 64) / 128) / 12)
+    h = max(1, math.ceil(400 / f0))
+    m = np.nonzero((fr > h * f0 * 0.99) & (fr < h * f0 * 1.01))[0]
+    i = m[np.argmax(X[m])]
+    a_, b_, c_ = np.log(X[i - 1:i + 2])
+    fm = (fr[i] + 0.5 * (a_ - c_) / (a_ - 2 * b_ + c_) * (fr[1] - fr[0])) / h
+    check(f"1-sample calls, NOTE C3 BEND {bend - 64:+d}: {fm:.3f} Hz (want {f0:.3f})", abs(fm / f0 - 1) < 5e-4)
+
 # ---- every knob at both ends ---------------------------------------------------------------------
-for name, hi in (("NOTE", 60), ("CONS", 127), ("DRY", 127), ("LEVL", 127), ("MODE", 1)):
+for name, hi in (("NOTE", 60), ("BEND", 127), ("GEND", 127), ("WHSP", 127), ("CONS", 127), ("DRY", 127),
+                 ("MODE", 1), ("GLDE", 4)):
     for val in (0, hi):
         render(v[:22050], v[:22050], **{name: val})
 check("every knob at both ends renders", True)
