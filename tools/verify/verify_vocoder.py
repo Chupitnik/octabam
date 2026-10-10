@@ -20,9 +20,9 @@ Gates:
   NOTE clamp    -> a saved NOTE byte past C6 plays C6
   0.2 controls  -> GEND at both ends, WHSP 64 and 127, a p-locked melody with two BEND
                    moves under GLDE 80 ms, BEND, GEND and WHSP swept by the fader one value a
-                   call, and a scene jump of GEND, WHSP, DRY and CONS each match the reference
-                   (its pitch, GEND, noise and de-zipper arithmetic bit-exact), the jump's first
-                   20 ms too; BEND -64 and +63 land on C2 and +11.8 semitones
+                   call, and scene jumps of GEND, WHSP, DRY and CONS up and down each match the
+                   reference (its pitch, GEND, noise and de-zipper arithmetic bit-exact), each
+                   jump's first 20 ms too (down: a negative multiplier, the mpysu trap); BEND -64 and +63 land on C2 and +11.8 semitones
   guard         -> dsp_host -guard: no write over a loaded module
   two per core  -> runs at r7 0x6500 and 0x6800 (FX2 of T2 T3 T6 T7) and is an exact dry
                    pass at every other FX2 and FX1 state block
@@ -177,8 +177,9 @@ def sweep(knob, lo, hi, start=0, calls=None):
     return [(start + i, {knob: int(round(lo + (hi - lo) * i / max(1, calls - 1)))}) for i in range(calls)]
 
 
-JUMP = nb // 2                    # a scene jump: four page-1 knobs change on one call
-SCENE = [(JUMP, {"GEND": 127, "WHSP": 127, "DRY": 127, "CONS": 127})]
+JUMP, DOWN = nb // 3, 2 * nb // 3   # scene jumps: four page-1 knobs change on one call, up then down
+SCENE = [(JUMP, {"GEND": 127, "WHSP": 127, "DRY": 127, "CONS": 127}),
+         (DOWN, {"GEND": 0, "WHSP": 0, "DRY": 0, "CONS": 0})]
 
 
 def per_call(plocks, knob, default):
@@ -201,7 +202,7 @@ for label, L, R, kw, pl in (("INT, C3", v, v, dict(MODE=0, NOTE=24), ()),
                             ("BEND swept -64 to +63 by the fader", v, v, dict(), sweep("BEND", 0, 127)),
                             ("GEND swept -64 to +63 by the fader", v, v, dict(), sweep("GEND", 0, 127)),
                             ("WHSP swept 0 to 127 by the fader", v, v, dict(), sweep("WHSP", 0, 127)),
-                            ("a scene jump (GEND, WHSP, DRY, CONS at once)", v, v, dict(GEND=0, WHSP=0, DRY=0, CONS=0), SCENE)):
+                            ("scene jumps up and down (GEND, WHSP, DRY, CONS at once)", v, v, dict(GEND=0, WHSP=0, DRY=0, CONS=0), SCENE)):
     oL, oR = render(L, R, plocks=pl, **kw)
     d = {k: DEFAULTS[K[k]] for k in ("NOTE", "BEND", "GEND", "WHSP", "GLDE", "CONS", "DRY")}
     d.update(kw)
@@ -213,10 +214,11 @@ for label, L, R, kw, pl in (("INT, C3", v, v, dict(MODE=0, NOTE=24), ()),
     lv = db(oL) - db(ref)
     check(f"the law, {label}: within {err:.1f} dB of the float reference, level {lv:+.3f} dB (output {db(oL):.1f} dBFS RMS)",
           err < -50 and abs(lv) < 0.1 and np.array_equal(oL, oR))
-    if pl is SCENE:               # the 20 ms after the jump, where the de-zipper is all there is
-        w = slice(JUMP * FRAMES, JUMP * FRAMES + int(0.02 * FS))
-        ew = db(oL[w] - ref[w]) - db(ref[w])
-        check(f"the scene jump's first 20 ms: within {ew:.1f} dB of the reference's 8 ms de-zipper", ew < -50)
+    if pl is SCENE:               # the 20 ms after each jump, where the de-zipper is all there is
+        for at, way in ((JUMP, "up"), (DOWN, "down: T - s < 0, the multiply's sign")):
+            w = slice(at * FRAMES, at * FRAMES + int(0.02 * FS))
+            ew = db(oL[w] - ref[w]) - db(ref[w])
+            check(f"the scene jump's first 20 ms, {way}: within {ew:.1f} dB of the reference's 8 ms de-zipper", ew < -50)
 
 # ---- silence and pauses ---------------------------------------------------------------------
 oL, _ = render(z[:44100], z[:44100], CONS=127, DRY=127)
