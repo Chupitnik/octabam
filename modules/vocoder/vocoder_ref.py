@@ -11,7 +11,9 @@ synthesis response, a high-consonant circuit). modules/vocoder/DESIGN.md has the
     scaled by q = 1/7 so each section peaks at the input's level; the same pair on m and on c
   envelope: v = (W_k / 2) |band_k(m)|; e = max(v, e (1 - ad)), ad for 10 ms: a peak
     detector, instant attack, as the VP-330's diodes; 48-bit
-  out = LEVL limit(2^8 sum_k e_k band_k(c) + (CONS/32) hp6(m/2) + (DRY/128) m)
+  out = limit(2^8 sum_k e_k band_k(c) + (CONS/32) hp6(m/2) + (DRY/128) m), the level the
+    track's AMP; GEND, WHSP, DRY and CONS each follow their knob through a one-pole per call
+    (8 ms, vocoder_law.dz_step), so a scene or crossfader jump does not land as one step
   W_k folds in the VP-330's pre-emphasis (1 - 0.9 z^-1 at fc), its de-emphasis (a 9 dB fall
     across the bands) and the pair's gain at fc (1/g^2), so the bass bands are not starved
     of level before the 24-bit filters
@@ -32,7 +34,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from vocoder_law import (FS, CENTRES, Q_BAND, EMPH, TILT_DB, RELEASE_MS,  # noqa: F401
                          MAKEUP_SHIFT, NOTE_LO, NOTE_HI, K_BLEP, HP_FC, HP_Q, NOTE_NAMES,
                          band_coefs, note_name, note_inc, note_idt,
-                         GLD, LCG_SEED, WHSP_G, pitch_target, inc_of, idt_of, gend_half, lcg, q23, s24)
+                         GLD, LCG_SEED, WHSP_G, pitch_target, inc_of, idt_of, gend_half, lcg, q23, s24,
+                         dz_k, dz_step)
 
 
 def _saw(n, inc, idt, octave):
@@ -91,12 +94,26 @@ def _blep(s, idt):
     return s + (1 - ta) ** 2 - (1 - tb) ** 2
 
 
+def smoothed(v, nb, frames=15, prime=False):
+    """A knob per call through the de-zipper, as the DSP holds it (a Q23 integer per call). The
+    state starts at 0 (init), or with prime at the first call's knob (GEND)."""
+    t = _knob(v, nb) << 16
+    k = dz_k(frames)
+    out = np.empty(nb, int); s = None if prime else 0
+    for b in range(nb):
+        s = int(t[b]) if s is None else dz_step(s, int(t[b]), k)
+        out[b] = s
+    return out
+
+
 def carrier_02(n, note, bend, glide, whsp, frames=15):
     """The 0.2 INT carrier, per call of `frames` samples as dsp_host makes them: NOTE + BEND as
     a log pitch, glided in 48 bits, to a phase increment (bit-exact: the phase must not drift),
-    then the 8' and 4' polyBLEP sawtooths; WHSP blends to the LCG's noise. Returns (c, incs)."""
+    then the 8' and 4' polyBLEP sawtooths; WHSP (smoothed per call) blends to the LCG's noise.
+    Returns (c, incs)."""
     nb = -(-n // frames)
-    nt, bd, gl, wh = (_knob(k, nb) for k in (note, bend, glide, whsp))
+    nt, bd, gl = (_knob(k, nb) for k in (note, bend, glide))
+    wh = smoothed(whsp, nb, frames)
     c = np.empty(n); incs = np.empty(nb, int)
     p = 0; ps48 = None; x = LCG_SEED; G = WHSP_G
     for b in range(nb):
@@ -110,7 +127,7 @@ def carrier_02(n, note, bend, glide, whsp, frames=15):
         inc = inc_of(ps48 >> 24); idt = idt_of(inc)
         incs[b] = inc
         i8, i4 = idt / (1 << 23), (idt >> 1) / (1 << 23)
-        w = (wh[b] << 16) / (1 << 23)
+        w = wh[b] / (1 << 23)
         for i in range(b * frames, min(n, (b + 1) * frames)):
             s8 = s24(p) / (1 << 23)
             s4 = s24(p << 1) / (1 << 23)
@@ -134,10 +151,10 @@ def _svf_bp_k(x, fk, frames):
     return y
 
 
-def analysis_coefs(gend_raw):
+def analysis_coefs(gend_s):
     """Per band (f1a, f2a) as the DSP writes them to its Y slot: the synthesis coefficient x A,
-    floor(4 f (A/2) / 2^24), limited to the largest Q23."""
-    ah = gend_half(gend_raw)
+    floor(4 f (A/2) / 2^24), limited to the largest Q23. gend_s: GEND's smoothed word."""
+    ah = gend_half(gend_s)
     return [tuple(min((4 * q23(f) * ah) >> 24, 0x7FFFFF) / (1 << 23) for f in (f1, f2))
             for f1, f2, _ in band_coefs()]
 
@@ -151,8 +168,8 @@ def vocode(L, R, mode=0, note=24, bend=64, gend=64, whsp=0, cons=48, dry=0, glid
     c = carrier_02(n, note, bend, glide, whsp, frames)[0] if mode == 0 else R / 2
     q = 1.0 / Q_BAND
     ad = 1 - math.exp(-1 / (FS * RELEASE_MS * 1e-3))
-    g = _knob(gend, nb)
-    per_call = [analysis_coefs(v << 16) for v in g]
+    g = smoothed(gend, nb, frames, prime=True)
+    per_call = [analysis_coefs(int(v)) for v in g]
     acc = np.zeros(n)
     for k, (f1, f2, w) in enumerate(band_coefs()):
         a = _svf_bp_k(_svf_bp_k(m, [pc[k][0] for pc in per_call], frames), [pc[k][1] for pc in per_call], frames)
@@ -166,9 +183,9 @@ def vocode(L, R, mode=0, note=24, bend=64, gend=64, whsp=0, cons=48, dry=0, glid
     hp = m / 2
     for qq in HP_Q:
         hp = _svf_hp(hp, hf, 1 / qq)
-    cs, dr = _knob(cons, nb), _knob(dry, nb)
-    csn = np.repeat(cs, frames)[:n] / 32.0
-    drn = np.repeat(dr, frames)[:n] / 128.0
+    cs, dr = smoothed(cons, nb, frames), smoothed(dry, nb, frames)
+    csn = np.repeat(cs, frames)[:n] / (1 << 21)              # 4 CONS, CONS a Q23 word
+    drn = np.repeat(dr, frames)[:n] / (1 << 23)
     return np.clip(acc * (1 << MAKEUP_SHIFT) + csn * hp + drn * m, -1.0, 1.0 - 2 ** -23)
 
 
@@ -198,4 +215,9 @@ if __name__ == "__main__":
     k63 = int(np.argmax(st > 0.632 * st[-1])) - 10
     print(f"GLIDE 80 ms: 63 % of a bend reached after {k63 * 15 / FS * 1000:.1f} ms"); ok &= abs(k63 * 15 / FS * 1000 - 80) < 4
     print("silence in, INT: peak", float(np.max(np.abs(y0)))); ok &= not np.any(y0)
+    # the de-zipper: a jump 0 -> 127 reaches 63 % in about 8 ms and settles on the knob's word
+    sm = smoothed(np.r_[[0] * 4, [127] * 400], 404)
+    k63 = int(np.argmax(sm > 0.632 * (127 << 16))) - 4
+    print(f"de-zipper: 63 % of a jump after {k63 * 15 / FS * 1000:.1f} ms, settles {(127 << 16) - sm[-1]} LSB under it")
+    ok &= abs(k63 * 15 / FS * 1000 - 8) < 1 and abs((127 << 16) - sm[-1]) < 16
     print("SELF-CHECK", "OK" if ok else "FAILED")

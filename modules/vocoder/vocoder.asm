@@ -29,6 +29,8 @@
 ;       instant attack and 10 ms release, as the VP-330's diodes; e in 48 bits
 ;   out = limit(2^8 sum_k e_k band_k(c) + 4 CONS hp6(m/2) + DRY m): the level is the
 ;       track's AMP
+;   de-zipper: GEND, WHSP, DRY and CONS follow their knobs by s += n7 K (T - s) per call,
+;       rounded, K for 8 ms, so a scene jump or a fast crossfader lands over a few ms
 ;   hp6: three Chamberlin high-pass sections at 4 kHz (Q 0.518, 0.707, 1.932),
 ;       q/2 stored and applied twice (q is above 1)
 ;
@@ -49,9 +51,11 @@
 ;             $7f WHSP's generator   $80 $81 P_s (high, low)
 ;             $15 0 before the first call; 1 the last call did the per-call work, 2 it skipped it
 ;             $10 the Y slot's base (by position: 0x4000 or 0x8000)
-;             $82 the GEND last written to the Y slot   $83 the P_s inc was last made for
-;             (both -1 after init: the first call computes)
-; per block:  $03 WHSP   $0c inc   $0d 1/(du 2^12)   $0e CONS   $0f DRY   $11 MODE
+;             $82 GEND, smoothed: the word last written to the Y slot   $83 the P_s inc was
+;             last made for (both -1 after init: the first call computes)
+;             $03 WHSP   $0e CONS   $0f DRY: smoothed per call (0 after init)
+;             $17 the de-zipper's k between the knob reads (the band loop's scratch after)
+; per block:  $0c inc   $0d 1/(du 2^12)   $11 MODE
 ;             $12 the table base   $13 1/(du 2^12)/2   $14 0.00227   $16 q
 ;             $18 $19 $1a hp6's q/2
 ; Scratch sits low so its moves take one word; the band blocks are walked
@@ -156,6 +160,15 @@ vc_glide:
         mac     y0,x0,a                 ; P_s += 2 d k
         move    a1,x:(r7+$80)
         move    a0,x:(r7+$81)
+; ---- the de-zipper's k = n7 K, K for 8 ms (GLDE OFF's): GEND, WHSP, DRY and CONS follow
+;      their knobs by s += k (T - s), rounded, once a call (vocoder_law.dz_step)
+        move    a1,y1                   ; (P_s, for below)
+        move    n7,y0
+        move    #>$005ce1,x0            ; K, 2^23 / (FS 8 ms)
+        mpy     y0,x0,b
+        asr     b
+        move    b0,x:(r7+$17)           ; k (the slot is the band loop's scratch: free here)
+        move    y1,a
 ; ---- inc and 1/du only when P_s has moved: the per-call work stays small on a settled pitch
 ;      (T1 is called twice a frame; on the unit the per-call cost of OCTABAM13 clicked there)
         move    a1,y0                   ; P_s
@@ -226,12 +239,21 @@ norep_vc_02:
         move    b1,x:(r7+$13)           ; idt / 2, for the 4'
 vc_pdone:
 ; ---- GEND: the analysis pairs at f x A, A = 2^-t, t = y (y >= 0) or y/2 (y < 0): formants
-;      x0.84 (-64, -3 semitones) .. x1 .. x1.41 (+63, +6), into this instance's Y slot
+;      x0.84 (-64, -3 semitones) .. x1 .. x1.41 (+63, +6), into this instance's Y slot.
+;      GEND is smoothed first; the coefficients are rewritten only when the smoothed word moved
         move    x:(r6+$2),a             ; GEND: bipolar
-        and     #>$7f0000,a
-        move    x:(r7+$82),b            ; the GEND the Y slot was last written for
-        cmp     a,b
-        beq     vc_gdone                ; unchanged: the 20 coefficients stand
+        and     #>$7f0000,a             ; T
+        move    a1,y1
+        move    x:(r7+$82),b            ; s: the word the Y slot was last written for (-1 after init)
+        sub     b,a
+        move    a,y0                    ; T - s
+        move    x:(r7+$17),x1           ; k
+        move    b,a
+        macr    x1,y0,a                 ; s + k (T - s), rounded
+        tst     b
+        tmi     y1,a                    ; the first call (s = -1) takes T as it is
+        cmp     b,a
+        beq     vc_gdone                ; unmoved: the 20 coefficients stand
         move    a1,x:(r7+$82)
         sub     #>$400000,a
         move    a,x0                    ; y
@@ -262,15 +284,31 @@ vc_pdone:
         move    a,y:(r3)+
 vc_gend:
 vc_gdone:
+        move    x:(r7+$17),x1           ; k
         move    x:(r6+$5),a             ; CONS, slot 5: value/128
         and     #>$7f0000,a
-        move    a,x:(r7+$e)
+        move    x:(r7+$e),b             ; s
+        sub     b,a
+        move    a,y0
+        move    b,a
+        macr    x1,y0,a
+        move    a1,x:(r7+$e)
         move    x:(r6+$4),a             ; DRY, slot 4: value/128
         and     #>$7f0000,a
-        move    a,x:(r7+$f)
+        move    x:(r7+$f),b
+        sub     b,a
+        move    a,y0
+        move    b,a
+        macr    x1,y0,a
+        move    a1,x:(r7+$f)
         move    x:(r6+$3),a             ; WHSP, slot 3: value/128
         and     #>$7f0000,a
-        move    a,x:(r7+$3)
+        move    x:(r7+$3),b
+        sub     b,a
+        move    a,y0
+        move    b,a
+        macr    x1,y0,a
+        move    a1,x:(r7+$3)
         move    x:(r6+$c),a             ; MODE, slot 6: 0 INT, 1 EXT
         and     #>$7f0000,a
         asr     #$10,a,a

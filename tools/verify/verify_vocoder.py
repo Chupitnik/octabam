@@ -18,11 +18,13 @@ Gates:
                    power at that band is 15 dB or more above its neighbours'
   NOTE          -> the INT carrier's pitch is NOTE's within 0.05 % (C1, C3, C6)
   NOTE clamp    -> a saved NOTE byte past C6 plays C6
-  0.2 controls  -> GEND at both ends, WHSP 64 and 127, and a p-locked melody with two BEND
-                   moves under GLDE 80 ms each match the reference (its pitch, GEND and noise
-                   arithmetic bit-exact); BEND -64 and +63 land on C2 and +11.8 semitones
+  0.2 controls  -> GEND at both ends, WHSP 64 and 127, a p-locked melody with two BEND
+                   moves under GLDE 80 ms, BEND, GEND and WHSP swept by the fader one value a
+                   call, and a scene jump of GEND, WHSP, DRY and CONS each match the reference
+                   (its pitch, GEND, noise and de-zipper arithmetic bit-exact), the jump's first
+                   20 ms too; BEND -64 and +63 land on C2 and +11.8 semitones
   guard         -> dsp_host -guard: no write over a loaded module
-  two per core  -> runs at r7 0x6200 and 0x6500 (FX2 of T1 T2 T5 T6) and is an exact dry
+  two per core  -> runs at r7 0x6500 and 0x6800 (FX2 of T2 T3 T6 T7) and is an exact dry
                    pass at every other FX2 and FX1 state block
   every knob    -> renders at both ends without dsp_host dying
 
@@ -91,8 +93,8 @@ ALLOC = R7_ALLOC                  # r7 (0x6000 + 0x100 n) -> its base-table entr
 
 def render(L, R, r7=5, plocks=(), guard=False, frames=None, **kw):
     """L, R: float arrays. Returns (L, R) floats from the module. r7 = dsp_host's state block,
-    0x6000 + 0x100 r7: 2 (0x6200) is a core's first FX2 slot, VOCODER's home; it runs at 2 and 5
-    only (the built-in two-per-core limit). plocks: (call, {knob: value}) pairs, applied from
+    0x6000 + 0x100 r7: 5 (0x6500) is a core's second FX2 slot, VOCODER's home; it runs at 5 and 8
+    only (the built-in two-per-core limit, off a core's first track). plocks: (call, {knob: value}) pairs, applied from
     that call on, through dsp_host's -paramfile (a p-lock, or a fader move one call at a time)."""
     fr = frames or FRAMES
     n = len(L) - len(L) % fr
@@ -169,6 +171,16 @@ mel = [24, 24, 31, 29, 27, 27, 24, 22]
 MEL = [(j * (nb // 8), {"NOTE": mel[j]}) for j in range(8)] + [(nb // 2, {"BEND": 100}), (3 * nb // 4, {"BEND": 30})]
 
 
+def sweep(knob, lo, hi, start=0, calls=None):
+    """A fader move: the knob from lo to hi, one value per call (a crossfader or an LFO)."""
+    calls = calls or nb - start
+    return [(start + i, {knob: int(round(lo + (hi - lo) * i / max(1, calls - 1)))}) for i in range(calls)]
+
+
+JUMP = nb // 2                    # a scene jump: four page-1 knobs change on one call
+SCENE = [(JUMP, {"GEND": 127, "WHSP": 127, "DRY": 127, "CONS": 127})]
+
+
 def per_call(plocks, knob, default):
     """The knob's value for every call, as the paramfile applies the locks."""
     out = np.full(nb, default)
@@ -185,18 +197,26 @@ for label, L, R, kw, pl in (("INT, C3", v, v, dict(MODE=0, NOTE=24), ()),
                             ("GEND 127 (x1.41 formants, female)", v, v, dict(GEND=127), ()),
                             ("WHSP 64", v, v, dict(WHSP=64), ()),
                             ("WHSP 127 (noise)", v, v, dict(WHSP=127), ()),
-                            ("a NOTE melody and two BEND moves, GLDE 80 ms", v, v, dict(GLDE=2), MEL)):
+                            ("a NOTE melody and two BEND moves, GLDE 80 ms", v, v, dict(GLDE=2), MEL),
+                            ("BEND swept -64 to +63 by the fader", v, v, dict(), sweep("BEND", 0, 127)),
+                            ("GEND swept -64 to +63 by the fader", v, v, dict(), sweep("GEND", 0, 127)),
+                            ("WHSP swept 0 to 127 by the fader", v, v, dict(), sweep("WHSP", 0, 127)),
+                            ("a scene jump (GEND, WHSP, DRY, CONS at once)", v, v, dict(GEND=0, WHSP=0, DRY=0, CONS=0), SCENE)):
     oL, oR = render(L, R, plocks=pl, **kw)
-    d = {k: DEFAULTS[K[k]] for k in ("NOTE", "BEND", "GEND", "WHSP", "GLDE")}
+    d = {k: DEFAULTS[K[k]] for k in ("NOTE", "BEND", "GEND", "WHSP", "GLDE", "CONS", "DRY")}
     d.update(kw)
     knobs = {k: (per_call(pl, k, d[k]) if any(k in ch for _, ch in pl) else d[k]) for k in d}
     ref = REF.vocode(L[:len(oL)], R[:len(oL)], mode=kw.get("MODE", 0), note=knobs["NOTE"], bend=knobs["BEND"],
                      gend=knobs["GEND"], whsp=knobs["WHSP"], glide=knobs["GLDE"],
-                     cons=DEFAULTS[K["CONS"]], dry=0, frames=FRAMES)
+                     cons=knobs["CONS"], dry=knobs["DRY"], frames=FRAMES)
     err = db(oL - ref) - db(ref)
     lv = db(oL) - db(ref)
     check(f"the law, {label}: within {err:.1f} dB of the float reference, level {lv:+.3f} dB (output {db(oL):.1f} dBFS RMS)",
           err < -50 and abs(lv) < 0.1 and np.array_equal(oL, oR))
+    if pl is SCENE:               # the 20 ms after the jump, where the de-zipper is all there is
+        w = slice(JUMP * FRAMES, JUMP * FRAMES + int(0.02 * FS))
+        ew = db(oL[w] - ref[w]) - db(ref[w])
+        check(f"the scene jump's first 20 ms: within {ew:.1f} dB of the reference's 8 ms de-zipper", ew < -50)
 
 # ---- silence and pauses ---------------------------------------------------------------------
 oL, _ = render(z[:44100], z[:44100], CONS=127, DRY=127)

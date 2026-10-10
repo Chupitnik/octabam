@@ -118,14 +118,38 @@ def idt_of(inc):
     return (1 << 35) // inc
 
 
-def gend_half(gend_raw):
-    """A/2 for the GEND knob word, by the DSP's truncating Horner."""
-    y = (gend_raw & 0x7F0000) - 0x400000
+def gend_half(gend_s):
+    """A/2 for GEND's smoothed word (the knob's 0x7F0000 field, smoothed per call: dz_step),
+    by the DSP's truncating Horner."""
+    y = s24(gend_s) - 0x400000
     x = y if y >= 0 else y >> 1                              # asr, then tpl: the halving below 0
     t = sq23(GEND_POLY[3])
     for c in GEND_POLY[2::-1]:
         t = sq23(c) + fmul(x, t)
     return t
+
+
+# De-zipper: GEND, WHSP, DRY and CONS each follow their knob through a one-pole per call,
+# s += k (T - s), k = n7 DZ_K, rounded to 24 bits (macr), with the same 8 ms as GLDE OFF, so a
+# scene jump, a crossfader move or a p-lock lands over a few ms instead of as one step. Rounded,
+# a settled value stands still (no -1 creep), so GEND's coefficients are not rewritten for it.
+DZ_MS = GLIDE_MS[0]
+DZ_K = GLD[0]
+
+
+def dz_k(frames):
+    """k for a call of `frames` samples, as the DSP makes it: mpy n7, K; asr; a0."""
+    return frames * DZ_K
+
+
+def dz_step(s, target, k):
+    """One call of the de-zipper: macr x1,y0,a with a = s, x1 = k, y0 = target - s; the 48-bit
+    sum rounded (convergent, the chip's default) to its high word."""
+    v = (s24(s) << 24) + 2 * k * (target - s24(s))
+    q, r = v >> 24, v & 0xFFFFFF
+    if r > 0x800000 or (r == 0x800000 and q & 1):
+        q += 1
+    return q
 
 
 def lcg(x):
