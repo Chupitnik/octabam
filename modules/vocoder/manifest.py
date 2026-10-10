@@ -42,7 +42,7 @@ MODULE = Module(
     key="VOCODER",
     kind=Kind.DSP_EFFECT,
     category=Category.TRACK, author="Ignorato", author_url="https://github.com/Ignorato",
-    proof=Proof.RENDER, proof_note="0.2's controls in dsp_host (verify_vocoder); 0.1 on Ignorato's MKII (OCTABAM12, 4 Oct 2026: all eight tracks, two per core vocode, stable)",
+    proof=Proof.RENDER, proof_note="0.2 in dsp_host and under the ColdFire port (verify_vocoder, make check), 10 Oct 2026; not flashed. The 0.2 code before the de-zipper was heard on Ignorato's MKII (OCTABAM20, 5 Oct 2026, T2 T3, by ear); 0.1 ran on OCTABAM12",
     doc="Ten-band vocoder after the Roland VP-330: the track's voice, a built-in carrier at NOTE or input B. FX2 of tracks 2, 3, 6 and 7 only.",
     menu=MenuEntry(
         fx2_id=0x1a,
