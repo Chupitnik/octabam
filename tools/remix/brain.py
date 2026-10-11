@@ -278,6 +278,19 @@ def fx_layout(m) -> int:
                             m.mode_slot)
 
 
+# The stock targets of templates (brain.c st_ent): store id and layout word.
+# AMP: keys 1-6 page 1, 7-12 page 2. LFO: 1-6 page 1, 7-9 PMTR, 10-12
+# WAVE, 13-15 MULT, 16-18 TRIG. MIDI track: 1 + setup-record offset (0x24
+# bytes, MIDI_TRACKS.md section 1), 64 + flat for page 1 (flats 0-29, 94
+# and 95 the CTRL1/CTRL2 enable bitmaps). A slot whose descriptor enable
+# nibble has bit 0 clear is not stored (PARAM_PAGES.md section 3b).
+STOCK_TARGETS = {
+    "amp": ("stock.amp", 0x414d5031),
+    "lfo": ("stock.lfo", 0x4c464f31),
+    "midi": ("stock.midi", 0x4d494431),
+}
+
+
 def fx_targets(remix, mods) -> list:
     """The selected effects with knobs, as the brain's table lists them."""
     return [m for m in _selected(remix, mods) if m.menu is not None and len(m.params) == 12]

@@ -18,6 +18,9 @@ Notation: `B` = bank RAM = `*0x46c82456` = `0x400e21e0 + bank*0x9b340`;
 `p` = Part 0..3; `t` = MIDI track 0..7; `T` = `0x100b14cc`, the UI's current
 track 🟡; `P#` = `0x100b14cf`, the current Part 🟡. `0x80000002` is the
 current bank and `0x80000003` the current Part as `0x4009eec8` reads them 📖.
+`0x80000012` (MIDI mode) is a long: the MIDI key's handler stores 1 there
+with a 4-byte write (`0x4005557a`, under the port, 11 Oct 2026), so its
+byte at `0x80000012` stays 0.
 
 ## 1. The setup record 📖
 
@@ -137,10 +140,14 @@ mirror; it writes the live byte only when the track's playing bank and Part
 
 Incoming CC routing reads CHAN from the Part on every CC (`0x40001882`).
 
-## 5. Applying a template to a track (recipe) 🟡
+## 5. Applying a template to a track (recipe)
 
 For a module that writes a template without UI globals, built from the
-writers' stores above (not run):
+writers' stores above. BRAIN's LOAD TEMPLATE on a MIDI track runs it
+(`modules/brain/brain.c` `apply_view`); under the port (11 Oct 2026,
+`tools/verify/verify_brain.py`) every setup and page-1 byte of the seeded
+template landed in the current Part and the MIDI OUT carried the new
+program change. The CS1 and live writes are not checked by that gate.
 
 1. Per setup byte: write the Part byte, the CS1 mirror and the live byte
    `+0x20 + off` of `0x46c76dc0 + t*0x44`.
@@ -184,6 +191,4 @@ draw `0x4003f490`) and `0x4003fb32` (CTRL1 draw).
 - The ARP setup byte map beyond the slot-order reading.
 - How page 1 draws a label longer than 4 characters.
 - The entry of the knob-press code that toggles the enable bitmaps.
-- A port run with `--midi-out` that shows `0x4009ec70` sending program and
-  bank during a template apply.
 - Whether `0x4009a3e0` leaves the SBNK cache stale (section 4).

@@ -102,9 +102,11 @@ Blob and Trigger rows; `Apply.CALLBACK` has no callback field.
 
 Hold a page key (SRC, AMP, LFO, FX1, FX2) and press FUNC: a list opens
 over the page with SAVE AS DEFAULT, CLEAR DEFAULT, SAVE TEMPLATE, LOAD
-TEMPLATE and DELETE TEMPLATE. They act on the track and page in view, as
-the BRAIN pane's DEFAULTS rows do; over SRC, AMP or LFO, or on a MIDI
-track, each says to open an FX page.
+TEMPLATE and DELETE TEMPLATE. They act on the track and page in view.
+SAVE AS DEFAULT and CLEAR DEFAULT take an FX page, as the BRAIN pane's
+DEFAULTS rows do. The three template rows also take the AMP and LFO pages
+of an audio track and, in MIDI mode, the whole MIDI track (all five pages
+and their setup pages); over SRC they say to open an LFO, AMP or FX page.
 
 - **The combination.** A page key's record names a key layer that is
   active while the key is held (`0x400bab6e`, keys `0x400baad2`, the same
@@ -120,22 +122,43 @@ track, each says to open an FX page.
 - **The list** is stock's (`0x4006d94c(count, sel, &sel_out, labels,
   handlers)`): YES stores the row, closes it and calls the row's handler.
 - **Templates** are records of kind 3 in `card.work` (BRAIN.md section
-  7.3): target 0, no mode, the effect's layout hash, an 8-byte name, the
-  twelve slots as Part bytes. SAVE TEMPLATE names it `TPL nn`, the lowest
-  free number for that effect; DELETE TEMPLATE and LOAD TEMPLATE list the
-  effect's templates by name. Saves and deletes run in the engine task;
+  7.3): target 0, no mode, the target's layout word, an 8-byte name, its
+  slots as Part bytes by key. SAVE TEMPLATE names it `TPL nn`, the lowest
+  free number for that target; DELETE TEMPLATE and LOAD TEMPLATE list the
+  target's templates by name. The targets:
+
+  | target | store id | slots and keys | range per slot |
+  |---|---|---|---|
+  | FX1 or FX2 page | the effect's | its twelve slots by `Param.key` | the effect's descriptor |
+  | AMP page | `stock.amp` | 1-6 page 1, 7-12 AMP SETUP | AMP descriptor `0x400d3950` |
+  | LFO page | `stock.lfo` | 1-6 SPD/DEP, 7-9 PMTR, 10-12 WAVE, 13-15 MULT, 16-18 TRIG | audio LFO descriptor `0x400d37be` |
+  | MIDI track | `stock.midi` | 64 + flat for page 1 (0-29; 94, 95 the CTRL1/CTRL2 enable bitmaps), 1 + offset for the setup record (`docs/firmware/MIDI_TRACKS.md` section 1) | NOTE, LFO, ARP, CONTROL 1, CONTROL 2 descriptors; the bitmaps raw |
+
+  A slot whose descriptor enable nibble has bit 0 clear is neither
+  stored nor written (`docs/firmware/PARAM_PAGES.md` section 3b): the page-1
+  writer refuses it (`0x40054d20`). In the stock image those are AMP XVOL
+  (key 6) and TRIG (key 12), and the MIDI setup bytes with no parameter
+  (offsets 3, 5, 0x0c, 0x0d, 0x0f, 0x10, 0x12, 0x13). The stock layout
+  words are fixed (`tools/remix/brain.py` `STOCK_TARGETS`). Saves and deletes run in the engine task;
   `brain_load` and every template write keep a copy of the template
   records (4 KB) that the lists and LOAD read.
-- **LOAD** writes the twelve values as the user's knobs would: page 1
-  through the stock writer `0x40054cd8(track, flat, value)`, page 2 as the
-  page-2 editors store it (`modules/cc-map`'s measured recipe: the Part
-  byte, the shadow, the live lane byte, the four dirty flags), each value
-  clamped to the descriptor's `[min, min + count - 1]`. A template carries
-  MODE with the other knobs, so MODE DEFAULTS' re-default is not called.
+- **LOAD** writes the values as the user's knobs would: page 1 through
+  the stock writer `0x40054cd8(track, flat, value)` (a MIDI track as
+  `8 + track`), the other bytes as the editors store them
+  (`modules/cc-map`'s measured recipe: the Part byte, the CS1 mirror
+  `0x1001614e + offset + part * 0x18b2`, the live byte, the four dirty
+  flags), each value clamped to its descriptor's `[min, min + count - 1]`.
+  The live byte of an audio page-2 byte is the lane `0x80000810 + 72 * t
+  + 0x26 + index` (index from `+0x8f072 + 30 * t`; `LFO.md` section 2), of
+  a MIDI byte the live copy `0x46c76dc0 + 0x44 * t` (`MIDI_TRACKS.md`
+  section 2). A MIDI track takes its setup first, then `0x4009a3e0` when
+  CHAN changed and `0x4009ec70(bank, part)` (bank and program out), then
+  its page-1 values. A template carries MODE with the other knobs, so MODE
+  DEFAULTS' re-default is not called.
 - Not built yet: renaming (names are `TPL nn` until a host tool or a name
   editor renames them), templates from the image (`templates/`, BRAIN.md
   section 3), template files on the card for sharing, a TEMPLATES list in
-  the BRAIN pane, templates for SRC/AMP/LFO pages and MIDI tracks
+  the BRAIN pane, templates for the SRC page, knob names for MIDI tracks
   (phase 4).
 
 ## Live dialogs

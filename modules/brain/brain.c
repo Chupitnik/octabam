@@ -1073,14 +1073,14 @@ void brain_post_settings(void)
 	Q_SEND(ENGINE_Q, job_msg);
 }
 
-static int write_template(int del, u32 t, u32 fx, u32 e, u32 i);
+static int write_template(int del, u32 t, u32 kind, u32 e, u32 i);
 
 void brain_job(void)
 {
 	if (job_args & 0x100000)
 		brain_save_counts[S_SAVE_ERR] = (u32)write_template(1, 0, 0, (job_args >> 8) & 0xff, job_args & 0xff);
 	else if (job_args & 0x80000)
-		brain_save_counts[S_SAVE_ERR] = (u32)write_template(0, job_args & 7, (job_args >> 8) & 1, 0, 0);
+		brain_save_counts[S_SAVE_ERR] = (u32)write_template(0, job_args & 7, (job_args >> 8) & 7, 0, 0);
 	else if (job_args & 0x40000)
 		brain_save_counts[S_SAVE_ERR] = (u32)write_settings();
 	else if (job_args & 0x20000)
@@ -1095,7 +1095,7 @@ void brain_job(void)
 
 #define POPUP     ((void (*)(const char *, u32, const char *const *, u32, u32))0x4006d57c)
 #define CUR_TRACK (*(volatile u8 *)0x80000000)
-#define MIDI_MODE (*(volatile u8 *)0x80000012)
+#define MIDI_MODE (*(volatile u32 *)0x80000012)	/* nonzero: MIDI tracks (a long; the MIDI key stores 1) */
 #define PAGE_KIND (*(volatile u32 *)0x460d1684)	/* 3 = FX1, 4 = FX2 */
 
 static const char *msg[2];
@@ -1468,16 +1468,164 @@ void brain_open_settings(u32 unused)
 
 /* ---- templates: lists, apply, save and delete (BRAIN.md sections 5.2, 9) ---- */
 
-/* The i-th template record of effect entry e among the records at
- * recs[0..len), or 0. */
+/* A template's target is one view: track t's FX1 or FX2 page (an effect of
+ * brain_fx[], entry e < MAX_FX), its AMP or LFO page, or a whole MIDI track
+ * (the stock targets, entry ST_BASE + kind - V_AMP). */
+enum { V_FX1, V_FX2, V_AMP, V_LFO, V_MIDI };
+#define ST_BASE  0x40
+#define NSLOT    72
+#define SKIP     0xfe		/* flat[]: a slot with no parameter */
+#define NOFLAT   0xff		/* flat[]: a slot the page-1 writer does not reach */
+
+struct view {
+	u32 kind, t, e, n;
+	u16 key[NSLOT];			/* 0: the slot is not stored */
+	u32 at[NSLOT];			/* Part offset from DBPTR + part * PART_LEN */
+	u8 lo[NSLOT], hi[NSLOT];
+	u8 flat[NSLOT];			/* page-1 writer index, NOFLAT or SKIP */
+	u8 cur[NSLOT];
+};
+
+struct st_ent {
+	const char *id;
+	u32 id_len, layout;
+};
+static const struct st_ent st_ent[3] = {
+	{ "stock.amp", 9, 0x414d5031 },		/* "AMP1" */
+	{ "stock.lfo", 9, 0x4c464f31 },		/* "LFO1" */
+	{ "stock.midi", 10, 0x4d494431 },	/* "MID1" */
+};
+
+/* The stock page descriptors (PARAM_PAGES.md section 3), entry start E:
+ * minimum per slot at E + 0xa2, count at E + 0xd2, enable nibbles at
+ * E + 0x1c6 (slots 0-7) and E + 0x1c2 (8-11), section 3b. */
+#define D_LFO   0x400d37be
+#define D_AMP   0x400d3950
+#define D_NOTE  0x400d3e06
+#define D_ARP   0x400d3f98
+#define D_MLFO  0x400d412a
+#define D_CTL1  0x400d42bc
+#define D_CTL2  0x400d444e
+static const u32 midi_desc[5] = { D_NOTE, D_MLFO, D_ARP, D_CTL1, D_CTL2 };
+
+static void ent_id(u32 e, const char **id, u32 *len, u32 *layout)
+{
+	if (e >= ST_BASE) {
+		const struct st_ent *s = &st_ent[e - ST_BASE];
+		*id = s->id;
+		*len = s->id_len;
+		*layout = s->layout;
+	} else {
+		*id = brain_fx[e].id;
+		*len = brain_fx[e].id_len;
+		*layout = brain_fx[e].layout;
+	}
+}
+
+/* One slot: its key, Part offset, page-1 index and range from descriptor
+ * E's slot s (a raw byte when E is 0). A slot whose enable nibble has bit
+ * 0 clear is neither stored nor written: the stock writers refuse it
+ * (0x40054cd8 at 0x40054d20), and the stock MIDI pages' empty setup slots
+ * and AMP's XVOL are those. */
+static void slot(struct view *v, u32 key, u32 at, u32 flat, u32 E, u32 s)
+{
+	u32 i = v->n++;
+	v->key[i] = (u16)key;
+	v->at[i] = at;
+	v->flat[i] = (u8)flat;
+	v->lo[i] = 0;
+	v->hi[i] = 255;
+	if (E) {
+		int min = (int)be32((const u8 *)E + 0xa2 + 4 * s), cnt = (int)be32((const u8 *)E + 0xd2 + 4 * s);
+		v->lo[i] = (u8)min;
+		v->hi[i] = (u8)(min + cnt - 1);
+		u32 en = s < 8 ? be32((const u8 *)E + 0x1c6) >> (4 * s) : be32((const u8 *)E + 0x1c2) >> (4 * (s - 8));
+		if (cnt <= 0 || !(en & 1)) {
+			v->key[i] = 0;
+			v->flat[i] = SKIP;
+		}
+	}
+	v->cur[i] = (DBPTR + (CUR_PART & 3) * PART_LEN)[at];
+}
+
+/* View kind of track t: 0, or 1 with msg[] set when the view cannot hold a
+ * template. An FX view needs its effect in brain_fx[] and a descriptor. */
+static int view_fill(struct view *v, u32 kind, u32 t)
+{
+	v->kind = kind;
+	v->t = t & 7;
+	v->n = 0;
+	t = v->t;
+	if (kind <= V_FX2) {
+		u8 *part = DBPTR + WORKING + (CUR_PART & 3) * PART_LEN;
+		u32 id = part[kind ? 0x8 + t : t];
+		v->e = MAX_FX;
+		for (u32 i = 0; i < brain_fx_n && i < MAX_FX; i++)
+			if (brain_fx[i].fx_id == id)
+				v->e = i;
+		if (v->e == MAX_FX) {
+			msg[0] = "THIS EFFECT HAS";
+			msg[1] = "NO TEMPLATES";
+			return 0;
+		}
+		if (!snapped)
+			snapshot();
+		const u8 *d = desc[v->e][kind] ? desc[v->e][kind] : desc[v->e][kind ^ 1];
+		if (!d)
+			return 0;
+		for (u32 s = 0; s < 12; s++) {
+			u32 at = s < 6 ? 0x8ee9a + t * 24 + (kind ? 18 : 12) + s
+				       : (kind ? 0x8f084 : 0x8f07e) + t * 30 + s - 6;
+			slot(v, brain_fx[v->e].keys[s], at, s < 6 ? (kind ? 24 : 18) + s : NOFLAT,
+			     (u32)d - 0x38, s);
+		}
+		return 1;
+	}
+	v->e = ST_BASE + kind - V_AMP;
+	if (kind == V_AMP)
+		for (u32 s = 0; s < 12; s++)
+			slot(v, 1 + s, s < 6 ? 0x8eea0 + t * 24 + s : 0x8f078 + t * 30 + s - 6,
+			     s < 6 ? 12 + s : NOFLAT, D_AMP, s);
+	else if (kind == V_LFO)
+		for (u32 s = 0; s < 18; s++)
+			slot(v, 1 + s, s < 6 ? 0x8ee9a + t * 24 + s
+					     : s < 12 ? 0x8f072 + t * 30 + s - 6 : 0x8f08a + t * 30 + s - 12,
+			     s < 6 ? 6 + s : NOFLAT, D_LFO, s < 6 ? s : 6 + (s - 6) / 3);
+	else {
+		for (u32 f = 0; f < 32; f++)	/* page 1: 30 values, CTRL1/CTRL2 enable bitmaps */
+			slot(v, 64 + f, 0x8f162 + t * 32 + f, f < 30 ? f : NOFLAT,
+			     f < 30 ? midi_desc[f / 6] : 0, f % 6);
+		for (u32 o = 0; o < 36; o++)
+			slot(v, 1 + o, 0x8f262 + t * 36 + o, NOFLAT, o < 30 ? midi_desc[o / 6] : D_MLFO,
+			     o < 30 ? 6 + o % 6 : 8 + (o - 30) / 3);
+	}
+	return 1;
+}
+
+/* The view in front of the page shortcut: 0, or 1 with msg[] set. */
+static int view_here(struct view *v)
+{
+	u32 kind = PAGE_KIND;
+	if (MIDI_MODE)
+		return view_fill(v, V_MIDI, CUR_TRACK);
+	if (kind >= 1 && kind <= 4)
+		return view_fill(v, kind == 1 ? V_LFO : kind == 2 ? V_AMP : kind - 3, CUR_TRACK);
+	msg[0] = "OPEN AN LFO, AMP";
+	msg[1] = "OR FX PAGE";
+	return 0;
+}
+
+/* The i-th template record of entry e among the records at recs[0..len),
+ * or 0. */
 static const u8 *nth_in(const u8 *recs, u32 len, u32 e, u32 i)
 {
-	const struct fx_ent *f = &brain_fx[e];
+	const char *id;
+	u32 id_len, layout;
+	ent_id(e, &id, &id_len, &layout);
 	for (u32 at = 0; at < len; at += be32(recs + at + 16)) {
 		const u8 *p = recs + at;
 		const u8 *pay = p + REC_HDR + align4(p[1]);
-		if (!same_id(p + REC_HDR, p[1], f->id, f->id_len) || be32(p + 8) < 16
-		    || be32(pay + 4) != f->layout)
+		if (!same_id(p + REC_HDR, p[1], id, id_len) || be32(p + 8) < 16 || be32(pay + 4) != layout)
 			continue;
 		if (p[0] != K_TEMPLATE)
 			continue;
@@ -1500,105 +1648,96 @@ static u32 tpl_count(u32 e)
 	return n;
 }
 
-/* The track and page in view and their effect entry, or -1 (msg[] says
- * why); *t and *fx set. */
-static int view_entry(u32 *t, u32 *fx)
-{
-	int f = menu_target();			/* 0 FX1, 1 FX2, -1 */
-	if (f < 0)
-		return -1;
-	u8 *part = DBPTR + WORKING + (CUR_PART & 3) * PART_LEN;
-	*t = CUR_TRACK & 7;
-	*fx = (u32)f;
-	u32 id = part[f ? 0x8 + *t : *t];
-	for (u32 i = 0; i < brain_fx_n && i < MAX_FX; i++)
-		if (brain_fx[i].fx_id == id)
-			return (int)i;
-	return -1;
-}
-
-/* ---- apply: the twelve slots through the stock paths -------------------- */
+/* ---- apply: each slot through the stock paths ----------------------------- */
 
 #define P1WRITE  ((void (*)(u32, u32, u32))0x40054cd8)	/* page-1 writer (track, flat, value) */
 #define LIVEB    0x80000810				/* live lane: track*72 */
+#define LIVEM    0x46c76dc0				/* MIDI live copy: track*0x44 */
+#define CS1      0x1001614e				/* CS1 mirror of the bank: + Part offset */
+#define MIDI_INVAL ((void (*)(void))0x4009a3e0)		/* resend bank and program */
+#define MIDI_PROG  ((void (*)(u32, u32))0x4009ec70)	/* (bank, part): send bank and program */
+#define CUR_BANK (*(volatile u8 *)0x80000002)
 
-/* Track t's FX1 (fx 0) or FX2 (fx 1) page takes vals[12]: page 1 through
- * the stock writer, page 2 as the page-2 editors store it (modules/cc-map:
- * Part, shadow, live lane, the four dirty flags), each value clamped to the
- * descriptor's [min, min + count - 1]. */
-static void apply_values(u32 t, u32 fx, const u8 *desc_p, const u8 *vals)
+/* View v takes vals[]: page-1 slots through the stock writer, the others as
+ * the editors store them (Part, CS1 mirror, live copy, the four dirty
+ * flags; MIDI_TRACKS.md section 5, modules/cc-map), each value clamped to
+ * its descriptor's range. A MIDI track sends its bank and program after
+ * its setup, then its page-1 values. */
+static void apply_view(const struct view *v, const u8 *vals)
 {
-	u32 part = CUR_PART & 3;
+	u32 part = CUR_PART & 3, t = v->t, chan = 0;
 	u8 *pb = DBPTR + part * PART_LEN;
-	for (u32 s = 0; s < 12; s++) {
-		int min = (int)be32(desc_p + 0x6a + 4 * s), cnt = (int)be32(desc_p + 0x9a + 4 * s);
-		int v = vals[s];
-		if (cnt <= 0)
+	u8 c[NSLOT];
+	for (u32 i = 0; i < v->n; i++) {
+		u32 x = vals[i];
+		c[i] = (u8)(x < v->lo[i] ? v->lo[i] : x > v->hi[i] ? v->hi[i] : x);
+		if (v->flat[i] != NOFLAT)
 			continue;
-		if (v < min)
-			v = min;
-		if (v > min + cnt - 1)
-			v = min + cnt - 1;
-		if (s < 6) {
-			P1WRITE(t, (fx ? 24 : 18) + s, (u32)v);
-			continue;
-		}
-		u32 s2 = s - 6;
-		pb[(fx ? 0x8f084 : 0x8f07e) + t * 30 + s2] = (u8)v;
-		*(volatile u8 *)((fx ? 0x100a51d2 : 0x100a51cc) + part * PART_LEN + t * 30 + s2) = (u8)v;
-		*(volatile u8 *)(LIVEB + t * 72 + (fx ? 0x38 : 0x32) + s2) = (u8)v;
+		u32 at = v->at[i];
+		if (at == 0x8f262 + t * 36 && pb[at] != c[i])
+			chan = 1;
+		pb[at] = c[i];
+		*(volatile u8 *)(CS1 + at + part * PART_LEN) = c[i];
+		if (v->kind == V_MIDI)
+			*(volatile u8 *)(LIVEM + t * 0x44 + (at - 0x8f162 - t * 32 < 32 ? at - 0x8f162 - t * 32
+							  : 0x20 + at - 0x8f262 - t * 36)) = c[i];
+		else
+			*(volatile u8 *)(LIVEB + t * 72 + 0x26 + at - 0x8f072 - t * 30) = c[i];
 	}
 	DBPTR[0x95048] |= (u8)(1 << part);
 	*(volatile u8 *)0x100b145e |= (u8)(1 << part);
 	*(volatile u32 *)(DBPTR + 0x9b332) = 1;
 	*(volatile u32 *)0x100f8598 = 1;
+	if (v->kind == V_MIDI) {
+		if (chan)
+			MIDI_INVAL();
+		MIDI_PROG(CUR_BANK, part);
+	}
+	for (u32 i = 0; i < v->n; i++)
+		if (v->flat[i] < SKIP)
+			P1WRITE(v->kind == V_MIDI ? 8 + t : t, v->flat[i], c[i]);
 }
 
-/* The twelve values of template record p for entry e: its Part bytes by
- * key; a slot it has no value for keeps track t's current byte. */
-static void tpl_values(const u8 *p, u32 e, u32 t, u32 fx, u8 *vals)
+/* The values of template record p for view v: its bytes by key; a slot it
+ * has no value for keeps the current byte. */
+static void tpl_values(const u8 *p, const struct view *v, u8 *vals)
 {
-	const struct fx_ent *f = &brain_fx[e];
-	u8 *part = DBPTR + WORKING + (CUR_PART & 3) * PART_LEN;
-	for (int s = 0; s < 6; s++) {
-		vals[s] = part[0x11a + t * 24 + (fx ? 18 : 12) + s];
-		vals[6 + s] = part[0x2fe + t * 30 + (fx ? 6 : 0) + s];
-	}
+	for (u32 i = 0; i < v->n; i++)
+		vals[i] = v->cur[i];
 	const u8 *pay = p + REC_HDR + align4(p[1]);
 	u32 plen = be32(p + 8);
 	for (u32 at = 16; at + 8 <= plen; at += 8) {
 		u32 key = be16(pay + at);
 		if (pay[at + 2] != T_BYTE || pay[at + 3] != 1 || !key)
 			continue;
-		for (int s = 0; s < 12; s++)
-			if (f->keys[s] == key)
-				vals[s] = pay[at + 4];
+		for (u32 i = 0; i < v->n; i++)
+			if (v->key[i] == key)
+				vals[i] = pay[at + 4];
 	}
 }
 
 /* ---- the engine task: a template saved or deleted ------------------------ */
 
-/* Save (del 0): track t's FX1 (fx 0) or FX2 (fx 1) page becomes a new
- * template of its effect, named "TPL nn" with the lowest free nn. Delete
- * (del 1): the i-th template of entry e leaves card.work. Every other
- * record keeps its bytes. The copy is read back after the write. 0, or an
- * error code as write_default's. */
-static int write_template(int del, u32 t, u32 fx, u32 e, u32 i)
+/* Save (del 0): track t's view kind becomes a new template of its target,
+ * named "TPL nn" with the lowest free nn. Delete (del 1): the i-th template
+ * of entry e leaves card.work. Every other record keeps its bytes. The copy
+ * is read back after the write. 0, or an error code as write_default's. */
+static struct view job_view;
+
+static int write_template(int del, u32 t, u32 kind, u32 e, u32 i)
 {
 	int n = current_store();
 	if (n < 0)
 		return 2;
+	struct view *v = &job_view;
 	if (!del) {
-		u8 *part = DBPTR + WORKING + (CUR_PART & 3) * PART_LEN;
-		u32 id = part[fx ? 0x8 + t : t];
-		e = MAX_FX;
-		for (u32 k = 0; k < brain_fx_n && k < MAX_FX; k++)
-			if (brain_fx[k].fx_id == id)
-				e = k;
-		if (e == MAX_FX || t > 7)
+		if (kind > V_MIDI || t > 7 || !view_fill(v, kind, t))
 			return 1;
+		e = v->e;
 	}
-	const struct fx_ent *f = &brain_fx[e];
+	const char *id;
+	u32 id_len, layout;
+	ent_id(e, &id, &id_len, &layout);
 	const u8 *drop = (del && n) ? nth_in(buf + HDR, (u32)n - HDR, e, i) : 0;
 	if (del && !drop)
 		return 1;
@@ -1616,7 +1755,7 @@ static int write_template(int del, u32 t, u32 fx, u32 e, u32 i)
 		kept++;
 	}
 	if (!del) {
-		/* the lowest free number among this effect's names */
+		/* the lowest free number among this target's names */
 		u32 num = 1;
 		for (int again = 1; again && num < 100;) {
 			again = 0;
@@ -1632,42 +1771,36 @@ static int write_template(int del, u32 t, u32 fx, u32 e, u32 i)
 				}
 			}
 		}
-		u8 vals[12];
-		for (int s = 0; s < 6; s++) {
-			u8 *part = DBPTR + WORKING + (CUR_PART & 3) * PART_LEN;
-			vals[s] = part[0x11a + t * 24 + (fx ? 18 : 12) + s];
-			vals[6 + s] = part[0x2fe + t * 30 + (fx ? 6 : 0) + s];
-		}
 		u32 nvals = 0;
-		for (int s = 0; s < 12; s++)
-			nvals += f->keys[s] != 0;
-		u32 plen = 16 + 8 * nvals, size = REC_HDR + align4(f->id_len) + plen;
+		for (u32 s = 0; s < v->n; s++)
+			nvals += v->key[s] != 0;
+		u32 plen = 16 + 8 * nvals, size = REC_HDR + align4(id_len) + plen;
 		if (at + size > BUF_LEN)
 			return 3;
 		u8 *r = out + at;
 		for (u32 b = 0; b < size; b++)
 			r[b] = 0;
 		r[0] = K_TEMPLATE;
-		r[1] = f->id_len;
+		r[1] = (u8)id_len;
 		put16(r + 2, 1);			/* schema major 1, minor 0 */
 		put32(r + 8, plen);
 		put32(r + 16, size);
-		for (u32 b = 0; b < f->id_len; b++)
-			r[REC_HDR + b] = f->id[b];
-		u8 *pay = r + REC_HDR + align4(f->id_len);
+		for (u32 b = 0; b < id_len; b++)
+			r[REC_HDR + b] = (u8)id[b];
+		u8 *pay = r + REC_HDR + align4(id_len);
 		put16(pay + 2, NO_MODE);		/* target 0, no mode */
-		put32(pay + 4, f->layout);
+		put32(pay + 4, layout);
 		pay[8] = 'T'; pay[9] = 'P'; pay[10] = 'L'; pay[11] = ' ';
 		pay[12] = (u8)('0' + num / 10);
 		pay[13] = (u8)('0' + num % 10);
-		u8 *v = pay + 16;
-		for (int s = 0; s < 12; s++)
-			if (f->keys[s]) {
-				put16(v, f->keys[s]);
-				v[2] = T_BYTE;
-				v[3] = 1;
-				v[4] = vals[s];
-				v += 8;
+		u8 *w = pay + 16;
+		for (u32 s = 0; s < v->n; s++)
+			if (v->key[s]) {
+				put16(w, v->key[s]);
+				w[2] = T_BYTE;
+				w[3] = 1;
+				w[4] = v->cur[s];
+				w += 8;
 			}
 		put32(r + 12, crc32(pay, plen));
 		at += size;
@@ -1715,21 +1848,20 @@ void brain_page_func(void)
 static char tpl_lbl[TPL_MAX][TPL_NAME + 1];
 static const char *tpl_lp[TPL_MAX];
 static void (*tpl_fp[TPL_MAX])(u32);
-static u32 tpl_e, tpl_t, tpl_fx, tpl_sel;
+static u32 tpl_sel;
+static struct view tpl_view;		/* the view the lists were opened over */
 
-/* The names of the templates of the effect in view, each row calling fn;
+/* The names of the templates of the view in front, each row calling fn;
  * their count (0: msg[] says why, the popup shown). */
 static u32 tpl_list(const char *title, void (*fn)(u32))
 {
-	int e = view_entry(&tpl_t, &tpl_fx);
-	if (e < 0) {
+	if (!view_here(&tpl_view)) {
 		POPUP(title, 2, msg, 0, 0);
 		return 0;
 	}
-	tpl_e = (u32)e;
 	u32 n = 0;
 	for (; n < TPL_MAX; n++) {
-		const u8 *p = tpl_nth(tpl_e, n);
+		const u8 *p = tpl_nth(tpl_view.e, n);
 		if (!p)
 			break;
 		const u8 *nm = p + REC_HDR + align4(p[1]) + 8;
@@ -1741,7 +1873,7 @@ static u32 tpl_list(const char *title, void (*fn)(u32))
 	}
 	if (!n) {
 		msg[0] = "NO TEMPLATES";
-		msg[1] = "FOR THIS EFFECT";
+		msg[1] = "FOR THIS PAGE";
 		POPUP(title, 2, msg, 0, 0);
 	}
 	return n;
@@ -1750,23 +1882,18 @@ static u32 tpl_list(const char *title, void (*fn)(u32))
 static void tpl_apply_sel(u32 unused)
 {
 	(void)unused;
-	const u8 *p = tpl_nth(tpl_e, tpl_sel);
+	const u8 *p = tpl_nth(tpl_view.e, tpl_sel);
 	if (!p)
 		return;
-	if (!snapped)
-		snapshot();
-	const u8 *d = desc[tpl_e][tpl_fx] ? desc[tpl_e][tpl_fx] : desc[tpl_e][tpl_fx ^ 1];
-	if (!d)
-		return;
-	u8 vals[12];
-	tpl_values(p, tpl_e, tpl_t, tpl_fx, vals);
-	apply_values(tpl_t, tpl_fx, d, vals);
+	u8 vals[NSLOT];
+	tpl_values(p, &tpl_view, vals);
+	apply_view(&tpl_view, vals);
 }
 
 static void tpl_delete_sel(u32 unused)
 {
 	(void)unused;
-	brain_post_template(0x100000 | (tpl_e << 8) | (tpl_sel & 0xff));
+	brain_post_template(0x100000 | (tpl_view.e << 8) | (tpl_sel & 0xff));
 	msg[0] = tpl_lbl[tpl_sel < TPL_MAX ? tpl_sel : 0];
 	msg[1] = "DELETED";
 	POPUP("DELETE TEMPLATE", 2, msg, 0, 0);
@@ -1795,12 +1922,19 @@ void brain_tpl_delete(u32 unused)
 void brain_tpl_save(u32 unused)
 {
 	(void)unused;
-	u32 t, fx;
-	if (view_entry(&t, &fx) < 0) {
+	if (!view_here(&tpl_view)) {
 		POPUP("SAVE TEMPLATE", 2, msg, 0, 0);
 		return;
 	}
-	brain_post_template(0x80000 | t | (fx << 8));
+	brain_post_template(0x80000 | tpl_view.t | (tpl_view.kind << 8));
+	static const char *const kname[5] = { "FX1 TRACK ", "FX2 TRACK ", "AMP TRACK ", "LFO TRACK ",
+					      "MIDI TRACK " };
+	int k = 0;
+	for (const char *c = kname[tpl_view.kind]; *c; c++)
+		line1[k++] = *c;
+	line1[k++] = (char)('1' + tpl_view.t);
+	line1[k] = 0;
+	msg[0] = line1;
 	msg[1] = "TEMPLATE SAVED";
 	POPUP("SAVE TEMPLATE", 2, msg, 0, 0);
 }
