@@ -266,21 +266,21 @@ MODULES ?=
 verify-shared: ## The gates that do not depend on the remix: ledger selftest, slots, replaces, docs, settings and locks, the remixer draws, label_fmt, knob census, remix-independent module gates (REMIXES="a b")
 	@test -n "$(REMIXES)" || { echo "REMIXES is unset: make $@ REMIXES=\"<name> ...\"   (make modules lists them)"; exit 2; }
 	$(need-port)
-	python3 tools/remix/selftest.py
-	python3 tools/verify/verify_slots.py
-	python3 tools/verify/verify_replaces.py --static
-	python3 tools/verify/verify_docs.py
-	python3 tools/remix/brain.py check
-	$(PY) tools/verify/verify_remixer.py
-	python3 tools/build/label_fmt.py
+	$(PY) tools/verify/step.py python3 tools/remix/selftest.py
+	$(PY) tools/verify/step.py python3 tools/verify/verify_slots.py
+	$(PY) tools/verify/step.py python3 tools/verify/verify_replaces.py --static
+	$(PY) tools/verify/step.py python3 tools/verify/verify_docs.py
+	$(PY) tools/verify/step.py python3 tools/remix/brain.py check
+	$(PY) tools/verify/step.py $(PY) tools/verify/verify_remixer.py
+	$(PY) tools/verify/step.py python3 tools/build/label_fmt.py
 	@# The knob click census: every continuous knob of the rig fixture's DSP
 	@# modules moved mid-render, plus the garbage-start gate. Builds its own
 	@# fixture (registry.fixture); remix-independent.
-	$(PY) tools/verify/verify_knob_clicks.py $(if $(MODULES),--modules "$(MODULES)",--sample)
+	$(PY) tools/verify/step.py $(PY) tools/verify/verify_knob_clicks.py $(if $(MODULES),--modules "$(MODULES)",--sample)
 	@# Isolated module gates that take no remix: each renders its module on
 	@# a scratch image it builds itself, or checks an author's oracle. Run
 	@# once for the union of the modules across REMIXES.
-	BUILD=$(BUILD) $(PY) tools/verify/module_gates.py --shared $(REMIXES) $(if $(MODULES),--modules "$(MODULES)",)
+	BUILD=$(BUILD) $(PY) tools/verify/step.py $(PY) tools/verify/module_gates.py --shared $(REMIXES) $(if $(MODULES),--modules "$(MODULES)",)
 
 .PHONY: verify-remix
 verify-remix: ## The selected remix's own gates: dirty state, init regs, DRAM boot, labels, its module gates, menu, the set under the port, USB
