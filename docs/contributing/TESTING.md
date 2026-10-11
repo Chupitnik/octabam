@@ -244,7 +244,8 @@ machine: a module change checks the remixes users flash that carry it
 (`remixes/`), or the smallest test remix when only test remixes do; the
 floor for tool and build changes is the one cover remix carrying the most
 modules; a build change runs refhash but not `make identity`; no
-`make accept`; two shards; every command at nice 10 (the performance cores,
+`make accept`; a shard per gate slot no other session holds (at least
+two; a fixed two until 11 Oct 2026); every command at nice 10 (the performance cores,
 below the desktop; measured on the M3: a CPU task 2.8 s at nice 0 and at
 nice 10, 19.9 s under background QoS, `taskpolicy -b`). `FULL=1` is everything below at
 full speed. What QUICK gives up: the pressure stages (the dearest layouts
@@ -354,7 +355,9 @@ recreates, `--rm` removes). Remixes are handed out from one queue. Logs:
 **The long pole is split.** A remix whose half would set the wall time
 runs as its gate jobs in the same queue as the other remixes' whole
 halves, and the queue runs longest first. check_shards records every job's
-duration in `out/check_shards/times.json` after each run; `--split auto`
+duration in `<git common dir>/octabam-gate-times.json` after each run,
+one record for every worktree (`out/check_shards/times.json` until 11 Oct
+2026, so a fresh worktree's first run split nothing); `--split auto`
 (the default) splits a remix run alone, and a remix whose last time
 exceeds both 300 s and the run's total over the shard count. A split
 remix's gate jobs leave out the `once=True` module gates, as `make
