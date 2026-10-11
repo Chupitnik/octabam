@@ -339,6 +339,7 @@ struct set_ent {
 	int min, max, def;
 	const char *const *labels;
 	const char *name, *group;
+	u32 scope;				/* 0 CARD (card.work), 1 PROJECT (the project's brain.work) */
 };
 extern const struct set_ent brain_set[];
 extern const u32 brain_set_n;
@@ -359,7 +360,7 @@ static int value_ok(const struct set_ent *e, int v)
 
 /* One settings record's values into the table: the known keys of its
  * store whose type and bounds fit. */
-static void apply_settings(const u8 *rec)
+static void apply_settings(const u8 *rec, u32 scope)
 {
 	u32 idlen = rec[1], plen = be32(rec + 8);
 	const u8 *pay = rec + REC_HDR + align4(idlen);
@@ -379,7 +380,7 @@ static void apply_settings(const u8 *rec)
 		const u8 *d = pay + at + head;
 		for (u32 i = 0; i < brain_set_n && i < MAX_SET; i++) {
 			const struct set_ent *e = &brain_set[i];
-			if (e->key != key || !same_id(rec + REC_HDR, idlen, e->id, e->id_len))
+			if (e->scope != scope || e->key != key || !same_id(rec + REC_HDR, idlen, e->id, e->id_len))
 				continue;
 			int v;
 			if (type != e->type || (type == 3 ? n != 2 : n != 1)) {
@@ -398,14 +399,19 @@ static void apply_settings(const u8 *rec)
 	}
 }
 
-/* Every settings record of the file in buf: a store with two is skipped
- * (rule 5); the table first goes back to the layers below. */
-static void load_settings(int have)
+/* The table back to the layers below, the counters to zero (brain_load). */
+static void reset_settings(void)
 {
 	for (u32 i = 0; i < brain_set_n && i < MAX_SET; i++)
 		brain_values[i] = brain_set[i].def;
 	for (int k = 0; k < C_SET_N; k++)
 		brain_set_counts[k] = 0;
+}
+
+/* Every settings record of the file in buf, applied to the entries of
+ * `scope`: a store with two records is skipped (rule 5). */
+static void load_settings(int have, u32 scope)
+{
 	if (!have)
 		return;
 	u32 count = be16(buf + 10);
@@ -422,7 +428,7 @@ static void load_settings(int have)
 		if (dup)
 			brain_set_counts[C_SET_DUP]++;
 		else
-			apply_settings(p);
+			apply_settings(p, scope);
 	}
 }
 
@@ -461,6 +467,151 @@ static void cache_templates(int have)
 extern int brain_v_octabam_brain_1;		/* MIDI LOG: 1 = the debug log records */
 extern int brain_v_octabam_brain_2;		/* CARD DEFAULTS: 1 = card defaults apply */
 
+/* ---- the project pair and the project record (BRAIN.md sections 6.1, 7.5, 8) ---- */
+
+#define SET_PATH   ((const char *)0x100f8480)	/* the current set's path: "/SETNAME" */
+#define PROJ_NAME  ((const char *)0x100f8378)	/* the current project's folder name */
+#define PATH_HALF  0x100
+#define K_PROJECT  4
+#define OWN_STORE  "octabam.brain"		/* the store id the project record is filed under */
+
+static char pw[PATH_HALF * 2 + 16], ps[PATH_HALF * 2 + 16];	/* <set>/<project>/brain.work, .strd */
+
+/* Both paths of the current project's pair; 0 when no set or project is
+ * named (nothing loaded yet). */
+static int proj_paths(void)
+{
+	const char *set = SET_PATH, *proj = PROJ_NAME;
+	u32 n = 0, k;
+	for (k = 0; set[k] && k < PATH_HALF; k++)
+		pw[n++] = set[k];
+	if (!n || !proj[0])
+		return 0;
+	if (proj[0] != '/')
+		pw[n++] = '/';
+	for (k = 0; proj[k] && k < PATH_HALF; k++)
+		pw[n++] = proj[k];
+	pw[n++] = '/';
+	for (k = 0; k < n; k++)
+		ps[k] = pw[k];
+	const char *w = "brain.work", *s = "brain.strd";
+	for (k = 0; k < 11; k++) {
+		pw[n + k] = w[k];
+		ps[n + k] = s[k];
+	}
+	return 1;
+}
+
+/* Counters of the last project load, read by the gates. */
+enum { PC_LOADS, PC_STATE, PC_RECORD, PC_ENTRIES, PC_SAME, PC_MOVED, PC_LAYOUT, PC_GONE, PC_SKIP,
+       PC_N };
+/* PC_STATE: as C_STATE (0 no files or no project, 1 brain.work, 2 recovered from
+ * brain.strd, 3 damaged); PC_RECORD: 1 when one project record was compared;
+ * PC_ENTRIES: its entries. Per entry, one of: PC_SAME (its FX id names the same
+ * store and layout), PC_MOVED (its FX id names another store, or none, and the
+ * image still has the store), PC_LAYOUT (same store, another layout hash),
+ * PC_GONE (the image has no such store). PC_SKIP: project records not
+ * compared (CRC, schema major, a second record). */
+u32 brain_pcounts[PC_N] DATA;
+
+/* One pair by the rule of section 6.2: 0 neither file, 1 .work valid, 2
+ * .strd valid (the .work absent or damaged), 3 damaged; buf holds the file
+ * for 1 and 2. */
+static int pair_load(const char *w, const char *s, u32 *len)
+{
+	u32 n = slurp(w);
+	if (n && valid(n)) {
+		*len = n;
+		return 1;
+	}
+	int work_present = n != 0;
+	n = slurp(s);
+	if (n && valid(n)) {
+		*len = n;
+		return 2;
+	}
+	return (work_present || n) ? 3 : 0;
+}
+
+/* The project record of the file in buf against brain_fx[]. */
+static void check_project(void)
+{
+	u32 count = be16(buf + 10), found = 0;
+	const u8 *rec = 0;
+	for (u32 r = 0, at = HDR; r < count; r++, at += be32(buf + at + 16)) {
+		const u8 *p = buf + at;
+		if (p[0] != K_PROJECT || !same_id(p + REC_HDR, p[1], OWN_STORE, 13))
+			continue;
+		if (be16(p + 2) != 1 || crc32(p + REC_HDR + align4(p[1]), be32(p + 8)) != be32(p + 12)) {
+			brain_pcounts[PC_SKIP]++;
+			continue;
+		}
+		found++;
+		rec = p;
+	}
+	if (found > 1) {			/* rule 5: neither */
+		brain_pcounts[PC_SKIP] += found;
+		return;
+	}
+	if (!rec)
+		return;
+	brain_pcounts[PC_RECORD] = 1;
+	const u8 *pay = rec + REC_HDR + align4(rec[1]);
+	u32 plen = be32(rec + 8);
+	for (u32 at = 0; at + 8 <= plen;) {
+		u32 fx = pay[at], idlen = pay[at + 1], layout = be32(pay + at + 4);
+		if (idlen < 1 || idlen > 63 || at + 8 + align4(idlen) > plen)
+			break;
+		const u8 *id = pay + at + 8;
+		at += 8 + align4(idlen);
+		brain_pcounts[PC_ENTRIES]++;
+		int e = -1, at_fx = -1;
+		for (u32 i = 0; i < brain_fx_n && i < MAX_FX; i++) {
+			if (same_id(id, idlen, brain_fx[i].id, brain_fx[i].id_len))
+				e = (int)i;
+			if (brain_fx[i].fx_id == fx)
+				at_fx = (int)i;
+		}
+		if (e < 0)
+			brain_pcounts[PC_GONE]++;
+		else if (at_fx != e)
+			brain_pcounts[PC_MOVED]++;
+		else if (brain_fx[e].layout != layout)
+			brain_pcounts[PC_LAYOUT]++;
+		else
+			brain_pcounts[PC_SAME]++;
+	}
+}
+
+/* The project pair: its PROJECT-scope settings onto the table, its project
+ * record against the image. */
+static void load_project(void)
+{
+	for (int k = PC_STATE; k < PC_N; k++)
+		brain_pcounts[k] = 0;
+	brain_pcounts[PC_LOADS]++;
+	u32 n;
+	if (!proj_paths())
+		return;
+	int st = pair_load(pw, ps, &n);
+	brain_pcounts[PC_STATE] = (u32)st;
+	if (st == 1 || st == 2) {
+		load_settings(1, 1);
+		check_project();
+	}
+}
+
+static void load_card(void)
+{
+	u32 n;
+	int st = pair_load("/BRAIN/card.work", "/BRAIN/card.strd", &n);
+	brain_counts[C_STATE] = (u32)st;
+	load_settings(st == 1 || st == 2, 0);
+	cache_templates(st == 1 || st == 2);
+	if ((st == 1 || st == 2) && brain_v_octabam_brain_2)
+		apply(n);
+}
+
 void brain_load(void)
 {
 	/* the counters after C_LOADS describe the last load */
@@ -470,28 +621,9 @@ void brain_load(void)
 	if (!snapped)
 		snapshot();
 	restore();
-	u32 n = slurp("/BRAIN/card.work");
-	if (n && valid(n)) {
-		brain_counts[C_STATE] = 1;
-		load_settings(1);
-		cache_templates(1);
-		if (brain_v_octabam_brain_2)
-			apply(n);
-		return;
-	}
-	int work_present = n != 0;
-	n = slurp("/BRAIN/card.strd");
-	if (n && valid(n)) {
-		brain_counts[C_STATE] = 2;
-		load_settings(1);
-		cache_templates(1);
-		if (brain_v_octabam_brain_2)
-			apply(n);
-		return;
-	}
-	brain_counts[C_STATE] = (work_present || n) ? 3 : 0;
-	load_settings(0);
-	cache_templates(0);
+	reset_settings();
+	load_card();
+	load_project();
 }
 
 /* ---- writing the card store ------------------------------------------------ */
@@ -517,6 +649,8 @@ static int write_file(const char *path, const u8 *data, u32 n)
 {
 	int ok = 0;
 	if (F_OPEN(fobj, path, "w", iob, sizeof iob) < 0) {
+		if (path[1] != 'B')			/* a project's file: its folder exists */
+			return -1;
 		MKDIR("/BRAIN");			/* the first write on this card */
 		if (F_OPEN(fobj, path, "w", iob, sizeof iob) < 0)
 			return -1;
@@ -526,19 +660,23 @@ static int write_file(const char *path, const u8 *data, u32 n)
 	return ok ? 0 : -1;
 }
 
-/* The card store's current content in buf (BRAIN.md section 6.2): its
- * length, 0 when there is none, -1 when both copies are damaged (no
- * automatic write). */
-static int current_store(void)
+/* The content of a pair in buf (BRAIN.md section 6.2): its length, 0 when
+ * there is none, -1 when both copies are damaged (no automatic write). */
+static int cur(const char *w, const char *s)
 {
-	u32 n = slurp("/BRAIN/card.work");
+	u32 n = slurp(w);
 	if (n && valid(n))
 		return (int)n;
 	u32 work_present = n != 0;
-	n = slurp("/BRAIN/card.strd");
+	n = slurp(s);
 	if (n && valid(n))
 		return (int)n;
 	return (work_present || n) ? -1 : 0;
+}
+
+static int current_store(void)
+{
+	return cur("/BRAIN/card.work", "/BRAIN/card.strd");
 }
 
 /* SAVE AS DEFAULT: track t's FX1 (fx 0) or FX2 (fx 1) page in the current
@@ -548,39 +686,60 @@ static int current_store(void)
  * (also in brain_save_counts[S_SAVE_ERR]). */
 static int write_default(u32 t, u32 fx, int clear);
 
-/* out[HDR..at) holds `kept` records: the header, then card.work. */
-static int write_store(u32 at, u32 kept)
+/* out[HDR..at) holds `kept` records: the header (file kind 0 card .work, 2
+ * project .work), then the file at path. */
+static int write_store(const char *path, u32 kind, u32 at, u32 kept)
 {
 	for (u32 k = 0; k < HDR; k++)
 		out[k] = 0;
 	put32(out, 0x4252414eu);			/* "BRAN": a brain file */
 	put16(out + 4, HDR);
-	out[6] = 1;					/* container 1.0, card .work */
+	out[6] = 1;					/* container 1.0 */
+	out[8] = (u8)kind;
 	put16(out + 10, kept);
 	put32(out + 12, at);
 	for (u32 k = 0; k < 8 && "BRAIN"[k]; k++)
 		out[20 + k] = "BRAIN"[k];
 	put32(out + 16, crc32(out + 20, at - 20));
-	return write_file("/BRAIN/card.work", out, at);
+	return write_file(path, out, at);
 }
 
-/* The settings records in card.work: one per store the table names, its
- * values the table's; the values with keys this image does not know are
- * kept from the record it replaces (rule 2), and every other record keeps
- * its bytes. 0, or an error code as write_default's. */
-static int write_settings(void)
+static int write_card(u32 at, u32 kept)
 {
-	int n = current_store();
+	return write_store("/BRAIN/card.work", 0, at, kept);
+}
+
+/* The settings records of one scope: scope 0 is card.work, scope 1 the
+ * project's brain.work (pw, ps; proj_paths() first). One record per store
+ * that has entries of the scope, its values the table's; keys this image
+ * does not know are kept from the record it replaces (rule 2), and every
+ * other record keeps its bytes. With `project`, the project record
+ * (section 7.5) is rebuilt from brain_fx[] and replaces any other one.
+ * 0, or an error code as write_default's (5: no project is named). */
+static int in_scope(u32 f, u32 scope)
+{
+	return brain_set[f].scope == scope;
+}
+
+static int write_set_file(u32 scope, int project)
+{
+	if (scope && !proj_paths())
+		return 5;
+	const char *w = scope ? pw : "/BRAIN/card.work", *sd = scope ? ps : "/BRAIN/card.strd";
+	int n = cur(w, sd);
 	if (n < 0)
 		return 2;
 	u32 at = HDR, kept = 0;
-	/* the kept records: everything but the settings of the stores we write */
+	/* the kept records: everything but the settings of the stores we write
+	 * and, with `project`, the project records */
 	for (u32 r = 0, i = HDR; n && r < be16(buf + 10); r++, i += be32(buf + i + 16)) {
 		const u8 *p = buf + i;
 		u32 size = be32(p + 16), ours = 0;
 		if (p[0] == K_SETTINGS)
 			for (u32 e = 0; e < brain_set_n && e < MAX_SET; e++)
-				ours |= same_id(p + REC_HDR, p[1], brain_set[e].id, brain_set[e].id_len);
+				ours |= in_scope(e, scope) && same_id(p + REC_HDR, p[1], brain_set[e].id, brain_set[e].id_len);
+		if (p[0] == K_PROJECT && project && same_id(p + REC_HDR, p[1], OWN_STORE, 13))
+			ours = 1;
 		if (ours)
 			continue;
 		if (at + size > BUF_LEN)
@@ -593,9 +752,11 @@ static int write_settings(void)
 	/* one record per store, in table order */
 	for (u32 e = 0; e < brain_set_n && e < MAX_SET; e++) {
 		const struct set_ent *s = &brain_set[e];
+		if (!in_scope(e, scope))
+			continue;
 		int first = 1;
 		for (u32 f = 0; f < e; f++)
-			if (same_id((const u8 *)brain_set[f].id, brain_set[f].id_len, s->id, s->id_len))
+			if (in_scope(f, scope) && same_id((const u8 *)brain_set[f].id, brain_set[f].id_len, s->id, s->id_len))
 				first = 0;
 		if (!first)
 			continue;
@@ -613,7 +774,7 @@ static int write_settings(void)
 		u8 *v = r + REC_HDR + idsz, *v0 = v;
 		for (u32 f = e; f < brain_set_n && f < MAX_SET; f++) {
 			const struct set_ent *g = &brain_set[f];
-			if (!same_id((const u8 *)g->id, g->id_len, s->id, s->id_len))
+			if (!in_scope(f, scope) || !same_id((const u8 *)g->id, g->id_len, s->id, s->id_len))
 				continue;
 			if (v + 8 > out + BUF_LEN)
 				return 3;
@@ -646,7 +807,7 @@ static int write_settings(void)
 				if (a + sz > plen)
 					break;
 				for (u32 f = 0; f < brain_set_n && f < MAX_SET; f++)
-					known |= brain_set[f].key == key
+					known |= in_scope(f, scope) && brain_set[f].key == key
 						&& same_id((const u8 *)brain_set[f].id, brain_set[f].id_len, s->id, s->id_len);
 				if (!known) {
 					if (v + sz > out + BUF_LEN)
@@ -666,7 +827,54 @@ static int write_settings(void)
 		at += size;
 		kept++;
 	}
-	return write_store(at, kept) < 0 ? 4 : 0;
+	if (project) {
+		/* the project record: one entry per effect in the image */
+		u32 plen = 0;
+		for (u32 i = 0; i < brain_fx_n && i < MAX_FX; i++)
+			plen += 8 + align4(brain_fx[i].id_len);
+		u32 size = REC_HDR + align4(13) + plen;
+		if (at + size > BUF_LEN)
+			return 3;
+		u8 *r = out + at;
+		for (u32 k = 0; k < size; k++)
+			r[k] = 0;
+		r[0] = K_PROJECT;
+		r[1] = 13;
+		put16(r + 2, 1);
+		put32(r + 8, plen);
+		put32(r + 16, size);
+		for (u32 k = 0; k < 13; k++)
+			r[REC_HDR + k] = (u8)OWN_STORE[k];
+		u8 *v = r + REC_HDR + align4(13), *v0 = v;
+		for (u32 i = 0; i < brain_fx_n && i < MAX_FX; i++) {
+			const struct fx_ent *f = &brain_fx[i];
+			v[0] = f->fx_id;
+			v[1] = f->id_len;
+			put32(v + 4, f->layout);
+			for (u32 k = 0; k < f->id_len; k++)
+				v[8 + k] = (u8)f->id[k];
+			v += 8 + align4(f->id_len);
+		}
+		put32(r + 12, crc32(v0, plen));
+		at += size;
+		kept++;
+	}
+	return write_store(w, scope ? 2 : 0, at, kept) < 0 ? 4 : 0;
+}
+
+/* SETTINGS edit: card.work, and the project's brain.work when a PROJECT
+ * setting exists and a project is named. */
+static int write_settings(void)
+{
+	int err = write_set_file(0, 0), proj = 0;
+	for (u32 e = 0; e < brain_set_n && e < MAX_SET; e++)
+		proj |= in_scope(e, 1);
+	if (proj) {
+		int e2 = write_set_file(1, 0);
+		if (!err)
+			err = e2;
+	}
+	return err;
 }
 
 int brain_save_default(u32 t, u32 fx)
@@ -761,7 +969,7 @@ static int write_default(u32 t, u32 fx, int clear)
 	at += size;
 	kept++;
 header:
-	if (write_store(at, kept) < 0) {
+	if (write_card(at, kept) < 0) {
 		err = 4;
 		goto done;
 	}
@@ -785,19 +993,38 @@ done:
 	return -err;
 }
 
-/* SAVE PROJECT (the project store): card.work becomes card.strd, the
- * recovery copy (BRAIN.md section 6.2). A damaged or absent card.work is
- * not copied. */
+/* SAVE PROJECT (the project store), in the engine task: card.work becomes
+ * card.strd, the recovery copy (BRAIN.md section 6.2; a damaged or absent
+ * card.work is not copied); then the project's brain.work is written (its
+ * PROJECT settings and the project record) and becomes brain.strd. */
+enum { PS_SAVES, PS_ERR, PS_STRD, PS_STRD_ERR, PS_N };
+/* PS_ERR: the last write_set_file error (0 none, 2 both files damaged, 3 too
+ * large, 4 write, 5 no project named) */
+u32 brain_proj_counts[PS_N] DATA;
+
 void brain_card_store(void)
 {
 	u32 n = slurp("/BRAIN/card.work");
+	if (n && valid(n)) {
+		buf[8] = 1;				/* file kind: card .strd (outside the CRC) */
+		if (write_file("/BRAIN/card.strd", buf, n) < 0)
+			brain_save_counts[S_STRD_ERR]++;
+		else
+			brain_save_counts[S_STRD]++;
+	}
+	brain_proj_counts[PS_SAVES]++;
+	int err = write_set_file(1, 1);
+	brain_proj_counts[PS_ERR] = (u32)err;
+	if (err)
+		return;
+	n = slurp(pw);
 	if (!n || !valid(n))
 		return;
-	buf[8] = 1;					/* file kind: card .strd (outside the CRC) */
-	if (write_file("/BRAIN/card.strd", buf, n) < 0)
-		brain_save_counts[S_STRD_ERR]++;
+	buf[8] = 3;					/* project .strd */
+	if (write_file(ps, buf, n) < 0)
+		brain_proj_counts[PS_STRD_ERR]++;
 	else
-		brain_save_counts[S_STRD]++;
+		brain_proj_counts[PS_STRD]++;
 }
 
 /* ---- the engine job: SAVE AS DEFAULT off the UI task ----------------------- */
@@ -926,6 +1153,46 @@ void brain_menu_clear(u32 unused)
 		msg[1] = "DEFAULT CLEARED";
 	}
 	POPUP("CLEAR DEFAULT", 2, msg, 0, 0);
+}
+
+/* TOOLS > PROJECT CHECK: what the last load found when it compared the
+ * project's saved record with this image (brain_pcounts). */
+static char pc_line[20];
+static u32 put_s(char *o, const char *s);
+
+static u32 put_num(char *o, u32 v)
+{
+	char d[10];
+	u32 n = 0, k = 0;
+	do
+		d[n++] = (char)('0' + v % 10);
+	while ((v /= 10) && n < 10);
+	while (n)
+		o[k++] = d[--n];
+	return k;
+}
+
+void brain_menu_pcheck(u32 unused)
+{
+	(void)unused;
+	u32 changed = brain_pcounts[PC_MOVED] + brain_pcounts[PC_LAYOUT] + brain_pcounts[PC_GONE];
+	if (brain_pcounts[PC_STATE] == 3) {
+		msg[0] = "BRAIN FILES OF";
+		msg[1] = "THIS PROJECT BAD";
+	} else if (!brain_pcounts[PC_RECORD]) {
+		msg[0] = "NO RECORD OF A";
+		msg[1] = "BRAIN SAVE";
+	} else if (!changed) {
+		msg[0] = "SAVED WITH";
+		msg[1] = "THIS IMAGE";
+	} else {
+		u32 k = put_num(pc_line, changed);
+		k += put_s(pc_line + k, changed == 1 ? " EFFECT CHANGED" : " EFFECTS CHANGED");
+		pc_line[k] = 0;
+		msg[0] = pc_line;
+		msg[1] = "SINCE THE SAVE";
+	}
+	POPUP("PROJECT CHECK", 2, msg, 0, 0);
 }
 
 /* ---- the debug log: MIDI messages and what the firmware did with them ------ */
@@ -1083,7 +1350,7 @@ void brain_open_tools(u32 unused)
 {
 	(void)unused;
 	brain_from = 3;
-	show(brain_tool_rows, 2, 1);
+	show(brain_tool_rows, 3, 1);
 }
 
 /* SETTINGS: the back row, then per module a heading (its key, no action)
@@ -1406,7 +1673,7 @@ static int write_template(int del, u32 t, u32 fx, u32 e, u32 i)
 		at += size;
 		kept++;
 	}
-	if (write_store(at, kept) < 0)
+	if (write_card(at, kept) < 0)
 		return 4;
 	n = current_store();
 	cache_templates(n > 0);
