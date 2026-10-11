@@ -115,10 +115,11 @@ def shard_ok(path):
     return f"worktree {path.resolve()}" in r.stdout.splitlines()
 
 
-def make_shard(path, log, fresh=False):
+def make_shard(path, log, fresh=False, port=True):
     """A detached worktree of HEAD with this tree's uncommitted changes, the
     shared toolchain links, the stock slice, its submodules and the port
-    from the store -- created, or refreshed when one is already there."""
+    from the store (`port=False`: none) -- created, or refreshed when one is
+    already there."""
     keep = shard_ok(path) and not fresh
     if not keep:
         remove_shard(path)
@@ -152,9 +153,11 @@ def make_shard(path, log, fresh=False):
     # The port from the store (tools/emu/port_store.py): built once per
     # source state for every worktree and shard, copied in (until 12 Oct
     # 2026 each new shard ran its own cmake build, ~40 s each).
-    cmds = [["git", "submodule", "update", "--init"],
-            [sys.executable, "tools/emu/port_store.py", "install"],
-            ["./out/emu/ot_emu", "--image", "out/raw/section_3_MAIN_OS.bin"]]
+    # port=False: a tree that only builds images (refhash's scratch trees)
+    cmds = [["git", "submodule", "update", "--init"]]
+    if port:
+        cmds += [[sys.executable, "tools/emu/port_store.py", "install"],
+                 ["./out/emu/ot_emu", "--image", "out/raw/section_3_MAIN_OS.bin"]]
     with log.open("w") as f:
         f.write(f"# {'refreshed' if keep else 'created'} {path}\n")
         for cmd in cmds:

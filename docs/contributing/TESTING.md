@@ -571,7 +571,10 @@ A new module's gates, `dear` and behavioral tests belong in that same PR.
   slice, `dsp_asm`/`dsp_host` and the assembler version; the newest eight
   kept) and `check` copies it in: 137 s for the first check after a main
   merge (save plus check), 56 s for every later one (12 Oct 2026; before,
-  every session ran its own save). `save` is a local baseline for
+  every session ran its own save). The 24 builds run over `REFHASH_JOBS`
+  trees (default 4: this one and three kept scratch worktrees,
+  `tools/verify/refhash_run.py`): 22 s, 40 s when the scratch trees are
+  created. `save` stays sequential. `save` is a local baseline for
   `REFHASH_LOCAL=1 scripts/refhash.sh check`. A path in the report is part
   of the report. Three cases (`probe`, `xprobe`, `tprobe`: the probes in a plain
   layout, where the real delay overruns the region) refuse to build and the
