@@ -239,6 +239,11 @@ Not yet.
 
 - The project pair, the project record, the CS1 block (BRAIN.md
   section 12).
+- LOAD TEMPLATE writes the current bank's Part through the stock writers
+  (✅ under the port, the Part bytes). The live lane, what the DSP plays,
+  follows when that bank is the one playing (the page-1 writer updates the
+  lane only then); the port's fixture plays another bank than the UI
+  shows, so the sound after a LOAD is a hardware-round item.
 - `--step call` runs as main under the port, where file I/O does not
   return (an unimplemented opcode at `0x4003b108`); the gate posts the job
   instead. The menu rows post from the UI task (measured under the port).

@@ -475,72 +475,84 @@ def main():
     check(f"settings: YES on SETTINGS > MIDI LOG writes one settings record, MIDI LOG off, DEFAULTS on, "
           f"the unknown key kept  {got}", got == {1: 0, 2: 1, 99: 1})
 
-    # ---- templates: the page shortcut saves, a knob moves, a template loads -
-    # T1's FX1 page; hold FX1 + FUNC: the shortcut popup; SAVE TEMPLATE; knob
-    # A's Part byte set to 42; the shortcut again, LOAD TEMPLATE, the first: the page is
-    # back at the saved values, and card.work holds one template record of
-    # the effect with them.
+    # ---- templates: SAVE from the shortcut; LOAD of a seeded template -------
+    # Run 1: T1's FX1 page; hold FX1 + FUNC (the shortcut), SAVE TEMPLATE:
+    # card.work holds one template record of the effect, equal to the page.
+    # Run 2: card.work seeded with TPL 99 for the same effect, each value the
+    # page's + 1 inside its count (so every keyed slot differs from the page);
+    # the shortcut, LOAD TEMPLATE, the first name: the page takes TPL 99.
     def tap(code, t, gap=500):
         return [f"{t} key {code:#x} down", f"{t + 30} key {code:#x} up"], t + gap
     def shortcut(t):
         return [f"{t} key 0x25 down", f"{t + 200} key 0x2d down", f"{t + 230} key 0x2d up",
                 f"{t + 500} key 0x25 up"], t + 900
-    lines, tt = [], 1500
-    for c in (0x32, 0x10, 0x25):
-        l, tt = tap(c, tt); lines += l
-    l, tt = shortcut(tt); lines += l
-    for c in (0x20, 0x20, 0x31, 0x31):              # SAVE TEMPLATE, then OK on the popup
-        l, tt = tap(c, tt, 800); lines += l
-    # knob A's Part byte moved (the port does not turn an FX page's knob
-    # from an encoder event; PANEL.md has knob A on a SRC page)
-    # (bank 1 part 1's T1 FX1 page-1 slot 0: 0x400e21e0 + 0x8eea6; the lane
-    # is rebuilt from the Part every frame)
-    lines.append(f"{tt} poke {0x400e21e0 + 0x8eea6:#x}=0x2a"); tt += 800
-    lines.append(f"{tt} poke-note"); tt += 10
-    l, tt = shortcut(tt); lines += l
-    for c in (0x20, 0x20, 0x20, 0x31, 0x31):        # LOAD TEMPLATE, the first name
-        l, tt = tap(c, tt, 800); lines += l
-    cut = lines.index(next(x for x in lines if "poke-note" in x))
-    moved_lines = lines[:cut] + [f"{tt + 2000} quit"]
-    lines = [x for x in lines if "poke-note" not in x] + [f"{tt + 2000} quit"]
-    tc, tafter, tlog, tlanes = OUT / "tpl.img", OUT / "tpl_after.img", OUT / "tpl.txt", OUT / "tpl_lanes.bin"
-    r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
-                        "--tree", str(OUT / "tree_tpl"), "--out", str(tc)], cwd=ROOT, capture_output=True, text=True)
-    if r.returncode:
-        sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
-    (OUT / "tpl.script").write_text("\n".join(lines) + "\n")
-    cmd = [EMU, "--image", image, "--card", tc, "--set", a.set_name, "--project", a.name, "--load-ms", "90000",
-           "--mkii", "--live-script", OUT / "tpl.script", "--card-out", tafter, "--step", f"-:dump:{LANES:#x},144={tlanes}"]
-    with open(tlog, "w") as fh:
-        r = subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
-    if r.returncode or "ended on quit" not in tlog.read_text():
-        sys.exit(f"verify_brain: the template run did not finish -- {tlog}")
-    files = emu_card.extract_image(tafter.read_bytes())
-    mw = next((v for k, v in files.items() if k.upper().endswith("BRAIN/CARD.WORK")), None)
-    trecs = [r for r in brainfile.parse(mw).records if r.kind == brainfile.TEMPLATE_REC] if mw else []
-    lane = tlanes.read_bytes()
-    page = lane[0x12:0x18] + lane[0x32:0x38]                 # T1's FX1 page 1, page 2
+    def tpl_run(tag, picks, seed=None, part_at=None):
+        lines, tt = [], 1500
+        for c in (0x32, 0x10, 0x25):
+            l, tt = tap(c, tt); lines += l
+        l, tt = shortcut(tt); lines += l
+        for c in picks:
+            l, tt = tap(c, tt, 800); lines += l
+        lines.append(f"{tt + 2000} quit")
+        tc, tafter, tlog, tl = (OUT / f"{tag}.img", OUT / f"{tag}_after.img", OUT / f"{tag}.txt",
+                                OUT / f"{tag}_lanes.bin")
+        roots = []
+        if seed is not None:
+            (OUT / f"{tag}_seed.work").write_bytes(seed)
+            roots = ["--root-file", f"{OUT / f'{tag}_seed.work'}:BRAIN/card.work"]
+        r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
+                            "--tree", str(OUT / f"tree_{tag}"), "--out", str(tc), *roots],
+                           cwd=ROOT, capture_output=True, text=True)
+        if r.returncode:
+            sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
+        (OUT / f"{tag}.script").write_text("\n".join(lines) + "\n")
+        # the current bank's pointer and Part index, and (part_at given) T1's
+        # FX1 page 1 and page 2 in that Part: what LOAD writes. The live lane
+        # is not read: under the port the playing bank is not the bank the UI
+        # shows, and the stock writer updates the lane only when they match
+        # (AGENTS.md "the part the emulated load applies is not the part that
+        # plays").
+        tdb = OUT / f"{tag}_db.bin"
+        dumps = [f"0x46c82456,4={tdb}", f"0x80000003,1={OUT / f'{tag}_part.bin'}"]
+        if part_at is not None:
+            dumps += [f"{part_at + 0x8eea6:#x},6={OUT / f'{tag}_p1.bin'}", f"{part_at + 0x8f07e:#x},6={OUT / f'{tag}_p2.bin'}"]
+        cmd = [EMU, "--image", image, "--card", tc, "--set", a.set_name, "--project", a.name, "--load-ms", "90000",
+               "--mkii", "--live-script", OUT / f"{tag}.script", "--card-out", tafter,
+               "--step", f"-:dump:{LANES:#x},144={tl}", "--mem-dump", ";".join(dumps)]
+        with open(tlog, "w") as fh:
+            r = subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
+        if r.returncode or "ended on quit" not in tlog.read_text():
+            sys.exit(f"verify_brain: the {tag} run did not finish -- {tlog}")
+        lane = tl.read_bytes()
+        files = emu_card.extract_image(tafter.read_bytes())
+        work = next((v for k, v in files.items() if k.upper().endswith("BRAIN/CARD.WORK")), None)
+        db = int.from_bytes(tdb.read_bytes(), "big") + (OUT / f"{tag}_part.bin").read_bytes()[0] * 6322
+        partpage = ((OUT / f"{tag}_p1.bin").read_bytes() + (OUT / f"{tag}_p2.bin").read_bytes()
+                    if part_at is not None else b"")
+        return lane[0x12:0x18] + lane[0x32:0x38], work, db, partpage   # T1's FX1 page 1, page 2
+
     ch = mods["CHARACTER"]
+    keys = brain.fx_keys(ch)
+    page, mw, part_at, _ = tpl_run("tpl_save", (0x20, 0x20, 0x31, 0x31))   # SAVE TEMPLATE, then OK
+    trecs = [r for r in brainfile.parse(mw).records if r.kind == brainfile.TEMPLATE_REC] if mw else []
     got = {v.key: v.data[0] for v in trecs[0].values()} if len(trecs) == 1 else {}
-    saved = {k: page[i] for i, k in enumerate(brain.fx_keys(ch)) if k}
-    check(f"templates: SAVE TEMPLATE from the shortcut writes one template record "
-          f"({len(trecs)}, name {trecs[0].name() if trecs else None!r})",
-          len(trecs) == 1 and trecs[0].store_id == brain.fx_store_id(ch) and trecs[0].name().startswith("TPL 01"))
-    # the same keys up to the turn: the page has moved from the saved values
-    (OUT / "tpl_moved.script").write_text("\n".join(moved_lines) + "\n")
-    mlanes2 = OUT / "tpl_moved_lanes.bin"
-    shutil.copy2(tc, OUT / "tpl_moved.img")
-    cmd = [EMU, "--image", image, "--card", OUT / "tpl_moved.img", "--set", a.set_name, "--project", a.name,
-           "--load-ms", "90000", "--mkii", "--live-script", OUT / "tpl_moved.script",
-           "--step", f"-:dump:{LANES:#x},144={mlanes2}"]
-    with open(OUT / "tpl_moved.txt", "w") as fh:
-        subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
-    ml = mlanes2.read_bytes() if mlanes2.exists() else b""
-    mpage = ml[0x12:0x18] + ml[0x32:0x38] if len(ml) >= 0x38 else b""
-    moved = {k: mpage[i] for i, k in enumerate(brain.fx_keys(ch)) if k} if mpage else {}
-    check(f"templates: knob A at 42 in the lane before the load  {mpage.hex(' ')}", bool(moved) and mpage[0] == 0x2a)
-    check(f"templates: after knob A moved, LOAD TEMPLATE puts T1's FX1 page back at the saved values  "
-          f"page {page.hex(' ')}  record {got}", bool(got) and got == saved)
+    check(f"templates: SAVE TEMPLATE from the shortcut writes one template record of the page "
+          f"({len(trecs)}, name {trecs[0].name() if trecs else None!r})  {got}",
+          len(trecs) == 1 and trecs[0].store_id == brain.fx_store_id(ch) and trecs[0].name().startswith("TPL 01")
+          and got == {k: page[i] for i, k in enumerate(keys) if k})
+    P = struct.unpack(">I", rd(FX1_TABLE + 4 * ch.menu.fx2_id, 4))[0]
+    mins, cnts = struct.unpack(">12i", rd(P + 0x6a, 48)), struct.unpack(">12i", rd(P + 0x9a, 48))
+    seedv = [mins[i] + (page[i] - mins[i] + 1) % cnts[i] if cnts[i] > 1 else page[i] for i in range(12)]
+    vals = b"".join(brainfile.Value(k, brainfile.BYTE, bytes([seedv[i]])).encode() for i, k in enumerate(keys) if k)
+    seed = brainfile.File(brainfile.CARD_WORK, [brainfile.Record(brainfile.TEMPLATE_REC, brain.fx_store_id(ch),
+        payload=brainfile.prefix_bytes(brainfile.TEMPLATE_REC, layout=brain.fx_layout(ch), name="TPL 99") + vals)]).encode()
+    want = bytes(seedv)
+    moves = [i for i, k in enumerate(keys) if k and want[i] != page[i]]
+    _, _, _, lpage = tpl_run("tpl_load", (0x20, 0x20, 0x20, 0x31, 0x31), seed, part_at)  # LOAD TEMPLATE, TPL 99
+    check(f"templates: LOAD TEMPLATE of a seeded TPL 99 writes its values into T1's FX1 page in the current "
+          f"Part ({len(moves)} keyed slots differ from the page before)  {lpage.hex(' ')}  (expected "
+          f"{want.hex(' ')}, unkeyed slots not compared)",
+          len(moves) >= 1 and len(lpage) == 12 and all(lpage[i] == want[i] for i, k in enumerate(keys) if k))
 
     # ---- boot screen: the OS's boot animation draws bootart.py -------------
     snapf_at = symbol("brain_boot_snapf")
