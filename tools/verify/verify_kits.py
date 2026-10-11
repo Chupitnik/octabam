@@ -644,6 +644,11 @@ def main():
             time.sleep(1)
         time.sleep(1)
 
+    for tag in scripts:       # a leftover of an earlier run would read as complete: clear what complete() looks for
+        for f in LASTDUMP[tag][::2]:
+            if f:
+                pathlib.Path(f).unlink(missing_ok=True)
+
     def defer(name, tags, fn):
         if all(t in scripts for t in tags):
             bg[name] = bgpool.submit(lambda: (*map(complete, tags), fn())[-1])
