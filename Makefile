@@ -352,7 +352,9 @@ verify-bus: ## Prove a bus-layout change is behaviour-preserving. STAMP FIRST: m
 	@#   make verify-bus            <- every case bit-identical (the tool prints the count)
 	@# Needs the DEV hatch: the gate's whole point is exercising layouts that
 	@# carry BOTH servers, and only the hatch has a real delay in payload A.
-	DEV=1 XBUS=1 python3 tools/build/build_bus.py >/dev/null
+	@# Remix `bus` always: both servers, neither locked (a rig remix's locked
+	@# servers render every layout that moves them dry).
+	REMIX=bus DEV=1 XBUS=1 python3 tools/build/build_bus.py >/dev/null
 	python3 tools/verify/verify_bus.py $(if $(SAVE),--save) $(if $(SELFTEST),--selftest)
 
 .PHONY: burn

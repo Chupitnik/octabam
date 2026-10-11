@@ -122,7 +122,7 @@ sys.path.insert(0, str(ROOT / "tools/verify"))
 import slots  # noqa: E402
 
 # One command per gate; the order is the order they run in.
-ORDER = ("verify_docs", "selftest", "test-acceptance", "ci-dsp", "ci-emu", "emu-cf", "emu-get", "refhash", "identity", "check-shared", "check", "check-remix", "accept", "ci")
+ORDER = ("verify_docs", "selftest", "test-acceptance", "ci-dsp", "ci-emu", "emu-cf", "emu-get", "refhash", "verify-bus", "identity", "check-shared", "check", "check-remix", "accept", "ci")
 
 # The build: a change here is every remix, both halves, and refhash proves
 # the artifacts identical. dsp/ holds the sources build_bus assembles.
@@ -132,6 +132,16 @@ BUILD_ROOTS = ("tools/build/build_bus.py", "tools/build/cycle_count.py")
 ACCEPTANCE = ("tools/verify/acceptance.py", "tools/verify/module_gates.py",
               "tools/harness/stress_project.py", "tools/harness/pressure.py")
 CLASSIFIER = ("tools/verify/reach.py",)
+# The bus's bit-identity gate, and the remix whose modules reach it.
+BUS_GATE = "tools/verify/verify_bus.py"
+BUS_REMIX = "bus"
+
+
+def bus_modules():
+    """The module keys of remix `bus` (the gate's subject)."""
+    sys.path.insert(0, str(ROOT / "tools"))
+    from remix import registry
+    return set(registry.remix(BUS_REMIX).modules)
 # QUICK runs every command at nice 10: the performance cores, below the
 # desktop; the shards are the gate slots free at the start, so the run takes
 # part of the machine, not all of it.
@@ -193,6 +203,11 @@ CMD = {
     # one layout, this pins the 27 remixes: together they replace "every
     # remix" for a build change.
     "identity": ("identity", "python3 tools/verify/image_identity.py --base ${BASE}"),
+    # The bus's audio bit-identity: the DEV hatch of remix `bus` built from
+    # the merge-base and from this tree, every case rendered on both
+    # (tools/verify/verify_bus.py). A change to the build, the DSP
+    # toolchain, a module of `bus` or the gate itself reaches it.
+    "verify-bus": ("verify-bus", "python3 tools/verify/verify_bus.py --base ${BASE}"),
     "ci": ("ci", "make ci"),
 }
 
@@ -473,8 +488,9 @@ class Context:
         if self.quick:
             # QUICK: refhash pins the build's flag matrix; `make identity`
             # (every remix built twice) is FULL=1's
-            return [CMD["refhash"], CMD["test-acceptance"], cmd_check_shared(self.floor)]
-        return [CMD["refhash"], self.identity(), CMD["test-acceptance"], cmd_check_shared(self.floor)]
+            return [CMD["refhash"], CMD["verify-bus"], CMD["test-acceptance"], cmd_check_shared(self.floor)]
+        return [CMD["refhash"], CMD["verify-bus"], self.identity(), CMD["test-acceptance"],
+                cmd_check_shared(self.floor)]
 
     def dependents(self, path):
         """Every file that depends on `path`, transitively."""
@@ -561,7 +577,7 @@ def route_tool(path, ctx):
     if path.startswith("tools/emu/ot_emu/"):
         return [CMD["ci-emu"], CMD["emu-cf"]] + ctx.every_remix(), f"the ColdFire port: the per-remix half of {ctx.floor_note()} (the set gates need OT_PROJECT)"
     if path.startswith(("tools/harness/dsp_host/", "tools/patches/")) or path in ("scripts/setup.sh", "scripts/vendor.sh"):
-        return [CMD["ci-dsp"]] + ctx.every(), f"the DSP toolchain: rebuild it first (scripts/setup.sh; a dsp_host change in an isolated tree, AGENTS.md); {ctx.floor_note()}"
+        return [CMD["ci-dsp"], CMD["verify-bus"]] + ctx.every(), f"the DSP toolchain: rebuild it first (scripts/setup.sh; a dsp_host change in an isolated tree, AGENTS.md); {ctx.floor_note()}"
     if path == "scripts/refhash.sh":
         return [CMD["refhash"]], ""
     users = ctx.dependents(path) | {path}
@@ -573,6 +589,9 @@ def route_tool(path, ctx):
         notes.append(f"the acceptance machinery depends on it: {ctx.floor_note()}")
     if users & set(CLASSIFIER):
         gates.append(CMD["test-acceptance"])
+    if BUS_GATE in users:
+        gates.append(CMD["verify-bus"])
+        notes.append("the bus's bit-identity gate depends on it")
     if users & ctx.shared_scripts:
         # once; REMIXES only picks the module union for the isolated gates,
         # and the floor's union is every module
@@ -745,6 +764,9 @@ def classify(paths, ctx):
                 else:
                     note = f"{key}: no remix carries it (the selftest refuses this)"
                     gates = [CMD["selftest"]]
+                if key in bus_modules():
+                    gates = gates + [CMD["verify-bus"]]
+                    note += "; a module of remix bus: the bus's bit-identity gate"
             elif not ctx.exists(f"modules/{d}"):
                 # A removed (or renamed) module: the registry no longer knows
                 # it, and the remixes that carried it changed their remix.py

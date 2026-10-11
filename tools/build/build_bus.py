@@ -682,7 +682,21 @@ def assemble(src_text, org, label=""):
     return words, syms["init"], syms["proc"]
 
 
+def _tree_lock():
+    """One build at a time in this tree: every build writes the same
+    out/platform (the runtime link and its symbol table) and
+    out/mainos_bus.bin, so a second build started beside it would read the
+    first one's half-written files. The lock makes it wait. Held until the
+    process exits; a build in another worktree has its own."""
+    import fcntl
+    pathlib.Path("out").mkdir(exist_ok=True)
+    f = open("out/.build.lock", "w")
+    fcntl.flock(f, fcntl.LOCK_EX)
+    return f
+
+
 def main():
+    _lock = _tree_lock()  # noqa: F841 (held for the process's life)
     _p = os.environ.get("DELAYPROBE", "")
     probe = {"1": "silence", "silence": "silence", "send": "send",
              "stock": "stock"}.get(_p)
