@@ -174,6 +174,11 @@ panel-app: ## Build the panel's macOS app (out/Virtual Panel.app; File > Open Fi
 	bash tools/panel/app/build.sh
 
 .PHONY: emu-cf
+emu-get: ## The ColdFire port for this tree's sources from the shared store (tools/emu/port_store.py): built once per source state for every worktree, copied into out/emu
+	$(PY) tools/emu/port_store.py install
+	./out/emu/ot_emu --image $(if $(IMAGE),$(IMAGE),out/raw/section_3_MAIN_OS.bin) >/dev/null
+
+.PHONY: emu-get
 emu-cf: ## Build and run the headless ColdFire machine (tools/emu/ot_emu) -- boots to the RTOS handoff
 	@# --fresh: a cache configured from another source path makes cmake
 	@# refuse rather than rebuild.

@@ -12,19 +12,20 @@ read out/, so one tree runs one remix at a time; PR #486's 25-remix table
 was three worktrees driven by hand. This makes N detached worktrees of HEAD
 plus the tree's uncommitted changes under out/shards/<i>, each with the
 shared vendor/ and .venv/ links, the stock slice, its submodules and its
-OWN port build (out/emu is never shared between trees: AGENTS.md; built
-for the machine's own architecture, host_arch(), whatever python3 runs
-this), then
+own copy of the port (out/emu is never linked between trees: AGENTS.md;
+since 12 Oct 2026 the binaries come from tools/emu/port_store.py, built
+once per source state for the machine's own architecture, host_arch(),
+and copied in), then
 hands the remixes out from one queue as shards come free, so the dear ones
 (bottleservice, rig-kits) do not decide the wall time. Logs land in
 out/check_shards/<remix>.log; one table at the end; exit 1 when a remix
 failed. The shards are KEPT between runs (since 28 Sep 2026): a run finds
 out/shards/<i> in place and refreshes it -- `git checkout --detach` to this
 tree's HEAD plus its uncommitted diff, `git submodule update`, the shard's
-out/ wiped except emu/ and raw/, and the port rebuilt on its existing
-CMake cache (nothing recompiles unless tools/emu changed) -- which turns
-~220 s of setup (four worktrees, four `cmake --fresh` builds) into a few
-seconds. `--fresh` rebuilds them from nothing; `--rm` removes them after.
+out/ wiped except emu/ and raw/, and the port copied from the store --
+which turns ~220 s of setup (four worktrees, four `cmake --fresh` builds)
+into a few seconds; a new shard costs the copy, not a build (12 Oct 2026:
+three new shards took 125 s). `--fresh` rebuilds them from nothing; `--rm` removes them after.
 
 THE LONG POLE IS SPLIT (29 Sep 2026). A remix whose half would set the
 wall time runs as its gate jobs (as `--by-gate` below) in the same queue as
@@ -112,8 +113,8 @@ def shard_ok(path):
 
 def make_shard(path, log, fresh=False):
     """A detached worktree of HEAD with this tree's uncommitted changes, the
-    shared toolchain links, the stock slice, its submodules and its own
-    port build -- created, or refreshed when one is already there."""
+    shared toolchain links, the stock slice, its submodules and the port
+    from the store -- created, or refreshed when one is already there."""
     keep = shard_ok(path) and not fresh
     if not keep:
         remove_shard(path)
@@ -144,15 +145,11 @@ def make_shard(path, log, fresh=False):
                 shutil.rmtree(child, ignore_errors=True) if child.is_dir() else child.unlink()
     (out / "raw").mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / "out/raw/section_3_MAIN_OS.bin", out / "raw/section_3_MAIN_OS.bin")
-    arch = host_arch()
+    # The port from the store (tools/emu/port_store.py): built once per
+    # source state for every worktree and shard, copied in (until 12 Oct
+    # 2026 each new shard ran its own cmake build, ~40 s each).
     cmds = [["git", "submodule", "update", "--init"],
-            # `make emu-cf` configures with --fresh (a cache from another
-            # source path makes cmake refuse); a kept shard's cache names
-            # its own, fixed path, so configure in place and let the build
-            # recompile only what changed under tools/emu.
-            ["cmake"] + ([] if keep else ["--fresh"]) + ["-B", "out/emu", "-S", "tools/emu/ot_emu",
-                                                         f"-DCMAKE_OSX_ARCHITECTURES={arch}"],
-            ["cmake", "--build", "out/emu", "-j8"],
+            [sys.executable, "tools/emu/port_store.py", "install"],
             ["./out/emu/ot_emu", "--image", "out/raw/section_3_MAIN_OS.bin"]]
     with log.open("w") as f:
         f.write(f"# {'refreshed' if keep else 'created'} {path}\n")

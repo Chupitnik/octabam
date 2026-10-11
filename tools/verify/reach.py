@@ -122,7 +122,7 @@ sys.path.insert(0, str(ROOT / "tools/verify"))
 import slots  # noqa: E402
 
 # One command per gate; the order is the order they run in.
-ORDER = ("verify_docs", "selftest", "test-acceptance", "ci-dsp", "ci-emu", "emu-cf", "refhash", "identity", "check-shared", "check", "check-remix", "accept", "ci")
+ORDER = ("verify_docs", "selftest", "test-acceptance", "ci-dsp", "ci-emu", "emu-cf", "emu-get", "refhash", "identity", "check-shared", "check", "check-remix", "accept", "ci")
 
 # The build: a change here is every remix, both halves, and refhash proves
 # the artifacts identical. dsp/ holds the sources build_bus assembles.
@@ -186,6 +186,7 @@ CMD = {
     "ci-dsp": ("ci-dsp", "make ci-dsp"),
     "ci-emu": ("ci-emu", "make ci-emu"),
     "emu-cf": ("emu-cf", "make emu-cf"),
+    "emu-get": ("emu-get", "make emu-get"),
     "refhash": ("refhash", "scripts/refhash.sh check"),
     # Names the remixes whose IMAGE the change moved; --run then checks
     # those (dry mode says so). scripts/refhash.sh pins the build FLAGS of
@@ -1023,8 +1024,8 @@ def main(argv=None):
     results = []
     queue = list(items)
     if any(k in PORT_KINDS for k, _, _ in queue) and not any(k == "emu-cf" for k, _, _ in queue) and port_is_stale():
-        print("reach: out/emu/ot_emu is missing or older than tools/emu/ot_emu: building the port first")
-        queue.insert(0, ("emu-cf", CMD["emu-cf"][1], ["tools/emu/ot_emu"]))
+        print("reach: out/emu/ot_emu is missing or older than tools/emu/ot_emu: the port from the store first")
+        queue.insert(0, ("emu-get", CMD["emu-get"][1], ["tools/emu/ot_emu"]))
     while queue:
         kind, command, _ = queue.pop(0)
         cmd = command.replace("${STRESS_SOURCE}", stress or "").replace("${BASE}", a.base)
