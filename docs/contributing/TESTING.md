@@ -65,7 +65,7 @@ on which remix is selected, so a run over several remixes does it once:
 | `brain.py check` | no two modules share a store id; every module with a `Store` or a keyed `Param` has a current `brain.lock` and breaks no released key; every remix's `settings` names a selected setting and a value inside its bounds, a module that `requires_brain` has the core, early settings fit the remix's free CS1 run (`docs/proposals/BRAIN.md` section 4.3) |
 | `verify_remixer` (`Makefile` verify-shared) | the remixer (`make remix`) opens and draws headless under Textual's test pilot for stock and every remix (three panes, cursor in each); `k` moves the cursor up in AVAILABLE and `K` resets to stock. SKIPs without textual |
 | `tools/build/label_fmt.py` | the select formatter caves re-derive from their sources (with `m68k-elf-as` on PATH) |
-| `verify_knob_clicks` | the knob census: every continuous knob of the fixture remix's DSP modules moved mid-render, the block-rate step in dBFS; a garbage start stays quiet |
+| `verify_knob_clicks` | the knob census: every continuous knob of the fixture remix's DSP modules moved mid-render, the block-rate step in dBFS; a garbage start stays quiet. `make check-shared` runs it for the changed DSP modules only (`MODULES=`) and, with no module named (a build or tool change), `--sample`: two knobs per module and mode and the whole garbage start (19 s against 49 s, 12 Oct 2026). `make verify-knobs` is the full census |
 | `module_gates.py --shared` | every manifest gate declared `remix_arg=False` by a module in the selection, once for the union; every `once=True` gate, once, on the named remix with the fewest modules that carries its module |
 
 **The per-remix half** (`make check-remix REMIX=<name>`), in recipe order:
