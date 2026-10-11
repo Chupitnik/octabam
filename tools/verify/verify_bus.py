@@ -33,7 +33,13 @@ voicing change to either engine fails it. Stamp, edit, compare, let the
 reference go stale; it lives under out/ (gitignored).
 
 The sensitivity nudge is the SEND level, the one knob every case carries
-(a nudge on a delay knob leaves the seven reverb-only cases blind).
+(a nudge on a delay knob leaves the seven reverb-only cases blind). The
+second injected defect is a SEND at position 0 that registers on the bus
+and sends silence, the defect class the bus is prone to (AGENTS.md "a bus
+client that registers but contributes nothing"). Until 12 Oct 2026 it was
+an extra SEND carrying the same tone as the others, which 11 cases could
+not show: the auto-gain divides N identical sends by N, so the bus sum is
+the same (measured: SSR and SSRS hash alike).
 """
 import argparse
 import hashlib
@@ -212,13 +218,20 @@ BASE = dict(dur=0.12, tail=0.25, amp=0.5, level=100, dlevel=100,
             mix=127, dtime=20, dfdbk=70, din=40, dmix=127, raux=0)
 
 
-def render(mem, case, bump_level=0, extra_send=""):
+def render(mem, case, bump_level=0, extra_send="", silent_send=False):
     kw = dict(BASE)
     kw.update(case)
     kw["level"] = kw["level"] + bump_level
     kw["dlevel"] = kw["dlevel"] + bump_level
     if extra_send:
         kw["layout"] = extra_send + kw["layout"]
+    if silent_send:
+        # a SEND at position 0 that registers on the bus and sends silence:
+        # the defect class this gate exists for (AGENTS.md "a bus client that
+        # registers but contributes nothing"). An extra SEND carrying the same
+        # tone as the others is invisible by design -- the auto-gain divides N
+        # identical sends by N -- so the selftest injects this one instead.
+        kw["layout"] = "S" + kw["layout"]
 
     # Slots come from the manifests (the harness-knob-drift rule): the KEYS
     # keep their historical flag names, the indices follow the knob map.
@@ -246,7 +259,8 @@ def render(mem, case, bump_level=0, extra_send=""):
                           verbose=False, amp=kw["amp"], direct=False,
                           wave_src=None, split=kw.get("split", 0),
                           layout=kw["layout"], delay_params=dpar,
-                          pick=kw.get("pick"), inall=kw.get("inall", False))
+                          pick=kw.get("pick"), inall=kw.get("inall", False),
+                          mute=(0,) if silent_send else ())
     h = hashlib.sha256()
     for v in L:
         h.update(v.to_bytes(4, "little", signed=True))
@@ -374,7 +388,8 @@ def main():
         print("\n  SELFTEST -- both perturbations MUST fail:")
         ok = True
         for label, kw in (("knob nudge (send level +1)", dict(bump_level=1)),
-                          ("one extra SEND on the bus", dict(extra_send="S"))):
+                          ("a silent SEND client at position 0 (registers, sends nothing)",
+                           dict(silent_send=True))):
             per = collect(mem, **kw)
             same = [k for k in ref if k in per and per[k]["sha"] == ref[k]["sha"]]
             if same:

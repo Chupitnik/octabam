@@ -49,6 +49,15 @@ pattern content beyond pattern 1 playing.
   save      FUNC+PART, DOWN DOWN, YES, YES (the name editor): the Kit
             two rows down is the current Part, named.
   quick     FUNC+PART, DOWN, FUNC+YES: saved at once.
+  newproj   PROJECT > CHANGE > <CREATE EMPTY PROJECT> on the panel; on
+            patterns 2 and 3 knob A turned and SAVE KIT (two and three rows
+            down); playing, PTN 2, PTN 3: each pattern's slot holds its Kit,
+            the engine plays pattern 3's.
+  newsave   the same project, SAVE PROJECT: every bank file the size of the
+            gate project's, with its checksum; a cold boot of that card
+            (newboot) loads it with no bank file refused in the firmware's
+            LOG, the Kits and assignments as saved, and PTN 2 playing
+            stages Kit 3.
   saveproj  LOAD KIT, SAVE PROJECT: kits.work and kits.strd on the card
             with the change; a second boot of that card reads it; a power
             cycle (`--cs1-in`, `--no-post`) of the same card too, and of a
@@ -146,6 +155,7 @@ STATE = ("READY KDIRTY NOWRITE PENDING ISR NOSLOT INVALID IOERR BADFILE "
 K = dict(no=0x32, yes=0x31, play=0x28, stop=0x27, ptn=0x2e, func=0x2d, part=0x1d,
          up=0x33, down=0x20, right=0x21, mixer=0x30, rec=0x29)
 BANK = 2                                  # bank 3: the project's own
+NEWKNOB = (5, 11)                         # knob A turns on patterns 2 and 3 of the panel-made project
 MKI = dict(midi=0x35, bank=0x2f, recab=0x2b)   # held with FUNC on the MKI panel
 MENU = 0x460e5e28                         # the stock list: callbacks, labels, object, &selection
 PSET, TEXTED = 0x460fab34, 0x460e7612     # PATTERN SETTINGS' window, the text editor (nonzero: open)
@@ -530,6 +540,28 @@ def main():
     add("unsaved", s, extra=["--card-out", OUT / "unsaved.img"],
         more_dumps=f";{CS1:#x},{CS1_LEN:#x}={OUT / 'cs1_unsaved.bin'}")
 
+    # ---- a project made on the panel ------------------------------------------
+    # PROJECT > CHANGE > <CREATE EMPTY PROJECT>, its name confirmed (the keys
+    # verify_brain's pset_new uses); pattern 2: knob A +NEWKNOB[0], SAVE KIT two
+    # rows down; pattern 3: knob A +NEWKNOB[1], SAVE KIT three rows down.
+    def newproj(s):
+        s.tap("no"); s.tap(0x1c, 1000); s.tap("yes", 1000); s.tap("yes", 1000); s.tap("up", 600)
+        s.tap("yes", 1400); s.tap("yes", 13000)
+        for p_, rows, d in ((1, 2, NEWKNOB[0]), (2, 3, NEWKNOB[1])):
+            s.hold("ptn", p_, gap=1500); s.send(f"enc 0 {d}", 600)
+            s.hold("func", "part", gap=800)
+            for _ in range(rows):
+                s.tap("down", 200)
+            s.tap("yes", 1200); s.tap("yes", 1500)
+    newb = f";{BLOB:#x},{BSTRIDE:#x}={OUT / 'NAME_b1.bin'}"
+    s = Script(); newproj(s); s.tap("play", 2000)
+    for p_ in (1, 2):
+        s.hold("ptn", p_); s.wait(17000)
+    add("newproj", s, more_dumps=newb.replace("NAME", "newproj"))
+    s = Script(); newproj(s)
+    s.tap(0x1c, 1000); s.tap("right", 700); s.tap("down", 500); s.tap("yes", 1100); s.tap("yes", 30000)  # SAVE PROJECT
+    add("newsave", s, extra=["--card-out", OUT / "newsave.img"], more_dumps=newb.replace("NAME", "newsave"))
+
     # ---- the MKI panel: FUNC+BANK (its own load: the panel is chosen at boot) --
     def ui(tag):
         return (f";{MENU:#x},36={OUT / f'{tag}_menu.bin'};{sym['MOWN']:#x},4={OUT / f'{tag}_mown.bin'}"
@@ -907,6 +939,54 @@ def main():
                   f"{im[O_RESID + BANK * 4:O_RESID + BANK * 4 + 4].hex()})",
                   im[O_ASSIGN:O_RESID + 64] == w[O_ASSIGN:O_RESID + 64] or
                   (im[O_ASSIGN:O_VALID] == w[O_ASSIGN:O_VALID] and im[O_RESID:O_RESID + 64] == w[O_RESID:O_RESID + 64]))
+
+    # ---- the panel-made project: Kits on patterns 2 and 3; saved, cold boot --------
+    def b1_(tag):
+        return (OUT / f"{tag}_b1.bin").read_bytes()
+
+    def follows(tag, ptns, kits):
+        """-> the patterns' slots, whether each holds its Kit, the engine's (bank, part)"""
+        b, im = b1_(tag), img(tag)
+        sl = [b[p * PSTRIDE + PBYTE] for p in ptns]
+        return sl, [slot(b, x) == kit(im, k) for x, k in zip(sl, kits)], (OUT / f"{tag}_eng.bin").read_bytes()
+
+    if exists("newproj"):
+        clean("newproj")
+        im = img("newproj")
+        asg = [im[O_ASSIGN + p] for p in (1, 2)]
+        sl, held, eng = follows("newproj", (1, 2), asg)
+        check(f"newproj: NEW PROJECT on the panel, SAVE KIT on patterns 2 and 3: Kits {[k + 1 for k in asg]} (3, 6), "
+              f"their Parts differ ({kit(im, 2) != kit(im, 5)}); playing, PTN 2 then PTN 3: on slots "
+              f"{[x + 1 for x in sl]} holding them ({held}), the engine on pattern 3's (engine {eng[0] + 1}:{eng[1] + 1})",
+              asg == [2, 5] and kit(im, 2) != kit(im, 5) and all(held) and sl[0] != sl[1]
+              and eng[0] == 0 and eng[1] == sl[1])
+    if exists("newsave"):
+        clean("newsave")
+        files = emu_card.extract_image((OUT / "newsave.img").read_bytes())
+        name = next(k.split("/")[1] for k in files if k.startswith("OCTABAM/") and k.count("/") == 2
+                    and k.split("/")[1] != "KITS")
+        size = (pdir / "bank01.work").stat().st_size
+        banks = {k.rsplit("/", 1)[1]: v for k, v in files.items() if k.startswith(f"OCTABAM/{name}/bank")}
+        bad = [k for k, v in banks.items()
+               if len(v) != size or v[:4] != b"FORM" or int.from_bytes(v[-2:], "big") != sum(v[0x10:-2]) & 0xffff]
+        check(f"newsave: SAVE PROJECT of '{name}' wrote {len(banks)} bank files, each {size} B, FORM, its checksum "
+              f"holding ({bad})", len(banks) == 32 and not bad)
+        sc = Script(); sc.tap("no"); sc.tap("play", 2000); sc.hold("ptn", 1); sc.wait(17000)
+        (OUT / "newboot.script").write_text(sc.text())
+        run([EMU, "--image", image, "--card", OUT / "newsave.img", "--set", "OCTABAM", "--project", name,
+             "--load-ms", "90000", "--mkii", "--live-script", OUT / "newboot.script", "--card-out", OUT / "newboot.img",
+             "--mem-dump", dumps("newboot") + newb.replace("NAME", "newboot")], OUT / "newboot.txt")
+        clean("newboot")
+        log = next((v for k, v in emu_card.extract_image((OUT / "newboot.img").read_bytes()).items()
+                    if k.upper().startswith("LOG")), b"").decode("latin1")
+        rej = [l for l in log.splitlines() if "bank file" in l or "PARSE ERROR" in l or "WRONG CHECKSUM" in l]
+        check(f"newboot: a cold boot of that card loads '{name}', no bank file refused ({rej[:2]})", log and not rej)
+        im, w = img("newboot"), img("newsave")
+        sl, held, eng = follows("newboot", (1,), (2,))
+        check(f"newboot: the assignments and Kits 3 and 6 as saved; playing, PTN 2: slot {sl[0] + 1} holds Kit 3 "
+              f"({held[0]}), the engine on it (engine {eng[0] + 1}:{eng[1] + 1})",
+              im[O_ASSIGN:O_VALID] == w[O_ASSIGN:O_VALID] and kit(im, 2) == kit(w, 2) and kit(im, 5) == kit(w, 5)
+              and held[0] and eng[0] == 0 and eng[1] == sl[0])
 
     # ---- Em's v3 files ----------------------------------------------------------
     if (not only or "import" in only) and all(f.is_file() for f in v3):

@@ -124,9 +124,12 @@ which is not what an MD or MnM Kit holds.
   no engine track names it while the transport runs, no queued or
   chained pattern's Part byte names it, and its working Part is byte for
   byte the Kit KITS recorded there (and, with MIDI SCENES, the slot's
-  lock table the Kit's). A
-  slot whose content is in no Kit is
-  never copied over. With no free slot, or a request with an interrupt
+  lock table the Kit's). A slot whose content is in no Kit is never
+  copied over, unless it is the stock default Part (`0x40005638`, what
+  Part Clear writes; every slot of a NEW PROJECT) with no scene lock:
+  until 12 Oct 2026 a NEW PROJECT's patterns all shared slot 1, and a
+  playing switch to another Kit found no free slot and played the Kit
+  already there. With no free slot, or a request with an interrupt
   level set (the arranger and repeat publish from the tick), the pattern
   plays what is resident and the request is counted.
 - **LOAD KIT** writes the Kit into the current Part's saved copy and runs

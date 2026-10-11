@@ -17,8 +17,9 @@
 |   is resident.
 | * A slot is free when no engine track byte (0x8000182a/0x80001832) names
 |   it while the transport runs, no queued or chained pattern's Part byte
-|   names it, and its unsaved-changes bit (bank + 0x95048) is clear. No
-|   free slot: counted (CNT_NOSLOT), the pattern plays what is resident.
+|   names it, and its working Part is the Kit RESID names for it, or, with
+|   no Kit there, the stock default Part (a NEW PROJECT's slots). No free
+|   slot: counted (CNT_NOSLOT), the pattern plays what is resident.
 | * LOAD KIT writes the Kit into the saved Part and runs the stock Part
 |   Reload 0x4004aab4 on it (working copy, CS1 copy, engine apply, machine
 |   transitions). SAVE KIT runs the stock Part Save 0x4004a908; its tail
@@ -72,6 +73,7 @@
         .set    P_SAVE,     0x4004a908      | (part): working -> saved
         .set    P_RELOAD,   0x4004aab4      | (part): saved -> working, applied
         .set    P_SET,      0x4004a8a4      | (part): current pattern's Part, applied
+        .set    PART_INIT,  0x40005638      | (part): the default Part (Part Clear's, 0x4004a9fe)
         .set    PUSHED,     0x4003171c      | (key) -> nonzero while held
         .set    KFUNC,      0x2d
         .set    NOTIFY,     0x4005a2b8      | (str, ticks)
@@ -1378,8 +1380,9 @@ others_refresh:
 
 | slot_ok: d4 = bank, d1 = slot -> d0 = 1 when a Kit may be copied there:
 | slot_ok_named, and the slot's working Part is the Kit RESID names for
-| it, byte for byte (nothing in it that no Kit holds). Stock's unsaved
-| bit is not the test: it stays set after an edit is undone and is set on
+| it, byte for byte (nothing in it that no Kit holds), or, with no Kit
+| in RESID, the stock default Part (PART_INIT) and no scene lock. Stock's
+| unsaved bit is not the test: it stays set after an edit is undone and is set on
 | every Part of a project saved without a Part Save (OCTABAM89_setgate:
 | 0xf on bank 3, one slot equal to its saved copy). Keeps d1-d7/a1-a6.
 slot_ok:
@@ -1421,7 +1424,27 @@ slot_equal:
         bsr.w   kmsc_eq
         .endif
         bra.s   4f
-3:      moveq   #0,%d0
+| no Kit: free when the slot holds the default Part (a NEW PROJECT's, a
+| cleared Part's) and, with MSCKIT, no scene lock
+3:      pea     DEFPART
+        jsr     PART_INIT
+        addql   #4,%sp
+        movel   %d4,%d0
+        bsr.w   bank_at
+        addal   #WORKOFF,%a0
+        movel   %sp@,%d1
+        movel   #PARTSZ,%d0
+        mulu.l  %d1,%d0
+        addal   %d0,%a0
+        lea     DEFPART,%a2
+        bsr.w   part_eq
+        .if     MSCKIT
+        tstl    %d0
+        beq.s   4f
+        movel   %d4,%d0
+        movel   %sp@,%d1
+        bsr.w   kmsc_none
+        .endif
 4:      movem.l %sp@,%d1-%d2/%a1-%a2
         lea     %sp@(16),%sp
         rts
@@ -2295,6 +2318,21 @@ kmsc_eq:
         bra.s   3f
 2:      moveq   #0,%d0
 3:      movel   %sp@+,%d2
+        rts
+
+| kmsc_none: d0 = bank, d1 = Part -> d0 = 1 when the slot's table holds no
+| lock. Clobbers d0, d1, a0.
+kmsc_none:
+        jsr     scn_slot_ptr
+        movel   #1024,%d1
+1:      moveq   #-1,%d0
+        cmpl    %a0@+,%d0
+        bne.s   2f
+        subql   #1,%d1
+        bne.s   1b
+        moveq   #1,%d0
+        rts
+2:      moveq   #0,%d0
         rts
 
 | kmsc_blank: a0 = a Kit's record: no locks. Clobbers d0, d1, a0.
@@ -3200,6 +3238,8 @@ NAMEBUF:   .space  9
 KIMG:   .space  IMG_LEN
         .align  4
 LRU:    .space  64*4
+DEFPART: .space PARTSZ                  | the default Part, slot_equal's reference
+        .align  4
 CRCTAB: .space  256*4
 LBTAB:  .space  LROWS*4
 CBTAB:  .space  LROWS*4
