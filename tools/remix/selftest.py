@@ -384,8 +384,6 @@ def main():
              lambda: DspRange("y", 0x7f00, 0x200, "x", half_relative=True)),
             ("a per-payload DspHook site naming a payload the section is not on",
              lambda: _hooked("h", site={"A": 0x4a7, "B": 0x29c})),
-            ("a per-payload DspHook site missing one of the section's payloads",
-             lambda: _hooked("h", site={"A": 0x4a7}, payloads=frozenset({"A", "B"}))),
             ("MenuEntry.stock_dsp without replaces",
              lambda: MenuEntry(fx2_id=0x1f, donor_desc=0x400d58b8, abbr=b"F",
                                fullname=b"F", stock_dsp=True)),
@@ -463,9 +461,12 @@ def main():
         _refused = False
     except ValueError:
         _refused = True
+    _sub = DspHook({"A": 0x2EC}, (0x60f000, 0x000205), "t")
     if (_hk.stock_on("A") == (0x06cf00, 0x000049) and _hk.stock_on("B") == (0x06cf00, 0x00004a)
-            and _one.stock_on("A") == _one.stock_on("B") == (0x627000, 0x000204) and _refused):
-        print("  [PASS] DspHook.stock per payload (and refused without a per-payload site)")
+            and _one.stock_on("A") == _one.stock_on("B") == (0x627000, 0x000204) and _refused
+            and _sub.on("A") and not _sub.on("B") and _one.on("A") and _one.on("B")):
+        print("  [PASS] DspHook.stock per payload (and refused without a per-payload site); "
+              "a site naming one payload hooks only that one")
     else:
         bad += 1
         print(f"  [FAIL] DspHook.stock per payload: {_hk.stock_on('A')}, {_hk.stock_on('B')}, "

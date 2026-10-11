@@ -957,13 +957,14 @@ def main():
           got[0].startswith("CH01 CC") and got[0].replace(" ", "").endswith("7=20")
           and got[1].startswith("CH01 PC") and got[2].startswith("CH02 NOTE"))
     got = live_run("loadview", [(0x32, 500)] + tools + [(0x20, 500), (0x20, 500), (0x31, 500)], 20000)
-    check(f"load: TOOLS > LOAD shows LOAD METER's window (the frame interrupt's share, its runs, frames a "
-          f"second)  {got}",
-          got[0].startswith("FRAME IRQ") and "%" in got[0] and got[1].startswith("AVG") and "/S" in got[2])
+    check(f"load: TOOLS > LOAD shows LOAD METER's rows: the frame interrupt's share now/peak and its longest "
+          f"run, and each DSP core's row (no DSP runs here: '-')  {got}",
+          got[0].startswith("CF") and "%/" in got[0] and got[0].endswith("US")
+          and got[1].startswith("DSP0") and "-%" in got[1] and got[2].startswith("DSP1"))
     got = live_run("loadchord", [(0x32, 500), (0x10, 500), (0x25, 500), "key 0x2d down", "key 0x3e down",
                                   "key 0x3e up", "key 0x2d up"], 3000)
     check(f"load: FUNC + LEVEL push on T1's FX1 page opens LOAD  {got}",
-          got[0].startswith(("FRAME IRQ", "MEASURING")))
+          got[0].startswith("CF"))
 
     # ---- boot screen: the OS's boot animation draws bootart.py -------------
     snapf_at = symbol("brain_boot_snapf")

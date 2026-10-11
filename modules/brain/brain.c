@@ -2579,6 +2579,54 @@ static void line_set(u32 i, const char *a, u32 an)
 	live_lbuf[i][k] = 0;
 }
 
+/* LOAD METER's DSP figures (hooks.s brain_lmd, the LM_DSP defsym): seq,
+ * bad, core 0 {busy, period}, core 1 {busy, period}, core 0 peak, core 1
+ * peak, TUE, ROE, then the peak reset (modules/load-meter/meter.s). */
+extern volatile u32 *const brain_lmd;
+#define TEXT_W  ((u32 (*)(const char *, u32, const char *))0x40012f30)	/* (font, max, string): pixels */
+#define DLG_FONT ((const char *)0x400ba876)
+#define DLG_W   (*(volatile u32 *)0x460e5e20)	/* the open dialog's width */
+#define DLG_TITLE ((char *)0x460e5ce4)		/* its copy of the title */
+#define DLG_SETTITLE ((void (*)(u32, const char *))0x40057c84)
+static u32 load_dseq DATA, load_dbad DATA, load_miss0 DATA, load_ticks DATA;
+
+/* "DSPn  41%/ 55%": now / the peak since open (+ " M3" on core 0: ESAI
+ * underrun and overrun frames since open, mod 512):
+ * "-" before a sample, "?" when the records since the last tick were all
+ * bad */
+static u32 dsp_line(char *t, u32 core, int fresh, int bad)
+{
+	u32 n = put_s(t, core ? "DSP1 " : "DSP0 ");
+	const volatile u32 *now = brain_lmd + 2 + 2 * core, *pk = brain_lmd + 6 + 2 * core;
+	if (!brain_lmd[0] || (!fresh && !bad)) {
+		n += put_s(t + n, "  -%/  -%");
+	} else if (!fresh) {
+		n += put_s(t + n, "  ?%/  ?%");
+	} else {
+		n += put_dec(t + n, now[0] * 100 / now[1], 3);
+		n += put_s(t + n, "%/");
+		n += put_dec(t + n, pk[1] ? pk[0] * 100 / pk[1] : 0, 3);
+		n += put_s(t + n, "%");
+	}
+	if (!core) {
+		n += put_s(t + n, " M");
+		if (!brain_lmd[0])
+			n += put_s(t + n, "-");
+		else
+			n += put_dec(t + n, ((brain_lmd[10] + brain_lmd[11]) - load_miss0) & 0x1ff, 0);
+	}
+	return n;
+}
+
+/* a line cut, in characters, until it fits the open dialog in pixels */
+static void line_fit(u32 i, char *t, u32 n)
+{
+	t[n] = 0;
+	while (n && DLG_OPEN && TEXT_W(DLG_FONT, 0x1e, t) + 9 > DLG_W)
+		t[--n] = 0;
+	line_set(i, t, n);
+}
+
 static void fill_load(void)
 {
 	char t[LIVE_W + 8];
@@ -2590,36 +2638,44 @@ static void fill_load(void)
 		return;
 	}
 	u32 seq = brain_lm[0], win = brain_lm[1], sum = brain_lm[2], cnt = brain_lm[3], max = brain_lm[4];
+	n = put_s(t, "CF   ");				/* the frame interrupt's share now / peak, the longest run */
 	if (!seq || !win || !cnt) {
-		line_set(0, "MEASURING", 9);
+		n += put_s(t + n, "  -%/  -%   -US");
+	} else {
+		u32 pct = sum / (win / 100 ? win / 100 : 1), us = max / 132;
+		if (pct > load_peak_pct)
+			load_peak_pct = pct;
+		if (us > load_peak_us)
+			load_peak_us = us;
+		n += put_dec(t + n, pct, 3);
+		n += put_s(t + n, "%/");
+		n += put_dec(t + n, load_peak_pct, 3);
+		n += put_s(t + n, "% ");
+		n += put_dec(t + n, load_peak_us, 3);
+		n += put_s(t + n, "US");
+	}
+	line_fit(0, t, n);
+	int fresh = brain_lmd && brain_lmd[0] != load_dseq;
+	int bad = brain_lmd && brain_lmd[1] != load_dbad;
+	if (brain_lmd) {
+		load_dseq = brain_lmd[0];
+		load_dbad = brain_lmd[1];
+		line_fit(1, t, dsp_line(t, 0, fresh, bad));
+		line_fit(2, t, dsp_line(t, 1, fresh, bad));
+	} else {
 		line_set(1, "", 0);
 		line_set(2, "", 0);
-		return;
 	}
-	u32 pct = sum / (win / 100 ? win / 100 : 1), us = max / 132, avg = sum / cnt / 132;
-	u32 ms = win / 132000;					/* the window in ms (no 64-bit maths here) */
-	u32 rate = ms ? cnt * 1000 / ms : 0;
-	if (pct > load_peak_pct)
-		load_peak_pct = pct;
-	if (us > load_peak_us)
-		load_peak_us = us;
-	n = put_s(t, "FRAME IRQ ");				/* the interrupt's share */
-	n += put_dec(t + n, pct, 3);
-	n += put_s(t + n, "% PK ");
-	n += put_dec(t + n, load_peak_pct, 3);
-	n += put_s(t + n, "%");
-	line_set(0, t, n);
-	n = put_s(t, "AVG ");					/* the run, average and longest */
-	n += put_dec(t + n, avg, 3);
-	n += put_s(t + n, "US MAX ");
-	n += put_dec(t + n, us, 3);
-	n += put_s(t + n, "US");
-	line_set(1, t, n);
-	n = put_dec(t, rate, 0);
-	n += put_s(t + n, " /S  PK ");
-	n += put_dec(t + n, load_peak_us, 0);
-	n += put_s(t + n, "US");
-	line_set(2, t, n);
+}
+
+/* the title row: "LOAD" and the refresh count, the live view's proof */
+static void load_title(void)
+{
+	char *d = DLG_TITLE;
+	u32 n = put_s(d, "LOAD ");
+	n += put_dec(d + n, load_ticks % 1000, 0);
+	d[n] = 0;
+	DLG_SETTITLE(DLG_OPEN, d);
 }
 
 /* One logged message as text: "CH01 CC 007=020", "CH10 NOTE 036 100",
@@ -2688,7 +2744,11 @@ void brain_live_tick(void)
 		live_timer = -1;
 		return;
 	}
+	if (live_kind == LIVE_LOAD)
+		load_ticks++;
 	live_fill();
+	if (live_kind == LIVE_LOAD)
+		load_title();
 	for (u32 i = 0; i < 3; i++) {
 		char *d = DLG_LINES + 31 * i;
 		u32 k = 0;
@@ -2712,10 +2772,33 @@ static void live_open(u32 kind, const char *title)
 {
 	brain_live_answer(0);
 	live_kind = kind;
-	if (kind == LIVE_LOAD)
+	if (kind == LIVE_LOAD) {
 		load_peak_pct = load_peak_us = 0;
-	live_fill();
+		load_ticks = 0;
+		if (brain_lmd) {
+			brain_lmd[12] = 1;			/* the DSP peaks start again */
+			load_dseq = brain_lmd[0];
+			load_dbad = brain_lmd[1];
+			load_miss0 = brain_lmd[10] + brain_lmd[11];
+		}
+		/* the box is sized here from its lines: the widest each can be */
+		line_set(0, "CF   100%/100% 999US", 20);
+		line_set(1, "DSP0 100%/100% M999", 19);
+		line_set(2, "DSP1 100%/100%", 14);
+	} else
+		live_fill();
 	POPUP(title, 3, live_lp, 3, (u32)brain_live_answer);
+	if (kind == LIVE_LOAD) {
+		live_fill();
+		for (u32 i = 0; i < 3; i++) {
+			char *d = DLG_LINES + 31 * i;
+			u32 k = 0;
+			for (; live_lbuf[i][k] && k < 30; k++)
+				d[k] = live_lbuf[i][k];
+			d[k] = 0;
+		}
+		DLG_DRAW();
+	}
 	live_win = DLG_OPEN;
 	live_timer = TIMER(LIVE_TICKS, brain_live_tick);
 }

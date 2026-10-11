@@ -188,6 +188,8 @@ def check(selected) -> list[str]:
     for m in selected:
         for h in (m.dsp.hooks if m.dsp is not None else ()):
             for pl in sorted(m.dsp.payloads):
+                if not h.on(pl):
+                    continue
                 site = h.site_on(pl)
                 hit = next((w for w in (site, site + 1) if (pl, w) in dsp_hooks), None)
                 if hit is not None:

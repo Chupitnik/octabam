@@ -291,7 +291,7 @@ MODULE = Module(
               Setting(2, "DEFAULTS", Binary(), default=1,
                       doc="the card's knob defaults (BRAIN/card.work) apply at each project load; off, every effect takes the image's defaults")),
     linked=(Linked("brain", SOURCE, cpu="5475", dram=True, include=fx_inc,
-                   defsyms=(("MODEDEF_TABLE", 0), ("LM_STATS", 0))),),
+                   defsyms=(("MODEDEF_TABLE", 0), ("LM_STATS", 0), ("LM_DSP", 0))),),
     detours=tuple(d for d in (
         Detour(0x40085342, H("721b2d41fdc6"), "brain", "brain_on_load",
                "LOAD PROJECT, before the empty-project init: the card's defaults onto the descriptors", kind="jsr"),

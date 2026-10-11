@@ -35,6 +35,7 @@ lm_out:
         sub.l   lm_t0,%d0                       | this interrupt's duration
         add.l   %d0,lm_sum
         addq.l  #1,lm_cnt
+        addq.l  #1,lm_irqs                      | every frame interrupt, for verify_loadmeter
         cmp.l   lm_max,%d0
         bls.s   1f
         move.l  %d0,lm_max
@@ -59,7 +60,144 @@ lm_out:
         lea     %sp@(252),%sp                   | displaced
         rte                                     | displaced
 
+| ---- 0x4000d310: the DSP meter's bytes, before the recorder reads MAIN ---
+| Core 0 (dsp_meter.asm) puts 17 bytes in the low byte of MAIN's first 17
+| longs at 0x80005e60 (channel 6's buffer, docs/firmware/STEM_REC.md section
+| 18.6); stock has zero there. They are copied out and zeroed here, before
+| the stock recorder (0x400068e4, called at 0x4000d340), USB AUDIO OUT and
+| STEMS read the buffer, so every reader sees stock's bytes. A record whose
+| magic, sum, period (PMIN..PMAX timer-0 counts) or busy (at most its
+| period) is wrong counts as bad and changes nothing else. The displaced
+| `tstl 0x800018fe` is replayed last: the `bne` after it reads its flags.
+| lm_dsp: seq (good records), bad, then per core {busy, period} now and at
+| the peak since lm_dsp_reset was last set (a busy/period ratio, compared by
+| cross-multiplying: both below 2^16), then the ESAI TUE and ROE bytes.
+        .equ    MAIN_LO, 0x80005e63             | long 0's lowest byte
+        .equ    PMIN,   20000                   | timer 0 (CLK/2) counts a frame: 36,256 nominal
+        .equ    PMAX,   60000
+        .globl  lm_scrub
+lm_scrub:
+        lea     %sp@(-24),%sp
+        movem.l %d0-%d3/%a0-%a1,%sp@
+        addq.l  #1,lm_scrubs                    | every pass, for verify_loadmeter
+        lea     MAIN_LO,%a0
+        lea     lm_raw,%a1
+        moveq   #16,%d1
+        moveq   #0,%d2                          | the sum of bytes 0..15
+1:      move.b  %a0@,%d0
+        move.b  %d0,%a1@+
+        clr.b   %a0@
+        addq.l  #4,%a0
+        cmp.l   #0,%d1                          | byte 16 is the sum itself
+        beq.s   2f
+        and.l   #0xff,%d0
+        add.l   %d0,%d2
+2:      subq.l  #1,%d1
+        bpl.s   1b
+        lea     lm_raw,%a1
+        moveq   #0,%d0
+        move.b  %a1@,%d0
+        cmp.l   #0xa5,%d0
+        bne.w   9f
+        moveq   #0,%d0
+        move.b  %a1@(16),%d0
+        and.l   #0xff,%d2
+        cmp.l   %d2,%d0
+        bne.w   9f
+        tst.l   lm_dsp_reset                    | the view opened: the peaks start again
+        beq.s   3f
+        clr.l   lm_dsp_reset
+        lea     lm_dsp+24,%a0
+        clr.l   %a0@+
+        clr.l   %a0@+
+        clr.l   %a0@+
+        clr.l   %a0@
+        lea     lm_dsum,%a0                     | and the sums
+        clr.l   %a0@+
+        clr.l   %a0@+
+        clr.l   %a0@
+3:      lea     lm_raw+2,%a1                    | core 0, then core 1
+        lea     lm_dsp+8,%a0
+        bsr.s   lm_core
+        bne.s   9f
+        lea     lm_raw+8,%a1
+        lea     lm_dsp+16,%a0
+        bsr.s   lm_core
+        bne.s   9f
+        moveq   #0,%d0
+        move.b  lm_raw+14,%d0
+        move.l  %d0,lm_dsp+40                   | TUE frames, mod 256
+        move.b  lm_raw+15,%d0
+        move.l  %d0,lm_dsp+44                   | ROE frames, mod 256
+        move.l  lm_dsp+8,%d0                    | the sums since the reset: busy per core,
+        add.l   %d0,lm_dsum                     | and the records in them
+        move.l  lm_dsp+16,%d0
+        add.l   %d0,lm_dsum+4
+        addq.l  #1,lm_dsum+8
+        addq.l  #1,lm_dsp                       | seq: a good record
+        bra.s   8f
+9:      addq.l  #1,lm_dsp+4                     | bad
+8:      movem.l %sp@,%d0-%d3/%a0-%a1
+        lea     %sp@(24),%sp
+        tst.l   0x800018fe                      | displaced
+        jmp     0x4000d316
+
+| a1 = a core's six bytes (busy, period, high first), a0 = its {busy, period}
+| now, then (+16) its peak; Z clear when the record is implausible
+lm_core:
+        bsr.s   lm_u24
+        move.l  %d0,%d2                         | busy
+        bsr.s   lm_u24
+        move.l  %d0,%d3                         | period
+        cmp.l   #PMIN,%d3
+        bcs.s   1f
+        cmp.l   #PMAX,%d3
+        bhi.s   1f
+        cmp.l   %d3,%d2
+        bhi.s   1f
+        move.l  %d2,%a0@                        | now
+        move.l  %d3,%a0@(4)
+        move.l  %a0@(20),%d1                    | no peak yet: this one
+        beq.s   3f
+        move.l  %a0@(16),%d0                    | busy * peak period > peak busy * period?
+        mulu.l  %d3,%d0
+        mulu.l  %d2,%d1
+        cmp.l   %d0,%d1
+        bls.s   2f
+3:      move.l  %d2,%a0@(16)
+        move.l  %d3,%a0@(20)
+2:      moveq   #0,%d0                          | Z set: plausible
+        rts
+1:      moveq   #1,%d0
+        rts
+
+| three bytes at a1 (high first) -> d0; a1 past them
+lm_u24:
+        moveq   #0,%d0
+        move.b  %a1@+,%d0
+        lsl.l   #8,%d0
+        move.b  %a1@+,%d0
+        lsl.l   #8,%d0
+        move.b  %a1@+,%d0
+        rts
+
         .data
+        .balign 4
+        .globl  lm_dsp, lm_dsp_reset, LM_DSP
+| seq, bad, core 0 {busy, period}, core 1 {busy, period}, core 0 peak,
+| core 1 peak, TUE, ROE -- timer-0 counts (CLK/2)
+LM_DSP:
+lm_dsp: .long   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+lm_dsp_reset: .long 0
+        .globl  lm_scrubs, lm_irqs, lm_dsum
+lm_scrubs: .long 0                              | lm_scrub's passes
+lm_irqs: .long  0                               | frame interrupts (lm_out)
+| core 0 busy, core 1 busy, records: summed since the reset. The port's
+| timer moves in 1,024-count steps (the vendored emulator updates timers
+| every 2,048 instructions), so one frame's busy cannot resolve a small
+| change; the mean over many frames can (verify_loadmeter calibrate)
+lm_dsum: .long  0, 0, 0
+lm_raw: .space  20
         .balign 4
         .globl  lm_stats, LM_STATS              | LM_STATS: the name BRAIN's defsym takes (brain_lm)
 LM_STATS:

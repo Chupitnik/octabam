@@ -586,9 +586,11 @@ class DspHook:
     """
 
     # P address of the displaced instruction: one int for every payload,
-    # or {"A": addr, "B": addr} naming exactly the section's payloads when
-    # the stock code sits at a different address on each (the two payloads
-    # are linked separately; AGENTS.md "payload-relative addresses").
+    # or {"A": addr, "B": addr} when the stock code sits at a different
+    # address on each (the two payloads are linked separately; AGENTS.md
+    # "payload-relative addresses"). A dict naming only some of the
+    # section's payloads hooks only those (LOAD METER's publish, which
+    # follows code payload A alone has).
     site: int | Mapping[str, int]
     # its two words, as the image has them: one pair for every payload, or
     # {"A": (w0, w1), "B": (w0, w1)} when they differ (a branch or loop
@@ -609,6 +611,10 @@ class DspHook:
             if not isinstance(self.site, Mapping) or set(self.stock) != set(self.site):
                 raise ValueError(f"DspHook {self.label!r}: per-payload stock words "
                                  f"need a per-payload site naming the same payloads")
+
+    def on(self, payload: str) -> bool:
+        """Whether the hook is planted on that payload."""
+        return not isinstance(self.site, Mapping) or payload in self.site
 
     def site_on(self, payload: str) -> int:
         """The hook's P address on one payload."""
@@ -713,7 +719,7 @@ class DspSection:
         object.__setattr__(self, "subst", MappingProxyType(
             {pl: MappingProxyType(dict(kv)) for pl, kv in self.subst.items()}))
         for h in self.hooks:
-            if isinstance(h.site, Mapping) and set(h.site) != set(self.payloads):
+            if isinstance(h.site, Mapping) and not set(h.site) <= set(self.payloads):
                 raise ValueError(
                     f"DspHook {h.label!r}: site names payloads {sorted(h.site)}, "
                     f"the section is placed on {sorted(self.payloads)}")
