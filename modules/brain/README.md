@@ -15,7 +15,7 @@ PROJ (MAIN MENU), then BRAIN, the fifth category. Its pane:
 | row | does |
 |---|---|
 | SETTINGS ► | its sub-list: `◄ SETTINGS`, then a heading row per module and a value row per setting (below) |
-| DEFAULTS ► | its sub-list: `◄ DEFAULTS`, SAVE AS DEFAULT, CLEAR DEFAULT |
+| DEFAULTS ► | its sub-list: `◄ DEFAULTS`, SAVE AS DEFAULT, CLEAR DEFAULT, SAVE PROJ SETUP, CLEAR PROJ SET. |
 | TEMPLATES ► | its sub-list: `◄ TEMPLATES`, then per target with templates a heading (its store id after the first `.`, upper case) and its templates by name, the image's first and marked `IMG` |
 | REMIXES ► | its sub-list: `◄ REMIXES`, then REMIX SWITCH's rows (`modules/remix-switch`, sanderlegit): each `.RMX` in `/BRAIN/REMIXES/`, sorted; after a switch a `FLASHED` separator and the image a power-cycle returns to |
 | TOOLS ► | its sub-list: `◄ TOOLS`, WRITE DEBUG LOG, MIDI MONITOR, LOAD, PROJECT CHECK |
@@ -25,6 +25,8 @@ PROJ (MAIN MENU), then BRAIN, the fifth category. Its pane:
 | `◄ <NAME>` | back to the pane's top, the cursor on the row it came from |
 | SAVE AS DEFAULT | the FX1 or FX2 page in view (of the current audio track, in the current Part) becomes that effect's default on this card; a popup names the page |
 | CLEAR DEFAULT | that effect's default leaves `card.work`; the descriptor goes back to the image's |
+| SAVE PROJ SETUP | the current project's settings (the stock PROJECT menu's bytes, TEMPO left out) become the card's settings for new projects: a `stock.project` default in `card.work` |
+| CLEAR PROJ SET. | that record leaves `card.work`; new projects take stock's settings |
 | a setting row | `NAME  VALUE` (a Binary reads ON or OFF); YES steps the value (a Binary toggles; an Option steps by one and a Number by its step, each wrapping to its minimum past the maximum) and writes it to `card.work` through an engine-task job |
 | a card template | YES: a list with RENAME (the stock name editor, eight characters) and DELETE; either runs as an engine-task job and the pane returns to its top |
 | an image template | YES: COPY TO CARD, which adds it to `card.work` under its name (refused when a card template of the target has that name) |
@@ -135,6 +137,7 @@ and their setup pages); over SRC they say to open an LFO, AMP or FX page.
   | FX1 or FX2 page | the effect's | its twelve slots by `Param.key` | the effect's descriptor |
   | AMP page | `stock.amp` | 1-6 page 1, 7-12 AMP SETUP | AMP descriptor `0x400d3950` |
   | LFO page | `stock.lfo` | 1-6 SPD/DEP, 7-9 PMTR, 10-12 WAVE, 13-15 MULT, 16-18 TRIG | audio LFO descriptor `0x400d37be` |
+  | SRC page | `stock.static`, `stock.flex`, `stock.thru`, `stock.neighbor`, `stock.pickup`: the track's machine type (Part `+0x8eda2 + t`) | 1-6 page 1, 7-12 page 2 | the PLAYBACK descriptor of that machine (`0x400d2fe4 + 0x192 * machine`) |
   | MIDI track | `stock.midi` | 64 + flat for page 1 (0-29; 94, 95 the CTRL1/CTRL2 enable bitmaps), 1 + offset for the setup record (`docs/firmware/MIDI_TRACKS.md` section 1) | NOTE, LFO, ARP, CONTROL 1, CONTROL 2 descriptors; the bitmaps raw |
 
   A slot whose descriptor enable nibble has bit 0 clear is neither
@@ -172,6 +175,20 @@ and their setup pages); over SRC they say to open an LFO, AMP or FX page.
   CRC, every other byte kept.
 - Not built yet: template files on the card for sharing, templates for
   the SRC page (phase 4).
+
+## Project settings for new projects
+
+SAVE PROJ SETUP (BRAIN > DEFAULTS) writes a card default of store
+`stock.project`: the stock PROJECT menu's bytes (`0x80000024..0x8000006a`
+as `docs/firmware/STORAGE.md` section 5 lists them, TEMPOx24 left out;
+keys `1 + offset`, raw bytes). CREATE EMPTY PROJECT applies it: a detour
+at `0x40085176`, the call after the empty project's RAM (`0x400909d8`) in
+the new-project job, writes each byte and its CS1 mirror (`0x100b1460 +
+offset`) before the job writes the new `project.work`. Measured under the
+port: a new project's own settings differ from a loaded project's in 11 of
+56 keys (TEMPO, clock and transport receive, program change, AUTO CHANNEL,
+24-bit loading and recording), and with the record the new `project.work`
+carries the card's values.
 
 ## MIDI knob names
 

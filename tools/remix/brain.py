@@ -290,7 +290,14 @@ STOCK_TARGETS = {
     "amp": ("stock.amp", 0x414d5031),
     "lfo": ("stock.lfo", 0x4c464f31),
     "midi": ("stock.midi", 0x4d494431),
+    # the SRC page, one target per machine type: keys 1-6 page 1, 7-12 page 2
+    "static": ("stock.static", 0x53544131),
+    "flex": ("stock.flex", 0x464c5831),
+    "thru": ("stock.thru", 0x54485231),
+    "neighbor": ("stock.neighbor", 0x4e425231),
+    "pickup": ("stock.pickup", 0x50434b31),
 }
+MACHINES = ("static", "flex", "thru", "neighbor", "pickup")   # the machine byte's values
 
 
 def fx_targets(remix, mods) -> list:
@@ -305,7 +312,7 @@ STOCK_IMAGE = ROOT / "out/raw/section_3_MAIN_OS.bin"
 TPL_IMAGE_MAX = 4096       # brain.c TPL_IMAGE: bytes of image template records
 
 # The stock page descriptors' entry starts (PARAM_PAGES.md section 3).
-_D = dict(lfo=0x400d37be, amp=0x400d3950, note=0x400d3e06, arp=0x400d3f98, mlfo=0x400d412a,
+_D = dict(playback=0x400d2fe4, lfo=0x400d37be, amp=0x400d3950, note=0x400d3e06, arp=0x400d3f98, mlfo=0x400d412a,
           ctl1=0x400d42bc, ctl2=0x400d444e)
 _MIDI_PAGES = (("NOTE", "note"), ("LFO", "mlfo"), ("ARP", "arp"), ("CTL1", "ctl1"), ("CTL2", "ctl2"))
 
@@ -325,15 +332,22 @@ def stock_slots(target: str, img: bytes) -> list[tuple[int, str, int, int]]:
     """(key, name, minimum, count) of every stored slot of a stock target, in
     brain.c view_fill's order, from the user's stock image. Names: AMP and
     LFO as the page draws them, LFO's per-LFO slots numbered (PMTR1..TRIG3);
-    a MIDI track's as PAGE.NAME (NOTE, LFO, ARP, CTL1, CTL2), a setup slot
+    a repeated name takes a '2' (the SRC page's LEN2 and RATE2, THRU's
+    VOL2); a MIDI track's as PAGE.NAME (NOTE, LFO, ARP, CTL1, CTL2), a setup slot
     that repeats a page-1 name with '#' (CTL1.CC1#: the CC number), the
     enable bitmaps CTL1.ON and CTL2.ON (raw bytes)."""
     out = []
     def add(key, name, E, s):
         n, lo, cnt, en = _desc(img, E, s)
+        name = name or n
+        if name in {x[1] for x in out}:     # a page-2 slot named as a page-1 one (LEN, RATE, VOL)
+            name += "2"
         if en and cnt > 0:
-            out.append((key, name or n, lo, cnt))
-    if target == "amp":
+            out.append((key, name, lo, cnt))
+    if target in MACHINES:
+        for s in range(12):
+            add(1 + s, None, _D["playback"] + 0x192 * MACHINES.index(target), s)
+    elif target == "amp":
         for s in range(12):
             add(1 + s, None, _D["amp"], s)
     elif target == "lfo":
