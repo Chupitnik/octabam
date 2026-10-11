@@ -402,7 +402,7 @@ def main():
                 # A registered label formatter (time_fmt.s;
                 # cfprobe.s): a knob with A = our cave's entry
                 # and B = 0 -- stock DELAY TIME's own shape (A = 0x4003c718,
-                # B = 0). Without the cave (NOTEMPO=1) the slot falls through
+                # B = 0). Without the cave (TEMPO SYNC CAVE OFF) the slot falls through
                 # to the plain-knob rule below, as before.
                 check(f2 == 0,
                       f"{name}: p{i} carries a registered label formatter at "

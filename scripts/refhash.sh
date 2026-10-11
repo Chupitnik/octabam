@@ -70,8 +70,9 @@ CASES=(
   "delayprobe-silence|XBUS=1 DELAYPROBE=silence"
   "delayprobe-send|XBUS=1 DELAYPROBE=send"
   "delayprobe-stock|XBUS=1 DELAYPROBE=stock"
-  "notempo|XBUS=1 SPEC=1 NOTEMPO=1"
-  "tempocave-replay|XBUS=1 SPEC=1 TEMPOCAVE=replay"
+  # TEMPO SYNC's CAVE setting (NOTEMPO=1 / TEMPOCAVE=replay until 11 Oct 2026)
+  "notempo|XBUS=1 SPEC=1 REMIX=test/bus-notempo"
+  "tempocave-replay|XBUS=1 SPEC=1 REMIX=test/bus-tempo-replay"
   "dnote|DEV=1 XBUS=1 DNOTE=84"
   "xbusbase|XBUS=1 SPEC=1 XBUS_BASE=35000"
 )

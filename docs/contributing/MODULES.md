@@ -859,7 +859,7 @@ work. The hook span is `len(hook_stock)`: the six-byte `jsr` followed by
 nops to the end of the displaced instructions, so `hook_stock` must be
 whole instructions, at least six bytes and even. A pc-relative instruction
 in `hook_stock` can be replaced (the cave does the work itself) but not
-replayed at the cave's address; `TEMPOCAVE=replay` refuses such a cave.
+replayed at the cave's address.
 
 A cave can register itself as another module's display formatter with
 `registers_formatter=FormatterReg(module=..., slot=...)`; naming the target

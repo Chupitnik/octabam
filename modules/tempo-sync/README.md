@@ -34,9 +34,15 @@ halfword 31 (`+0x3e`) of every track's record (`0x40004d6a`) and BusDelay
 reads it at `r6+$13`, deriving the MIDI-clock period (42,336,000 /
 tempo24, Q12.4) per block on the DSP.
 
-`NOTEMPO=1` installs neither (no note reaches the DSP; TIME draws in
-milliseconds). `TEMPOCAVE=replay` installs a cave that only replays the
-displaced instructions, isolating the hook mechanism from the store.
+The `CAVE` build setting (store `octabam.tempo-sync`) selects two
+diagnostics. `OFF` installs no publish cave and leaves the formatter linked
+but unregistered (no note reaches the DSP; TIME draws in milliseconds;
+BusDelay reads `BusDlyNOC`): `remixes/test/bus-notempo`.
+`REPLAY` installs a cave that only replays the displaced instructions,
+isolating the hook mechanism from the store (`BusDlyRPL`):
+`remixes/test/bus-tempo-replay`. Until 11 Oct 2026 these were `NOTEMPO=1`
+and `TEMPOCAVE=replay` in the environment, which acted on every module's
+caves; the build now refuses both variables.
 
 Background: [`docs/firmware/DSP.md`](../../docs/firmware/DSP.md) section 6c,
 [`docs/firmware/PARAM_PAGES.md`](../../docs/firmware/PARAM_PAGES.md) section 7,
