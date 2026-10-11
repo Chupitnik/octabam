@@ -20,7 +20,7 @@ Until 11 Oct 2026 the reserve was a fixed 1,707 pages (10 MiB) in every
 remix with a DRAM unit.
 """
 
-from remix.schema import Category, Kind, Module, Proof
+from remix.schema import Category, Gate, Kind, Module, Proof
 
 MODULE = Module(
     name="memory",
@@ -29,4 +29,7 @@ MODULE = Module(
     category=Category.SETTINGS, author="Sam Banks", author_url="https://github.com/sambanks",
     proof=Proof.PORT, proof_note="the reserve's size per remix in the build report; `verify_dram_boot` under the port",
     doc="Platform: the DRAM reserve in stock's audio page arena, sized from what the remix's modules claim.",
+    # nothing but stock writes the pages the reserve gave back, under the
+    # gate project, on bottleservice and bus (gate.py)
+    gates=(Gate("modules/memory/gate.py", venv=True, once=True),),
 )

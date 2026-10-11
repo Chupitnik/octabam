@@ -30,7 +30,7 @@ The build links the runtime once at the largest reserve the arena allows (`arena
 
 ## The gate
 
-`tools/verify/verify_reserve_writes.py <remix>` runs `verify_set` (the gate project, loaded and playing) with every write into the pages the reserve gave back (its ceiling up to `0x41495de0`, the fixed reserve's end) recorded when the writing PC lies outside stock's code (`ot_emu --foreign-writes`). A write from a module there is a claim it never declared. What it cannot see:
+`tools/verify/verify_reserve_writes.py <remix>` (MEMORY's module gate on bottleservice and bus, `gate.py`, once per shared round) runs `verify_set` (the gate project, loaded and playing) with every write into the pages the reserve gave back (its ceiling up to `0x41495de0`, the fixed reserve's end) recorded when the writing PC lies outside stock's code (`ot_emu --foreign-writes`). A write from a module there is a claim it never declared. What it cannot see:
 - writes on paths the set does not exercise (a menu, a sample load, a recorder take, a switch);
 - a module that calls a stock routine (memset, memcpy) or pokes stock code into writing there, since the PC is stock's;
 - writes inside the reserve or above `0x41495de0`.
