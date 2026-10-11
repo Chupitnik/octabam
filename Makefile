@@ -258,7 +258,9 @@ verify: verify-shared verify-remix ## The remix-independent gates, then the sele
 REMIXES ?= $(REMIX)
 # MODULES: comma-separated module keys. Set, the shared half runs only
 # those modules' module gates and knob census (`make reach` sets it for a
-# module change: the other modules' shared gates are what they were).
+# module change: the other modules' shared gates are what they were); the
+# per-remix half (check-remix, verify-remix) runs its floor and the module
+# gates of every module those keys reach (module_gates.reached()).
 MODULES ?=
 .PHONY: verify-shared
 verify-shared: ## The gates that do not depend on the remix: ledger selftest, slots, replaces, docs, settings and locks, the remixer draws, label_fmt, knob census, remix-independent module gates (REMIXES="a b")
@@ -302,7 +304,7 @@ verify-remix: ## The selected remix's own gates: dirty state, init regs, DRAM bo
 	else echo "  [SKIP] labels / mode names / hidden engines: no .venv (make emu-setup)"; fi
 	@# The module gates that take the remix (remix_arg=True) and build or
 	@# read its image; the remix-independent ones ran in verify-shared.
-	REMIX=$(REMIX) BUILD=$(BUILD) $(PY) tools/verify/module_gates.py $(REMIX) --stage isolated --remix-only
+	REMIX=$(REMIX) BUILD=$(BUILD) $(PY) tools/verify/module_gates.py $(REMIX) --stage isolated --remix-only $(if $(MODULES),--modules "$(MODULES)",)
 	@# The isolated gates build their own remixes over mainos_bus.bin.
 	@# Restore the selected image before inspecting its chooser tables.
 	$(MAKE) bus REMIX=$(REMIX)
@@ -320,7 +322,7 @@ verify-remix: ## The selected remix's own gates: dirty state, init regs, DRAM bo
 	@# The USB device model against the built image: stock's MSC function on
 	@# every image, the MIDI and audio functions when the remix carries them.
 	REMIX=$(REMIX) python3 tools/verify/verify_usb.py
-	REMIX=$(REMIX) BUILD=$(BUILD) $(PY) tools/verify/module_gates.py $(REMIX) --stage image
+	REMIX=$(REMIX) BUILD=$(BUILD) $(PY) tools/verify/module_gates.py $(REMIX) --stage image $(if $(MODULES),--modules "$(MODULES)",)
 
 .PHONY: verify-roll
 verify-roll: ## Prove an alternate REVERB engine is bit-identical: make verify-roll CAND=cand.asm [REF=modules/busverb/reverb_server.asm]

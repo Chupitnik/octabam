@@ -82,6 +82,9 @@ import slots  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SKIP = re.compile(r"^\s*(?:\[SKIP\]|SKIP:)")
+# --modules: the module keys a change touched. Set, a remix's half runs its
+# floor and the module gates of what those keys reach (module_gates.reached)
+SCOPE = None
 
 
 def git(*args, cwd=ROOT, check=True):
@@ -188,7 +191,7 @@ def run_remix(shard, remix, logdir, deps=None):
     with slots.slot(f"check-remix {remix}") as env_slot, log.open("w") as f:
         env = clean_env()
         env.update({k: v for k, v in env_slot.items() if k == "OCTABAM_SLOT"})
-        argv = ["make", "check-remix", f"REMIX={remix}"]
+        argv = ["make", "check-remix", f"REMIX={remix}"] + ([f"MODULES={','.join(SCOPE)}"] if SCOPE else [])
         k = cached = None
         if deps is not None:
             k, cached = lookup(shard, remix, "check-remix", [argv], remix_scripts(remix), deps, f, env)
@@ -285,7 +288,14 @@ def remix_jobs(remix_name, shard):
     # once=False: a once-per-run gate runs in the shared half (module_gates
     # --shared), as `make check-remix`'s --remix-only leaves it out; until
     # 11 Oct 2026 a split remix ran verify_kits here as well (625-1,172 s)
-    for key, g in module_gates.collect(registry.selected(remix), "isolated", True, once=False):
+    selected = registry.selected(remix)
+    mine = None
+    if SCOPE:
+        keys = module_gates.reached(set(SCOPE), selected)
+        mine = {g.script for m in selected if m.key in keys for g in getattr(m, "gates", ())}
+    for key, g in module_gates.collect(selected, "isolated", True, once=False):
+        if mine is not None and g.script not in mine:
+            continue
         # As `make verify-remix` runs them: module_gates.py under $(PY), so a
         # gate without `venv` inherits the driver's interpreter. The script
         # path is relative so it runs in the shard's own tree.
@@ -300,7 +310,8 @@ def remix_jobs(remix_name, shard):
     # stages) as their own job: verify_set --stage-only stages the same
     # image and card without running, so the two run on separate shards.
     jobs.append(job("image", [[py, f"{V}/verify_set.py", remix_name, "--stage-only"],
-                              [PY, f"{V}/module_gates.py", remix_name, "--stage", "image"]],
+                              [PY, f"{V}/module_gates.py", remix_name, "--stage", "image"]
+                              + (["--modules", ",".join(SCOPE)] if SCOPE else [])],
                     f"{V}/module_gates.py"))
     jobs.append(job("usb", [[py, f"{V}/verify_usb.py"]], f"{V}/verify_usb.py"))
     return jobs
@@ -416,10 +427,15 @@ def main(argv=None):
                     help="one remix: its per-remix half as one job per gate over the shards")
     ap.add_argument("--no-cache", action="store_true",
                     help="run every job (tools/verify/gate_cache.py; OCTABAM_GATE_CACHE=0 does the same)")
+    ap.add_argument("--modules", default="",
+                    help="comma-separated module keys a change touched: each remix runs its floor and the "
+                         "module gates of what they reach (module_gates.reached); unset, every gate")
     ap.add_argument("--split", default="auto",
                     help="auto (the default): split the remixes that would set the wall time into gate jobs; "
                          "none; or a comma-separated list")
     a = ap.parse_args(argv)
+    global SCOPE
+    SCOPE = sorted(k for k in a.modules.split(",") if k) or None
     remixes = list(dict.fromkeys(a.remixes))
     if not (ROOT / "out/raw/section_3_MAIN_OS.bin").is_file():
         sys.exit("check_shards: out/raw/section_3_MAIN_OS.bin is missing (make os && make recon)")
