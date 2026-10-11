@@ -756,6 +756,31 @@ def port_is_stale(exe=None, src=None, stamp=None):
     return any(p.stat().st_mtime > built for p in port_sources(src))
 
 
+# The steps that fetch, check out or patch vendor/ (scripts/vendor.sh) or build in
+# it (vendor/dsp56300/build). In a worktree vendor/ is a symlink to the main
+# checkout's, so running them rewrites every session's toolchain.
+VENDOR_WRITERS = ("ci", "ci-dsp", "ci-emu")
+
+
+def shared_vendor(root=None):
+    """vendor/ here is another checkout's (a worktree)."""
+    return ((root or ROOT) / "vendor").is_symlink()
+
+
+def vendor_safe(kind, command, shared):
+    """-> (the command to run or None, a note): what `reach --run` does with
+    a step that writes vendor/ when vendor/ is shared. ci-emu becomes
+    ci-emu-tree (the same build and tests into this tree's out/emu-ci, no
+    fetch); ci-dsp and ci are left to CI, named in the output and the table."""
+    if not shared or kind not in VENDOR_WRITERS:
+        return command, None
+    if kind == "ci-emu":
+        return "make ci-emu-tree", ("vendor/ is shared with the main checkout: `make ci-emu` runs scripts/vendor.sh into it; "
+                                    "running `make ci-emu-tree` (the same build and tests in this tree's out/emu-ci)")
+    return None, (f"`{command}` is left to CI: it would fetch, patch and build in vendor/, which every worktree shares "
+                  f"(run it from the main checkout if you need it here)")
+
+
 PORT_KINDS = ("check", "check-shared", "check-remix", "accept")     # the shared half runs port gates too (verify_kits)
 
 
@@ -1139,8 +1164,17 @@ def main(argv=None):
             # failures; this records the step (selftest, refhash, docs, ...)
             gate_ledger.record(f"reach:{command}", "", f"exit {rc}")
 
+    left_to_ci = []
     while queue:
         kind, command, _ = queue.pop(0)
+        safe, note = vendor_safe(kind, command, shared_vendor())
+        if note:
+            print(f"reach: {note}", flush=True)
+            if safe is None:
+                left_to_ci.append(command)
+                results.append((command, "LEFT TO CI", 0.0))
+                continue
+            command = safe
         if kind == "accept" and not stress:
             print(f"reach: BLOCKED {command}: STRESS_SOURCE is unset")
             if not a.keep_going:
@@ -1192,15 +1226,18 @@ def main(argv=None):
             print(f"reach: identity names {len(changed)} changed remix{'es' if len(changed) != 1 else ''}"
                   + (": " + ", ".join(changed) if changed else "")
                   + f" -> {len(queue) - before:+d} gate{'s' if abs(len(queue) - before) != 1 else ''} in the queue")
+    if left_to_ci:
+        print("\nreach: NOT RUN here, left to CI (vendor/ is shared): " + "; ".join(left_to_ci))
     if a.keep_going:
         print("\nreach: results")
         for command, status, seconds in results:
             print(f"  {status:12} {seconds:7.0f} s  {command}")
-    bad = [r for r in results if r[1] != "ok"]
+    bad = [r for r in results if r[1] not in ("ok", "LEFT TO CI")]
     if bad:
         print(f"reach: {len(bad)} of {len(results)} gates did not pass")
         return 2 if all(r[1] == "BLOCKED" for r in bad) else 1
-    print("reach: every gate passed")
+    print("reach: every gate passed" if not left_to_ci else
+          f"reach: every gate that runs here passed; {len(left_to_ci)} left to CI")
     return 0
 
 

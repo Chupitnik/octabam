@@ -1,5 +1,6 @@
 """The path classifier, against a fake registry and a fake dependency graph:
 no manifests, no firmware."""
+import os
 import pathlib
 import sys
 import unittest
@@ -507,3 +508,32 @@ class TestRemixTests(unittest.TestCase):
         c = self.ctx_without_tests()
         self.assertIn("--remixes bamsep26 usb", c.identity()[1])
         self.assertNotIn("--remixes", ctx().identity()[1])
+
+
+class VendorWriterTests(unittest.TestCase):
+    """`reach --run` in a worktree must not run a step that writes the shared vendor/."""
+
+    def test_a_shared_vendor_runs_the_tree_build_for_ci_emu_and_leaves_ci_dsp_and_ci_to_ci(self):
+        cmd, note = reach.vendor_safe("ci-emu", "make ci-emu", True)
+        self.assertEqual(cmd, "make ci-emu-tree")
+        self.assertIn("scripts/vendor.sh", note)
+        for kind in ("ci-dsp", "ci"):
+            cmd, note = reach.vendor_safe(kind, f"make {kind}", True)
+            self.assertIsNone(cmd)
+            self.assertIn("left to CI", note)
+
+    def test_an_own_vendor_or_another_step_is_unchanged(self):
+        self.assertEqual(reach.vendor_safe("ci-dsp", "make ci-dsp", False), ("make ci-dsp", None))
+        self.assertEqual(reach.vendor_safe("check-shared", 'make check-shared REMIXES="a"', True),
+                         ('make check-shared REMIXES="a"', None))
+
+    def test_a_symlinked_vendor_is_shared(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            d = pathlib.Path(d)
+            (d / "real").mkdir()
+            os.symlink(d / "real", d / "vendor")
+            self.assertTrue(reach.shared_vendor(d))
+            (d / "own").mkdir()
+            (d / "own" / "vendor").mkdir()
+            self.assertFalse(reach.shared_vendor(d / "own"))
