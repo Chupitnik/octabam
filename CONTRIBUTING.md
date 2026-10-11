@@ -183,9 +183,9 @@ declares its dearest settings (`schema.Module.dear`); a module without them
 blocks the remix, by name, never a render at defaults.
 
 **If you changed the build rather than a module, prove it changed
-nothing**: `scripts/refhash.sh save` on a tree you trust, then
-`scripts/refhash.sh check` (24 configurations, artifacts *and* build
-reports, bit-identical), and `make identity` (every remix, base against
+nothing**: `scripts/refhash.sh check` (24 configurations, artifacts *and*
+build reports, bit-identical, against the baseline of your branch's
+merge-base with origin/main, saved once for every worktree), and `make identity` (every remix, base against
 head).
 
 **Say what was measured and what was inferred**, in the README, with what

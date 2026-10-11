@@ -34,8 +34,10 @@ the build refuses on drift. Never "port" by
 rewriting; run their build against the shared stock image first.
 
 **If you change the BUILD rather than a module, prove it changed nothing:**
-`scripts/refhash.sh save` on a tree you trust, then `scripts/refhash.sh check`
-— 24 configurations, artifacts and build reports, bit-identical. Every step
+`scripts/refhash.sh check` — 24 configurations, artifacts and build reports,
+bit-identical against the baseline of your branch's merge-base with
+origin/main (`tools/verify/refhash_store.py` saves it once per merge-base for
+every worktree; `REFHASH_LOCAL=1` compares against a `save` of this tree). Every step
 of the DRAM platform landed under that gate. (Since 10 Sep 2026 the report
 prints tool paths; a path change is a report change and needs a re-save
 after the artifacts are shown identical.)
