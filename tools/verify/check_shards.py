@@ -31,7 +31,9 @@ wall time runs as its gate jobs (as `--by-gate` below) in the same queue as
 the other remixes' whole halves, longest first, so it no longer takes one
 shard for the whole run while the others idle. Which remixes: `--split
 auto` (the default) splits a remix whose last recorded time
-(out/check_shards/times.json, written after every run) exceeds both 300 s
+(times_path(): <git common dir>/octabam-gate-times.json, shared by every
+worktree since 11 Oct 2026, so a fresh worktree's first run splits too;
+out/check_shards/times.json until then) exceeds both 300 s
 and the run's total over the shard count; with no record, none (until 6
 Oct 2026 the remixes that carried Octakit, whose project load took ~32 s
 emulated). `--split none` runs every remix whole; `--split a,b` names
@@ -367,6 +369,38 @@ def run_job(shard, remix, job, logdir, deps=None):
     return res
 
 
+def times_path(root=ROOT):
+    """The recorded job durations, shared by every worktree of the
+    repository (gate_cache.store_dir's neighbour)."""
+    return gate_cache.store_dir(root).parent / "octabam-gate-times.json"
+
+
+def read_times(path):
+    try:
+        return json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def write_times(path, run):
+    """Merge this run's durations into the shared record: under an flock,
+    so two runs finishing together keep both, and by an atomic replace, so
+    a reader never sees half a file."""
+    import fcntl
+    import tempfile
+    try:
+        with open(path.with_suffix(".lock"), "a+") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            times = read_times(path)
+            times.update({k: round(v, 1) for k, v in run.items()})
+            fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".")
+            with os.fdopen(fd, "w") as f:
+                f.write(json.dumps(dict(sorted(times.items())), indent=1) + "\n")
+            os.replace(tmp, path)
+    except OSError:
+        pass
+
+
 def status_of(res):
     if res["rc"]:
         return f"FAILED ({res['rc']})"
@@ -397,11 +431,8 @@ def main(argv=None):
             sys.exit("check_shards: --by-gate takes exactly one remix")
         gate_jobs = remix_jobs(remixes[0], a.shards / "0")
         check_recipe(gate_jobs)
-    times_path = ROOT / "out/check_shards/times.json"
-    try:
-        times = json.loads(times_path.read_text())
-    except (OSError, ValueError):
-        times = {}
+    shared_times = times_path()
+    times = read_times(shared_times)
     split = set()
     if not a.by_gate and a.jobs > 1:
         split = choose_split(remixes, a.split, times, a.jobs)
@@ -504,11 +535,7 @@ def main(argv=None):
         if parts and not any(r.get("cached") for n, r in results.items()
                              if (f"{remixes[0]}:{n}" if a.by_gate else n).startswith(rname + ":")):
             run[rname] = sum(parts)
-    times.update({k: round(v, 1) for k, v in run.items()})
-    try:
-        times_path.write_text(json.dumps(dict(sorted(times.items())), indent=1) + "\n")
-    except OSError:
-        pass
+    write_times(shared_times, run)
     print(f"\ncheck_shards: results ({wall:.0f} s wall, {sum(r['seconds'] for r in results.values()):.0f} s of "
           f"{'gate' if a.by_gate else 'remix'} time)")
     for remix in names:
