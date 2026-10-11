@@ -276,7 +276,7 @@ verify-shared: ## The gates that do not depend on the remix: ledger selftest, sl
 	@# The knob click census: every continuous knob of the rig fixture's DSP
 	@# modules moved mid-render, plus the garbage-start gate. Builds its own
 	@# fixture (registry.fixture); remix-independent.
-	$(PY) tools/verify/verify_knob_clicks.py $(if $(MODULES),--modules "$(MODULES)",)
+	$(PY) tools/verify/verify_knob_clicks.py $(if $(MODULES),--modules "$(MODULES)",--sample)
 	@# Isolated module gates that take no remix: each renders its module on
 	@# a scratch image it builds itself, or checks an author's oracle. Run
 	@# once for the union of the modules across REMIXES.
