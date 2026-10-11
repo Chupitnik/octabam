@@ -528,8 +528,11 @@ formatter under the emulator (`emu_bringup._call`): FILTER HP/LP
 "12dB|24dB", ENV "BASE|WDTH", EQ TYP "LOW|PEQ|HIGH", PHASER NUM "2..10",
 COMB PTCH "A#0".."A 9".
 
-Unmeasured: the buffer length behind `buf` (stock's longest label is 4
-chars; the modules' ≤ 5, "1/16T"); whether A is consulted where B's count matters.
+The buffer behind `buf`: five characters run on hardware (BusDelay
+"CLEAN"/"GRAIN"/"REVRS", BusVerb "PLATE", "1/16T"; stock's longest label is
+4); ten fault the unit (`VEC:04 ADDR 4E007890` on turning the knob,
+`docs/contributing/FAILURE_MODES.md`). Unmeasured: the length between,
+and whether A is consulted where B's count matters.
 
 ## 8. Not decoded
 

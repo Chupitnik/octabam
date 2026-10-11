@@ -11,7 +11,19 @@ pattern-apply check", "Unattended halt in Octakit's Part-refresh wrapper",
 "A bank file written by the unit that the firmware then rejects", "A UAC2
 host stops audio setup", "A track button pressed within about 250 ms of a pattern
 change halts in Octakit's Part-refresh wrapper", "USB MIDI clock moves the
-sequencer and not the tempo", and every entry after the line "Entries from here to the end of the file (5 Oct 2026)".
+sequencer and not the tempo", "A ten-character page-2 label faults the unit", "Eight LOFI2 in SHIFT: the audio cuts out with bursts of digital noise", and every entry after the line "Entries from here to the end of the file (5 Oct 2026)".
+
+## Eight LOFI2 in SHIFT: the audio cuts out with bursts of digital noise ✅ measured, limit documented
+
+- **Seen:** Bryan T's MKII, image 99 (`_bt_oct`, his own remix), 11 Oct 2026: LOFI2 in SHIFT UP on T1-T7 played cleanly; switching T8's to SHIFT as well cut the audio out, with occasional bursts of digital noise. No exception screen. Seven in RING (T1-T7) were clean too. What FX1 held on those tracks was not recorded.
+- **Cause (inferred):** core 0 out of cycles. T1-T7 put four SHIFT instances on core 1 and three on core 0; T8 makes four on core 0, which also does the mixing. `cycle_count.py` prices SHIFT at 654 cycles/sample, which brackets the chip's figure near 900-1,000 if this is the limit (Modwerk measured its own effects at 1.4-1.7x their emulator counts); not measured on the chip.
+- **Fix:** none in the code; the limit is in `modules/lofi2/README.md` ("Cost, and how many fit"): SHIFT up to four on T1-T4 and three on T5-T8.
+
+## A ten-character page-2 label faults the unit when its knob turns: EXCEPTION VEC:04 ADDR 4E007890 ✅ measured, fixed
+
+- **Seen:** Bryan T's MKII, September 2026 (reported 13 Sep), LOFI2 with its MODE select labelled `RING` / `SHIFT UP` / `SHIFT DOWN` (`Formatter.STEPPED`): turning MODE threw `EXCEPTION VEC:04 ADDR:4E007890`, an illegal instruction at an address outside the OS's `0x400xxxxx` range.
+- **Cause (inferred):** the label overran the buffer the firmware passes to the display formatter (`void fmt(char *buf, int value)`, `docs/firmware/PARAM_PAGES.md` section 7), whose length is not measured; the copy is not located. Same family as the `abbr` overrun (`AGENTS.md`).
+- **Fix:** labels `RING` / `DOWN` / `UP`; ran on the unit through images 96-99 (October 2026). Five-character labels run on hardware (BusDelay `CLEAN` / `GRAIN` / `REVRS`, BusVerb `PLATE`, TEMPO SYNC `1/16T`); six to nine are unmeasured. The schema does not bound label length.
 
 ## USB MIDI clock moves the sequencer and not the tempo: time stretch, LFOs and FX ignore it ✅ fixed (#633), confirmed on Kazeko's MKI
 
