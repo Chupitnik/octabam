@@ -632,19 +632,23 @@ def port_is_stale(exe=None, src=None, stamp=None):
     reds in one run; the shards rebuild theirs). With the stamp `make
     emu-cf` writes, by content; without one, by mtime -- which a fresh
     worktree checkout always fails, 50 s of rebuild for the same bytes
-    (6 Oct 2026)."""
+    (6 Oct 2026). A missing binary is stale: without it every port gate
+    SKIPs and the run is green (a fresh worktree's reach passed without
+    verify_kits, 11 Oct 2026)."""
     exe = exe or ROOT / "out/emu/ot_emu"
     src = src or ROOT / "tools/emu/ot_emu"
     stamp = stamp or exe.parent / pathlib.Path(PORT_STAMP).name     # beside the binary it describes
-    if not exe.is_file() or not src.is_dir():
+    if not src.is_dir():
         return False
+    if not exe.is_file():
+        return True
     if stamp.is_file():
         return stamp.read_text().strip() != port_digest(src)
     built = exe.stat().st_mtime
     return any(p.stat().st_mtime > built for p in port_sources(src))
 
 
-PORT_KINDS = ("check", "check-remix", "accept")
+PORT_KINDS = ("check", "check-shared", "check-remix", "accept")     # the shared half runs port gates too (verify_kits)
 
 
 def classify(paths, ctx):
@@ -950,7 +954,7 @@ def main(argv=None):
     results = []
     queue = list(items)
     if any(k in PORT_KINDS for k, _, _ in queue) and not any(k == "emu-cf" for k, _, _ in queue) and port_is_stale():
-        print("reach: out/emu/ot_emu is older than tools/emu/ot_emu: rebuilding the port first")
+        print("reach: out/emu/ot_emu is missing or older than tools/emu/ot_emu: building the port first")
         queue.insert(0, ("emu-cf", CMD["emu-cf"][1], ["tools/emu/ot_emu"]))
     while queue:
         kind, command, _ = queue.pop(0)

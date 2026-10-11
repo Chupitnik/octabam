@@ -95,6 +95,11 @@ def command(gate, remix_name, root=ROOT):
     return cmd
 
 
+def port_built(root=ROOT):
+    """The ColdFire port's binary is there; without it a port gate SKIPs."""
+    return (root / "out/emu/ot_emu").exists()
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("remix", nargs="*", default=[])
@@ -133,6 +138,13 @@ def main(argv=None):
     if not gates:
         print(f"module gates ({label}): none declared")
         return 0
+    if not a.list and not port_built():
+        # A gate that needs the port SKIPs without it, and a run of SKIPs
+        # is green: a fresh worktree's reach passed without verify_kits
+        # (11 Oct 2026). The port is a requirement here, not an option.
+        print(f"  [FAIL] module gates ({label}): the ColdFire port is not built (make emu-cf); "
+              f"its gates would SKIP and the run would pass without them")
+        return 1
     fails = []
     for key, g, remix_name in gates:
         cmd = command(g, remix_name)

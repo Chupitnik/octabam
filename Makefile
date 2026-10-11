@@ -29,6 +29,12 @@ IMAGE_NAME = $(shell echo "$(notdir $(REMIX)) $(BUILD)" | tr a-z A-Z | cut -c1-1
 define need-remix
 @test -n "$(REMIX)" || { echo "REMIX is unset: make $@ REMIX=<name>   (make modules lists them)"; exit 2; }
 endef
+# The gates that need the ColdFire port SKIP without it, so a run without
+# the port is green without them (a fresh worktree's reach passed without
+# verify_kits, 11 Oct 2026): the verify recipes refuse to start instead.
+define need-port
+@test -x out/emu/ot_emu || { echo "  [FAIL] $@: the ColdFire port is not built (make emu-cf); its gates would SKIP"; exit 2; }
+endef
 # The project the set gates (verify_set, verify_modedefaults) run under the
 # port: OT_PROJECT=<dir> on the command line, else the path in
 # ~/.octabam_project (machine-local; card data never enters the repo).
@@ -252,6 +258,7 @@ MODULES ?=
 .PHONY: verify-shared
 verify-shared: ## The gates that do not depend on the remix: ledger selftest, slots, replaces, docs, settings and locks, the remixer draws, label_fmt, knob census, remix-independent module gates (REMIXES="a b")
 	@test -n "$(REMIXES)" || { echo "REMIXES is unset: make $@ REMIXES=\"<name> ...\"   (make modules lists them)"; exit 2; }
+	$(need-port)
 	python3 tools/remix/selftest.py
 	python3 tools/verify/verify_slots.py
 	python3 tools/verify/verify_replaces.py --static
@@ -271,6 +278,7 @@ verify-shared: ## The gates that do not depend on the remix: ledger selftest, sl
 .PHONY: verify-remix
 verify-remix: ## The selected remix's own gates: dirty state, init regs, DRAM boot, labels, its module gates, menu, the set under the port, USB
 	$(need-remix)
+	$(need-port)
 	@# verify_dirtystate builds the remix's image itself (verify-shared and
 	@# verify_character leave theirs at out/mainos_bus.bin): a module started
 	@# from a garbage instance block must be silent on silence -- the unit's
