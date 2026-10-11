@@ -1146,6 +1146,8 @@ def main(argv=None):
         env = dict(os.environ) if cwd is None else check_shards.clean_env()
         if a.no_cache:
             env["OCTABAM_GATE_CACHE"] = "0"
+        # QUICK skips what a gate marks FULL only (verify_kits --quick); FULL runs it all
+        env["OCTABAM_QUICK"] = "1" if quick else "0"
         # A command run in this tree holds one of the machine's gate slots
         # (tools/verify/slots.py); check_shards and accept take theirs per
         # job, so holding one around them could leave every slot held by

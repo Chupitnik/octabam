@@ -133,6 +133,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import time
 import zlib
 from concurrent.futures import ThreadPoolExecutor
 
@@ -191,6 +192,7 @@ def fork_jobs():
 # write): swback 81, unattended 77, chain 63, presses 61, saveproj 48, a5
 # 31, extplay 31, trackbtn 25, progchg 24, free 24, trackbtn1 24, repoint
 # 23, extnoclk 21; the rest 11 s or less, in their own order after.
+QUICK_SKIP = ("unattended", "presses", "strand")      # 125 s, 89 s and 106-188 s of a 400-470 s gate (12 Oct 2026)
 LONGEST = ("swback", "unattended", "chain", "presses", "saveproj", "a5", "extplay", "trackbtn",
            "progchg", "free", "trackbtn1", "repoint", "extnoclk")
 
@@ -301,6 +303,8 @@ def main():
     ap.add_argument("--octakit-project", default=str(pathlib.Path.home() / "octa/backups/card_20261003_bottleservice/kept/Bottleservice 2026"))
     ap.add_argument("--strand-project", default=str(pathlib.Path.home() / "octa/backups/card_20261004_strand/PROJECT 261004p"))
     ap.add_argument("--only", default="", help="comma-separated scenario names")
+    ap.add_argument("--quick", action="store_true",
+                    help="skip the scenarios in QUICK_SKIP (FULL only); make reach sets OCTABAM_QUICK=1 in QUICK mode")
     a = ap.parse_args()
     remix = registry.remix(a.remix)
     global REC, IMG_LEN
@@ -318,6 +322,14 @@ def main():
         sys.exit(f"verify_kits: {pdir} is not a project")
     OUT.mkdir(parents=True, exist_ok=True)
     only = set(filter(None, a.only.split(",")))
+    quick = a.quick or os.environ.get("OCTABAM_QUICK") == "1"
+    skipped = [t for t in QUICK_SKIP if not only or t in only] if quick else []
+    if skipped:
+        print(f"  [ -- ] FULL only (skipped by --quick): {', '.join(skipped)}")
+        for t in skipped:                       # a leftover of a full run must not be read as this run's
+            for f in OUT.glob(f"{t}_*"):
+                f.unlink()
+            (OUT / f"{t}.txt").unlink(missing_ok=True)
 
     # ---- the image and the unit's symbols -------------------------------------
     env = dict(os.environ, REMIX=a.remix, XBUS="1", SPEC="1"); env.setdefault("BUILD", "0")
@@ -377,10 +389,11 @@ def main():
 
     SAVE_MARGIN = int(os.environ.get("KITS_SAVE_MARGIN", "15000"))
     scen, mki_scen, scripts = [], [], {}
+    LASTDUMP = {}
     NOPLAY = set(filter(None, os.environ.get("KITS_NOPLAY", "").split(",")))     # negative test: these scenarios never press PLAY
 
     def add(tag, script=None, pokes=(), extra=(), more_dumps="", mki=False, fast=False):
-        if only and tag not in only:
+        if (only and tag not in only) or tag in skipped:
             return
         args = []
         pokes = list(pokes) + (FAST if fast else [])
@@ -391,6 +404,9 @@ def main():
         if script is not None:
             sp = OUT / f"{tag}.script"; sp.write_text(script.text()); args += ["--live-script", sp]
         args += list(extra) + ["--mem-dump", dumps(tag) + more_dumps]
+        last = (dumps(tag) + more_dumps).split(";")[-1]            # written last: the scenario is complete when it is
+        LASTDUMP[tag] = (last.split("=", 1)[1], int(last.split("=", 1)[0].split(",")[1], 0),
+                         next((str(extra[i + 1]) for i, x in enumerate(extra) if x == "--card-out"), None))
         (mki_scen if mki else scen).append(f"{OUT / (tag + '.txt')} " + " ".join(map(str, args)))
         scripts[tag] = script
 
@@ -607,8 +623,109 @@ def main():
     # ---- the boots that need nothing from the main run, started beside it ------
     s1 = OUT / "power.script"
     sc = Script(); sc.tap("no"); s1.write_text(sc.text())
+    def boot(tag, card_, cs1=None):
+        cmd = [EMU, "--image", image, "--card", card_, "--set", "OCTABAM", "--project", "KITS", "--load-ms", "90000",
+               "--live-script", s1, "--mem-dump", dumps(tag)]
+        if cs1 is not None:
+            cmd += ["--cs1-in", cs1, "--no-post"]
+        run(cmd, OUT / f"{tag}.txt")
+        return tag
+
+    # Boots that read a scenario's output start the moment it is complete (its
+    # last dump written in full, and its card image), beside the rest of the pool.
+    bg, bgpool = {}, ThreadPoolExecutor(8)
+
+    def complete(tag, wait=1800):
+        path, n, card = LASTDUMP[tag]
+        t0 = time.monotonic()
+        while not (os.path.isfile(path) and os.path.getsize(path) == n and (card is None or os.path.isfile(card))):
+            if time.monotonic() - t0 > wait:
+                raise SystemExit(f"verify_kits: scenario {tag} never completed ({path})")
+            time.sleep(1)
+        time.sleep(1)
+
+    for tag in scripts:       # a leftover of an earlier run would read as complete: clear what complete() looks for
+        for f in LASTDUMP[tag][::2]:
+            if f:
+                pathlib.Path(f).unlink(missing_ok=True)
+
+    def defer(name, tags, fn):
+        if all(t in scripts for t in tags):
+            bg[name] = bgpool.submit(lambda: (*map(complete, tags), fn())[-1])
+
+    def joined(name):
+        if name in bg:
+            bg.pop(name).result()
+
+
+    def newboot_run():
+        files = emu_card.extract_image((OUT / "newsave.img").read_bytes())
+        name = next(k.split("/")[1] for k in files if k.startswith("OCTABAM/") and k.count("/") == 2
+                    and k.split("/")[1] != "KITS")
+        sc = Script(); sc.tap("no"); sc.tap("play", 2000); sc.hold("ptn", 1); sc.until(ENG_PART, 1)
+        (OUT / "newboot.script").write_text(sc.text())
+        run([EMU, "--image", image, "--card", OUT / "newsave.img", "--set", "OCTABAM", "--project", name,
+             "--load-ms", "90000", "--mkii", "--live-script", OUT / "newboot.script", "--card-out", OUT / "newboot.img",
+             "--mem-dump", dumps("newboot") + newb.replace("NAME", "newboot")], OUT / "newboot.txt")
+
+    def v1up_run():
+        kw = next((v for k, v in emu_card.extract_image((OUT / "base.img").read_bytes()).items()
+                   if k.lower().endswith("/kits/kits.work")), b"")
+        body = kw[64:O_LIB]
+        for k in range(256):
+            body += kw[O_LIB + k * REC:O_LIB + k * REC + REC1]
+        v1 = struct.pack(">4sIII", b"KITS", 1, O_LIB + 256 * REC1, zlib.crc32(body)) + bytes(48) + body
+        (OUT / "v1up_kits").mkdir(exist_ok=True)
+        f = OUT / "v1up_kits/kits.work"; f.write_bytes(v1)
+        c = stage(pathlib.Path(a.strand_project).expanduser(), "V1UP", extra=[f])
+        run([EMU, "--image", image, "--card", c, "--set", "OCTABAM", "--project", "V1UP", "--load-ms", "90000",
+             "--live-script", s1, "--mem-dump", dumps("v1up")], OUT / "v1up.txt")
+
+    def krefuse_run():
+        kw = next((v for k, v in emu_card.extract_image((OUT / "base.img").read_bytes()).items()
+                   if k.lower().endswith("/kits/kits.work")), b"")
+        badk = bytearray(kw); badk[O_LIB + 3000] ^= 0x55; badk = bytes(badk)       # the CRC fails
+        (OUT / "kbad_kits").mkdir(exist_ok=True)
+        f = OUT / "kbad_kits/kits.work"; f.write_bytes(badk)
+        c = stage(pathlib.Path(a.strand_project).expanduser(), "KBAD", extra=[f])
+
+        def kbad(tag, choice):
+            dmp = (f"{KS:#x},48={OUT / f'{tag}_st.bin'};{sym['store_npend']:#x},4={OUT / f'{tag}_np.bin'};"
+                   f"{sym['store_pend']:#x},32={OUT / f'{tag}_pend.bin'};{sym['KBACKUP']:#x},8={OUT / f'{tag}_bk.bin'}")
+            cmd = [EMU, "--image", image, "--card", c, "--set", "OCTABAM", "--project", "KBAD", "--load-ms", "90000",
+                   "--live-script", s1, "--mem-dump", dmp]
+            if choice is not None:
+                cmd += ["--step", f"-:call:{sym['store_answer_cb']:#x},{choice},0"]
+            run(cmd, OUT / f"{tag}.txt")
+        with ThreadPoolExecutor(3) as ex:
+            list(ex.map(lambda t: kbad(*t), [("kbad_ignore", None), ("kbad_over", 1), ("kbad_back", 2)]))
+        # the prompt: an encoder turn opens the list, LEVEL scrolls, YES answers
+        def ui(tag, *rows):
+            sc = Script(); sc.tap("no", 400); sc.send("enc 1 1", 800)
+            for r in rows:
+                sc.send(r, 700)
+            sp = OUT / f"{tag}.script"; sp.write_text(sc.text())
+            dmp = (f"{KS:#x},48={OUT / f'{tag}_st.bin'};{sym['store_npend']:#x},4={OUT / f'{tag}_np.bin'};"
+                   f"{sym['store_pend']:#x},32={OUT / f'{tag}_pend.bin'};{sym['KBACKUP']:#x},8={OUT / f'{tag}_bk.bin'};"
+                   f"0x460e5e28,4={OUT / f'{tag}_cbs.bin'};0x460e5e30,4={OUT / f'{tag}_obj.bin'};"
+                   f"{sym['store_mown']:#x},4={OUT / f'{tag}_mown.bin'}")
+            run([EMU, "--image", image, "--card", c, "--set", "OCTABAM", "--project", "KBAD", "--load-ms", "90000",
+                 "--live-script", sp, "--mem-dump", dmp], OUT / f"{tag}.txt")
+        with ThreadPoolExecutor(3) as ex:
+            list(ex.map(lambda t: ui(*t), [("kui_open",), ("kui_over", "enc 6 1", "key 0x31 down", "key 0x31 up"),
+                                           ("kui_ignore", "key 0x31 down", "key 0x31 up")]))
+
+    defer("reboot", ("saveproj",), lambda: boot("reboot", OUT / "saved.img"))
+    defer("power", ("saveproj",), lambda: boot("power", OUT / "saved.img", OUT / "cs1_saved.bin"))
+    defer("powerun", ("unsaved",), lambda: boot("powerun", OUT / "unsaved.img", OUT / "cs1_unsaved.bin"))
+    defer("newboot", ("newsave",), newboot_run)
+    if (not only or "v1up" in only) and "MIDI SCENES" in remix.modules:
+        defer("v1up", ("base",), v1up_run)
+    if (not only or "krefuse" in only) and "store_answer_cb" in sym:
+        defer("krefuse", ("base",), krefuse_run)
+
     sd = pathlib.Path(a.strand_project).expanduser()
-    if (not only or "strand" in only) and (sd / "project.work").is_file():
+    if "strand" not in skipped and (not only or "strand" in only) and (sd / "project.work").is_file():
         c = stage(sd, "STRAND")
         sc = Script(); sc.tap("no"); sc.tap("play", 9000); sc.tap("stop", 400)
         sc.hold("func", "rec"); sc.hold("ptn", 1); sc.hold("func", "stop", gap=1000)   # copy, pattern 2, paste
@@ -930,14 +1047,6 @@ def main():
               f"{img('inundo')[O_ASSIGN + BANK * 16 + 13]})", same)
 
     # ---- the save, a second boot, power cycles --------------------------------
-    def boot(tag, card_, cs1=None):
-        cmd = [EMU, "--image", image, "--card", card_, "--set", "OCTABAM", "--project", "KITS", "--load-ms", "90000",
-               "--live-script", s1, "--mem-dump", dumps(tag)]
-        if cs1 is not None:
-            cmd += ["--cs1-in", cs1, "--no-post"]
-        run(cmd, OUT / f"{tag}.txt")
-        return tag
-
     if exists("saveproj"):
         clean("saveproj")
         want = img("saveproj")
@@ -946,11 +1055,8 @@ def main():
             d = next((v for k, v in files.items() if k.lower().endswith(f"/kits/kits.{ext}")), b"")
             check(f"saveproj: kits.{ext} holds the loaded Kit's assignment",
                   len(d) == IMG_LEN and d[O_ASSIGN + BANK * 16] == want[O_ASSIGN + BANK * 16])
-        jobs = [("reboot", OUT / "saved.img", None), ("power", OUT / "saved.img", OUT / "cs1_saved.bin")]
-        if exists("unsaved"):
-            jobs.append(("powerun", OUT / "unsaved.img", OUT / "cs1_unsaved.bin"))
-        with ThreadPoolExecutor(3) as ex:
-            list(ex.map(lambda j: boot(*j), jobs))
+        for n in ("reboot", "power", "powerun"):
+            joined(n)
         for tag, ref in (("reboot", "saveproj"), ("power", "saveproj"), ("powerun", "unsaved")):
             if not exists(tag):
                 continue
@@ -992,11 +1098,7 @@ def main():
                if len(v) != size or v[:4] != b"FORM" or int.from_bytes(v[-2:], "big") != sum(v[0x10:-2]) & 0xffff]
         check(f"newsave: SAVE PROJECT of '{name}' wrote {len(banks)} bank files, each {size} B, FORM, its checksum "
               f"holding ({bad})", len(banks) == 32 and not bad)
-        sc = Script(); sc.tap("no"); sc.tap("play", 2000); sc.hold("ptn", 1); sc.until(ENG_PART, 1)
-        (OUT / "newboot.script").write_text(sc.text())
-        run([EMU, "--image", image, "--card", OUT / "newsave.img", "--set", "OCTABAM", "--project", name,
-             "--load-ms", "90000", "--mkii", "--live-script", OUT / "newboot.script", "--card-out", OUT / "newboot.img",
-             "--mem-dump", dumps("newboot") + newb.replace("NAME", "newboot")], OUT / "newboot.txt")
+        joined("newboot")
         clean("newboot")
         log = next((v for k, v in emu_card.extract_image((OUT / "newboot.img").read_bytes()).items()
                     if k.upper().startswith("LOG")), b"").decode("latin1")
@@ -1030,16 +1132,8 @@ def main():
 
     # ---- a version 1 kits.work under MIDI SCENES: read, expanded, empty tables --
     if (not only or "v1up" in only) and "MIDI SCENES" in remix.modules and exists("base"):
-        kw = next((v for k, v in emu_card.extract_image((OUT / "base.img").read_bytes()).items()
-                   if k.lower().endswith("/kits/kits.work")), b"")
-        body = kw[64:O_LIB]
-        for k in range(256):
-            body += kw[O_LIB + k * REC:O_LIB + k * REC + REC1]
-        v1 = struct.pack(">4sIII", b"KITS", 1, O_LIB + 256 * REC1, zlib.crc32(body)) + bytes(48) + body
-        f = OUT / "kits.work"; f.write_bytes(v1)
-        c = stage(pathlib.Path(a.strand_project).expanduser(), "V1UP", extra=[f])
-        run([EMU, "--image", image, "--card", c, "--set", "OCTABAM", "--project", "V1UP", "--load-ms", "90000",
-             "--live-script", s1, "--mem-dump", dumps("v1up")], OUT / "v1up.txt")
+        joined("v1up")
+        v1 = (OUT / "v1up_kits/kits.work").read_bytes()
         clean("v1up")
         im, b0 = img("v1up"), img("base")
         same = all(im[O_LIB + k * REC:O_LIB + k * REC + REC1] == b0[O_LIB + k * REC:O_LIB + k * REC + REC1] for k in range(256))
@@ -1049,37 +1143,7 @@ def main():
 
     # ---- a refused kits.work: listed by STORE, kept; OVERWRITE and BACKUP --------
     if (not only or "krefuse" in only) and exists("base") and "store_answer_cb" in sym:
-        kw = next((v for k, v in emu_card.extract_image((OUT / "base.img").read_bytes()).items()
-                   if k.lower().endswith("/kits/kits.work")), b"")
-        badk = bytearray(kw); badk[O_LIB + 3000] ^= 0x55; badk = bytes(badk)       # the CRC fails
-        f = OUT / "kits.work"; f.write_bytes(badk)
-        c = stage(pathlib.Path(a.strand_project).expanduser(), "KBAD", extra=[f])
-
-        def kbad(tag, choice):
-            dmp = (f"{KS:#x},48={OUT / f'{tag}_st.bin'};{sym['store_npend']:#x},4={OUT / f'{tag}_np.bin'};"
-                   f"{sym['store_pend']:#x},32={OUT / f'{tag}_pend.bin'};{sym['KBACKUP']:#x},8={OUT / f'{tag}_bk.bin'}")
-            cmd = [EMU, "--image", image, "--card", c, "--set", "OCTABAM", "--project", "KBAD", "--load-ms", "90000",
-                   "--live-script", s1, "--mem-dump", dmp]
-            if choice is not None:
-                cmd += ["--step", f"-:call:{sym['store_answer_cb']:#x},{choice},0"]
-            run(cmd, OUT / f"{tag}.txt")
-        with ThreadPoolExecutor(3) as ex:
-            list(ex.map(lambda t: kbad(*t), [("kbad_ignore", None), ("kbad_over", 1), ("kbad_back", 2)]))
-        # the prompt: an encoder turn opens the list, LEVEL scrolls, YES answers
-        def ui(tag, *rows):
-            sc = Script(); sc.tap("no", 400); sc.send("enc 1 1", 800)
-            for r in rows:
-                sc.send(r, 700)
-            sp = OUT / f"{tag}.script"; sp.write_text(sc.text())
-            dmp = (f"{KS:#x},48={OUT / f'{tag}_st.bin'};{sym['store_npend']:#x},4={OUT / f'{tag}_np.bin'};"
-                   f"{sym['store_pend']:#x},32={OUT / f'{tag}_pend.bin'};{sym['KBACKUP']:#x},8={OUT / f'{tag}_bk.bin'};"
-                   f"0x460e5e28,4={OUT / f'{tag}_cbs.bin'};0x460e5e30,4={OUT / f'{tag}_obj.bin'};"
-                   f"{sym['store_mown']:#x},4={OUT / f'{tag}_mown.bin'}")
-            run([EMU, "--image", image, "--card", c, "--set", "OCTABAM", "--project", "KBAD", "--load-ms", "90000",
-                 "--live-script", sp, "--mem-dump", dmp], OUT / f"{tag}.txt")
-        with ThreadPoolExecutor(3) as ex:
-            list(ex.map(lambda t: ui(*t), [("kui_open",), ("kui_over", "enc 6 1", "key 0x31 down", "key 0x31 up"),
-                                           ("kui_ignore", "key 0x31 down", "key 0x31 up")]))
+        joined("krefuse")
         w = lambda tag, n: struct.unpack(">I", (OUT / f"{tag}_{n}.bin").read_bytes())[0]
         check(f"kui_open: the encoder turn opened STORE's list (M_OBJ {w('kui_open', 'obj'):#x}, callbacks {w('kui_open', 'cbs'):#x} "
               f"= store_cbtab {sym['store_cbtab']:#x}, open flag {w('kui_open', 'mown')}); the file is still listed ({w('kui_open', 'np')})",
@@ -1110,7 +1174,9 @@ def main():
                       and bk == (1 if tag == "kbad_back" else 0, 0))
 
     # ---- a rejected bank file, a missing project --------------------------------
-    if (not only or "strand" in only) and (sd / "project.work").is_file():
+    if "strand" in skipped:
+        pass
+    elif (not only or "strand" in only) and (sd / "project.work").is_file():
         finish(OUT / "strand.txt")
         clean("strand")
     elif not only or "strand" in only:
@@ -1122,6 +1188,8 @@ def main():
         check(f"noproj: the load ran, no halt (READY {s['READY']}, IOERR {s['IOERR']})",
               not any(w in log for w in ("stopped before", "FAULT", "ILLEGAL")))
 
+    if skipped:
+        print(f"  [ -- ] FULL only (skipped by --quick): {', '.join(skipped)}")
     print(f"verify_kits: {'FAIL' if fails else 'ok'} ({fails} failure(s))")
     return 1 if fails else 0
 
