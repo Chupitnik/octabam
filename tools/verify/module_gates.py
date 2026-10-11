@@ -39,6 +39,68 @@ from remix import registry  # noqa: E402
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
+def _globals(m):
+    """Names a module's linked units export (`.global` / `.globl`)."""
+    import re
+    out = set()
+    for u in getattr(m, "linked", ()):
+        try:
+            text = (ROOT / u.source).read_text(errors="replace")
+        except OSError:
+            continue
+        for names in re.findall(r"^\s*\.glob(?:a)?l\s+([^|;#\n]+)", text, re.M):
+            out |= {n.strip() for n in names.split(",") if re.fullmatch(r"[A-Za-z_]\w*", n.strip())}
+    return out
+
+
+def coupled(a, b):
+    """Why module `a`'s code can change what module `b` does, or None: a
+    requires, conflicts or overrides entry naming the other, a formatter
+    one registers in the other's descriptor, both on the bus, a fixed write
+    span both claim (caves, hooks, detours, symbol and table refs, pokes),
+    or a DRAM unit of one whose declared defsym the other defines."""
+    for x, y in ((a, b), (b, a)):
+        if y.key in getattr(x, "requires", ()):
+            return f"{x.key} requires {y.key}"
+        if y.key in {k for k, _why in getattr(x, "conflicts", ())}:
+            return f"{x.key} conflicts with {y.key}"
+        if y.key in {o.module for o in getattr(x, "overrides", ())}:
+            return f"{x.key} overrides {y.key}"
+        regs = {u.registers_formatter.module for u in (*getattr(x, "linked", ()), *getattr(x, "cf_patches", ()))
+                if getattr(u, "registers_formatter", None) is not None}
+        if y.key in regs:
+            return f"{x.key} registers a formatter in {y.key}'s descriptor"
+    from remix.schema import on_the_bus
+    if on_the_bus(a) and on_the_bus(b):
+        return f"{a.key} and {b.key} share the bus"
+    spans_a = [(s, s + n) for _k, s, n, _l in a.write_spans()]
+    for _k, s, n, label in b.write_spans():
+        if any(s < hi and lo < s + n for lo, hi in spans_a):
+            return f"{a.key} and {b.key} write 0x{s:08x} ({label})"
+    for x, y in ((a, b), (b, a)):
+        names = {n for u in getattr(x, "linked", ()) for n, _v in getattr(u, "defsyms", ())}
+        hit = names & _globals(y)
+        if hit:
+            return f"{x.key} links {sorted(hit)[0]} from {y.key}"
+    return None
+
+
+def reached(keys, modules):
+    """The selected modules a change to `keys` reaches: those keys and every
+    module coupled() to one of them, transitively. A per-remix gate of any
+    other module tests code the change did not touch."""
+    by_key = {m.key: m for m in modules}
+    out = {k for k in keys if k in by_key}
+    todo = list(out)
+    while todo:
+        a = by_key[todo.pop()]
+        for m in modules:
+            if m.key not in out and coupled(a, m):
+                out.add(m.key)
+                todo.append(m.key)
+    return out
+
+
 def collect(modules, stage, remix_arg=None, once=None):
     """The gates of `modules` for one stage, in selection order, each script
     once. `remix_arg` True/False keeps only the gates that take / do not
@@ -110,8 +172,9 @@ def main(argv=None):
                     help="only the gates that take the remix (remix_arg=True)")
     ap.add_argument("--list", action="store_true", help="print the commands, run nothing")
     ap.add_argument("--modules", default="",
-                    help="with --shared: only the gates of these comma-separated module keys "
-                         "(make check-shared MODULES=...; a module change reaches its own gates)")
+                    help="only the gates of these comma-separated module keys: with --shared those "
+                         "modules' own (make check-shared MODULES=...); per remix, those of every module "
+                         "they reach (reached(): make check-remix MODULES=...)")
     a = ap.parse_args(argv)
     env = dict(os.environ)
     env.setdefault("BUILD", "0")
@@ -130,10 +193,18 @@ def main(argv=None):
             label += f", modules {', '.join(sorted(keys))}"
     else:
         remix = registry.remix(a.remix[0] if a.remix else os.environ.get("REMIX"))
+        selected = registry.selected(remix)
         gates = [(k, g, remix.name) for k, g in
-                 collect(registry.selected(remix), a.stage, True if a.remix_only else None,
+                 collect(selected, a.stage, True if a.remix_only else None,
                          False if a.remix_only else None)]
         label = a.stage + (" remix-only" if a.remix_only else "")
+        if a.modules:
+            # the module gates of what a change reaches (reached()); the
+            # rest of the per-remix half (the floor) is the Makefile's
+            keys = reached({k for k in a.modules.split(",") if k}, selected)
+            mine = {g.script for m in selected if m.key in keys for g in getattr(m, "gates", ())}
+            gates = [x for x in gates if x[1].script in mine]
+            label += f", reached from {a.modules} ({', '.join(sorted(keys)) or 'none here'})"
         env["REMIX"] = remix.name
     if not gates:
         print(f"module gates ({label}): none declared")

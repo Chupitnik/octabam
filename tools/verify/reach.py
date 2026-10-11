@@ -159,8 +159,28 @@ def cmd_check(remix):
     return ("check", f"make check REMIX={remix}")
 
 
-def cmd_check_remix(remix):
-    return ("check-remix", f"make check-remix REMIX={remix}")
+def cmd_check_remix(remix, modules=None):
+    """A remix's per-remix half; with `modules` (a module change), its floor
+    and the module gates of what those modules reach (12 Oct 2026)."""
+    line = f"make check-remix REMIX={remix}"
+    if modules:
+        line += f' MODULES="{",".join(sorted(set(modules)))}"'
+    return ("check-remix", line)
+
+
+def shards_line(command):
+    """A check_shards line's (remixes, modules or None)."""
+    import shlex
+    words = shlex.split(command.split("check_shards.py", 1)[1])
+    remixes, modules, i = [], None, 0
+    while i < len(words):
+        if words[i] in ("--jobs", "--modules"):
+            if words[i] == "--modules":
+                modules = words[i + 1].split(",")
+            i += 2
+            continue
+        remixes.append(words[i]); i += 1
+    return remixes, modules
 
 
 def cmd_check_shared(remixes, modules=None):
@@ -612,7 +632,7 @@ def route_tool(path, ctx):
             # remix_arg=False or once=True: run by the shared half
             gates.append(cmd_check_shared(remixes, owners))
         else:
-            gates += [cmd_check_remix(r) for r in remixes]
+            gates += [cmd_check_remix(r, owners) for r in remixes]
         notes.append(f"{pathlib.PurePosixPath(script).stem}, a gate of " + ", ".join(owners))
     if path.startswith("tools/verify/") and not gates and path.startswith("tools/verify/verify_"):
         notes.append("a verifier no recipe or manifest runs (its own make target)")
@@ -755,7 +775,7 @@ def classify(paths, ctx):
                 if remixes:
                     # the shared half for this module's own shared gates
                     # only; the other modules' are what they were on main
-                    gates = ([cmd_check_shared(remixes, [key])] + [cmd_check_remix(r) for r in remixes]
+                    gates = ([cmd_check_shared(remixes, [key])] + [cmd_check_remix(r, [key]) for r in remixes]
                              + [cmd_accept(r) for r in remixes])
                     note = f"{key} -> " + ", ".join(remixes)
                 elif ctx.test_carriers.get(key):
@@ -861,6 +881,21 @@ def plan(rows, accept_runs_check=True, keys_of=None):
             r = accept_remix(c)
             by_cmd.setdefault(cmd_check_shared([r]), []).extend(v)
             by_cmd.setdefault(cmd_check_remix(r), []).extend(v)
+    # one per-remix line per remix: the union of its scopes, or the whole
+    # half when any line checks it whole
+    per = {}
+    for (k, c), v in list(by_cmd.items()):
+        if k == "check-remix":
+            per.setdefault(accept_remix(c), []).append((c, v))
+    for r, entries in per.items():
+        if len(entries) < 2:
+            continue
+        scopes = [shared_modules(c) for c, _ in entries]
+        merged = None if any(m is None for m in scopes) else sorted({k for m in scopes for k in m})
+        paths = sorted({p for _, v in entries for p in v})
+        for c, _ in entries:
+            del by_cmd[("check-remix", c)]
+        by_cmd[cmd_check_remix(r, merged)] = paths
     shared = {k: v for k, v in by_cmd.items() if k[0] == "check-shared"}
     if len(shared) > 1:
         names = sorted({r for _, c in shared for r in shared_remixes(c)})
@@ -914,16 +949,22 @@ def sharded(items, jobs):
         else:
             halves.append((k, c, p))
     items = halves
-    remixes = [c.split("REMIX=")[1] for k, c, _ in items if k == "check-remix"]
+    lines = [c for k, c, _ in items if k == "check-remix"]
+    remixes = [accept_remix(c) for c in lines]
     if not remixes:
         return items
+    scopes = [shared_modules(c) for c in lines]
+    # one module list for the run: the union, or every gate when any remix
+    # is checked whole
+    modules = None if any(m is None for m in scopes) else sorted({k for m in scopes for k in m})
     out, done = [], False
     for kind, command, paths in items:
         if kind != "check-remix":
             out.append((kind, command, paths))
         elif not done:
             all_paths = sorted({p for k, _, ps in items if k == "check-remix" for p in ps})
-            out.append(("check-remix", f"python3 tools/verify/check_shards.py --jobs {jobs} " + " ".join(remixes), all_paths))
+            out.append(("check-remix", f"python3 tools/verify/check_shards.py --jobs {jobs} "
+                        + (f'--modules "{",".join(modules)}" ' if modules else "") + " ".join(remixes), all_paths))
             done = True
     return out
 
@@ -934,8 +975,9 @@ def unsharded(items):
     out = []
     for kind, command, paths in items:
         if kind == "check-remix" and "check_shards.py" in command:
-            for r in command.split("--jobs")[1].split()[1:]:
-                out.append((kind, cmd_check_remix(r)[1], paths))
+            remixes, modules = shards_line(command)
+            for r in remixes:
+                out.append((kind, cmd_check_remix(r, modules)[1], paths))
         elif kind == "accept" and " JOBS=" in command:
             out.append((kind, command.split(" JOBS=")[0], paths))
         else:

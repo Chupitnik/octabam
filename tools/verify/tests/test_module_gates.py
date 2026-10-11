@@ -77,5 +77,15 @@ class PortStamp(unittest.TestCase):
             self.assertTrue(reach.port_is_stale(exe, src, d / "no-stamp"))
 
 
+class Reached(unittest.TestCase):
+    def test_a_change_reaches_the_modules_coupled_to_it(self):
+        from remix import registry
+        sel = registry.selected(registry.remix("bottleservice"))
+        self.assertEqual(module_gates.reached({"RIG HOSTS"}, sel), {"RIG HOSTS"})
+        self.assertIn("MODE DEFAULTS", module_gates.reached({"CC MAP"}, sel))      # links its CC_MODEDEF1/2
+        self.assertTrue({"STORE", "SCENES P2", "PLOCKS P2"} <= module_gates.reached({"KITS"}, sel))
+        self.assertTrue({"REVERB SERVER", "SEND"} <= module_gates.reached({"DELAY SERVER"}, sel))   # the bus
+
+
 if __name__ == "__main__":
     unittest.main()

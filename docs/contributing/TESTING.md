@@ -308,7 +308,23 @@ whole shared half for bottleservice runs nine module gates (twocore,
 onebus, spectrum, character, charkey, modulation, ccmap, ccfeedback,
 kits) and the 90 s census; a KITS change needs one of them. Two scoped
 lines merge into one with the union of their modules; an unscoped line
-makes the merged line the whole half.
+stands for every module of its own remixes (12 Oct 2026; until then it
+made the merged line the whole half of every remix in it).
+
+**Scoped per-remix half** (12 Oct 2026). `make check-remix REMIX=r
+MODULES="A,B"` (and `check_shards.py --modules`) runs the remix's floor
+as always (the build, cycles, dirtystate, initregs, dram_boot, labels,
+modenames, hidden, menu, the set and USB) and the module gates of every
+module the keys reach (`module_gates.reached`): the keys and, transitively,
+every selected module coupled to one of them by `requires`, `conflicts`
+or an override in either direction, a formatter registered in its
+descriptor, the bus, a fixed write span both claim, or a DRAM unit linking
+a global the other defines. On bottleservice a RIG HOSTS change runs no
+module gate, a KITS change runs SCENES P2's and PLOCKS P2's. What it cannot
+see: two modules coupled through a stock routine both call (TEMPO BUS and
+MODE DEFAULTS share the page writer `0x40054cd8`), or through state one
+reads and the other writes at run time; the floor's set gate boots the
+whole image under the port for every carrying remix.
 
 **One remix splits too.** With `JOBS` above 1 (QUICK's default is 2), a
 change that reaches one remix runs its shared half and then its per-remix
