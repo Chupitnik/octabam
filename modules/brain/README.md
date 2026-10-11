@@ -17,7 +17,7 @@ PROJ (MAIN MENU), then BRAIN, the fifth category. Its pane:
 | SETTINGS ► | its sub-list: `◄ SETTINGS`, then a heading row per module and a value row per setting (below) |
 | DEFAULTS ► | its sub-list: `◄ DEFAULTS`, SAVE AS DEFAULT, CLEAR DEFAULT |
 | REMIXES ► | its sub-list: `◄ REMIXES`, then REMIX SWITCH's rows (`modules/remix-switch`, sanderlegit): each `.RMX` in `/BRAIN/REMIXES/`, sorted; after a switch a `FLASHED` separator and the image a power-cycle returns to |
-| TOOLS ► | its sub-list: `◄ TOOLS`, WRITE DEBUG LOG, MIDI MONITOR, LOAD |
+| TOOLS ► | its sub-list: `◄ TOOLS`, WRITE DEBUG LOG, MIDI MONITOR, LOAD, PROJECT CHECK |
 
 | sub-list row | does |
 |---|---|
@@ -232,6 +232,49 @@ Both hooks run during one LOAD PROJECT under the port (2 calls a load). A power-
 the card's DELAY default (TIME 52, FB 5) lands on T2's FX2 select (7 Oct
 2026, by hand; not in the gate).
 
+## The project pair
+
+`<set path>/<project folder>/brain.work` and `brain.strd` (file kinds 2 and
+3), the set path read from `0x100f8480` and the folder name from
+`0x100f8378`. The pair rule is the card pair's (BRAIN.md section 6.2).
+
+- SAVE PROJECT: the engine task copies `card.work` to `card.strd`, then
+  writes the project's `brain.work` and copies it to `brain.strd`. The
+  file holds the PROJECT-scope settings records (one per store with such a
+  setting; no module declares one yet) and one project record (kind 4,
+  store id `octabam.brain`): per effect in `brain_fx[]`, the FX id, store
+  id and layout hash. Other records of an existing `brain.work` (unknown
+  kinds, other stores) are kept byte for byte; a previous project record
+  is replaced. A damaged pair with no valid copy is not overwritten
+  (write error 2); no project named gives error 5.
+- Each load (LOAD PROJECT, power-up bank load): the pair is read, its
+  PROJECT-scope settings land in the value table, and the project record
+  is compared with the image. Counters, `brain_pcounts` (`.data`): state
+  (0 none, 1 `brain.work`, 2 recovered from `brain.strd`, 3 damaged),
+  record found, entries, and per entry one of same, moved (its FX id now
+  names another store), layout (same store, another layout hash), gone
+  (the image has no such store); skipped records (CRC, schema major, a
+  second record). `brain_proj_counts` holds the last project save's result.
+- TOOLS > PROJECT CHECK shows the last load's result in the stock popup:
+  `SAVED WITH THIS IMAGE`, `N EFFECT(S) CHANGED SINCE THE SAVE` (moved +
+  layout + gone), `NO RECORD OF A BRAIN SAVE`, or `BRAIN FILES OF THIS
+  PROJECT BAD`.
+- Parts are not rewritten and not clamped: stock's Part validator clamps
+  out-of-count bytes at the load (BRAIN.md section 8).
+- `set_ent` (`brain_set[]`) is 44 bytes: a scope word follows the group
+  pointer (0 CARD, 1 PROJECT). `card.work` carries the CARD entries.
+
+Measured under the port (`verify_brain`, remix `brain`, project fixture
+staged as set `BRAINSET`, project `BRAINPRJ`): SAVE PROJECT on a project
+folder holding an unknown-kind record and a stale project record writes
+`brain.work` with the unknown record unchanged and one project record
+equal to the image's table, and `brain.strd` equal to it with kind 3; a
+load with a project record of four entries (one unchanged, one with
+another layout, one for an unknown store, one whose FX id names another
+store) counts 1 same, 1 layout, 1 gone, 1 moved; a damaged `brain.work`
+with a valid `brain.strd` reads the same counts with state 2; a damaged
+`brain.work` alone gives state 3 and no record read.
+
 ## On the unit
 
 Not yet.
@@ -249,8 +292,8 @@ Not yet.
   not measured on a unit.
 - Timing of the card read on the unit (one file, at most 16 KB).
 
-- The project pair, the project record, the CS1 block (BRAIN.md
-  section 12).
+- The CS1 block (BRAIN.md section 12). The PROJECT CHECK popup's text
+  is not rendered under `--lcd`.
 - LOAD TEMPLATE writes the current bank's Part through the stock writers
   (✅ under the port, the Part bytes). The live lane, what the DSP plays,
   follows when that bank is the one playing (the page-1 writer updates the

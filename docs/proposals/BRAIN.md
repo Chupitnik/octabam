@@ -580,7 +580,7 @@ Phase 2, SETTINGS (10 Oct 2026): `tools/remix/brain.py` `live_table` and
 Option or Number setting that is not pinned and not `Apply.BUILD`, a global
 `brain_v_<store>_<key>` in the BRAIN unit; a module without BRAIN reads the
 same macro as a constant). `modules/brain/manifest.py` generates
-`brain_set[]` (40 bytes a setting) and `brain_values[]`. At each load
+`brain_set[]` (44 bytes a setting) and `brain_values[]`. At each load
 `brain.c` reads kind-1 records from `card.work`: a value out of its bounds
 or of another type is skipped and counted, a second record for a store is
 skipped (section 7.7), unknown keys are kept on write. PROJ, BRAIN, SETTINGS
@@ -595,6 +595,16 @@ file gives (1,1); the panel (PROJ, DOWN x4, RIGHT, YES, YES) writes
 {1:0, 2:1, 99:1}. Not built: `Apply.CALLBACK` has no callback field (it
 acts as `LIVE`); Blob and Trigger settings have no row; the list has a heading row
 per module, BRAIN's own included. On the unit: not yet.
+
+Phase 2, project pair (11 Oct 2026): `brain.work` / `brain.strd` in the
+project's folder (file kinds 2, 3), written at SAVE PROJECT in the engine
+task (PROJECT-scope settings records, the kind-4 project record, then the
+copy to `brain.strd`; unknown records kept) and read at each load by the
+pair rule; the project record is compared with the image and counted (same,
+moved, layout, gone); TOOLS > PROJECT CHECK shows it. `brain_set[]` entries
+carry the setting's scope. No module declares a PROJECT setting yet. ✅
+under the port (`verify_brain`). The CS1 block is not built. On the unit:
+not yet.
 
 MODE DEFAULTS and RIG HOSTS keep working without the brain. KITS keeps
 AUTOSAVE and KEEP LEVELS in its own header.

@@ -188,7 +188,8 @@ def main():
     nm = shutil.which("m68k-elf-nm") or shutil.which("m68k-linux-gnu-nm")
     kinds = {l.split()[2]: l.split()[1] for l in subprocess.run([nm, str(ELF)], capture_output=True, text=True).stdout.splitlines()
              if len(l.split()) == 3}
-    for name in ("snapped", "table_len", "brain_counts", "brain_save_counts"):
+    for name in ("snapped", "table_len", "brain_counts", "brain_save_counts", "brain_pcounts",
+                 "brain_proj_counts"):
         check(f"{name} is in .data (the unit's .bss holds what the boot left)  [{kinds.get(name)}]",
               kinds.get(name, "?").lower() == "d")
 
@@ -328,12 +329,22 @@ def main():
     # the posts run the writes in the engine task (a --step call runs as main,
     # where file I/O does not return under the port)
     save_at, store_at, scounts_at = symbol("brain_post_save"), symbol("brain_post_store"), symbol("brain_save_counts")
+    pcounts_at, psave_at = symbol("brain_pcounts"), symbol("brain_proj_counts")
     scard = OUT / "save.img"
     swork = OUT / "save_card.work"
     swork.write_bytes(work)
+    # the project's brain.work before the save: an unknown record kind (kept byte
+    # for byte) and a project record from another image (replaced)
+    unknown = brainfile.Record(9, "other.store", payload=b"keep me!!")
+    stale = brainfile.Record(brainfile.PROJECT_RECORD, "octabam.brain",
+                             payload=brainfile.Entry(0x7e, "octabam.old", 5).encode())
+    pwork = OUT / "save_brain.work"
+    pwork.write_bytes(brainfile.File(brainfile.PROJECT_WORK, [unknown, stale], "OLD").encode())
+    pfile = f"{a.set_name}/{a.name}/brain"
     r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
                         "--tree", str(OUT / "tree_save"), "--out", str(scard),
-                        "--root-file", f"{swork}:BRAIN/card.work"], cwd=ROOT, capture_output=True, text=True)
+                        "--root-file", f"{swork}:BRAIN/card.work",
+                        "--root-file", f"{pwork}:{pfile}.work"], cwd=ROOT, capture_output=True, text=True)
     if r.returncode:
         sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
     after, lanes_dump, sdump, log = OUT / "save_after.img", OUT / "save_lanes.bin", OUT / "save_counts.bin", OUT / "save.txt"
@@ -345,6 +356,7 @@ def main():
            "--step", f"150:call:{save_at:#x},1,0",
            "--step", f"300:call:{store_at:#x}",
            "--step", f"500:dump:{scounts_at:#x},16={sdump}",
+           "--step", f"500:dump:{psave_at:#x},16={OUT / 'save_pcounts.bin'}",
            "--card-out", after]
     with open(log, "w") as fh:
         fh.write(" ".join(map(str, cmd)) + "\n"); fh.flush()
@@ -390,6 +402,80 @@ def main():
         d = ddump.read_bytes() if ddump.exists() else b""
         page = lanes[0x18:0x1e] + lanes[0x38:0x3e]
         check(f"save: the second boot puts T1's saved page on BusDelay's descriptor  {d.hex(' ')}", d == page)
+
+    # the project pair, written by the same SAVE PROJECT
+    def find(fs, tail):
+        return next((v for k, v in fs.items() if k.upper().endswith(tail.upper())), None)
+    files = emu_card.extract_image(after.read_bytes())
+    pw_, ps_ = find(files, f"{a.set_name}/{a.name}/BRAIN.WORK"), find(files, f"{a.set_name}/{a.name}/BRAIN.STRD")
+    check(f"project: brain.work and brain.strd in the project's folder "
+          f"({sorted(k for k in files if a.name.upper() in k.upper() and 'BRAIN.' in k.upper())})",
+          pw_ is not None and ps_ is not None)
+    want_entries = {m_.menu.fx2_id: (brain.fx_store_id(m_), brain.fx_layout(m_))
+                    for m_ in brain.fx_targets(remix, mods)}
+    if pw_ is not None and ps_ is not None:
+        pf = brainfile.parse(pw_)
+        precs = [r for r in pf.records if r.kind == brainfile.PROJECT_RECORD]
+        got_entries = {e.fx_id: (e.store_id, e.layout) for e in precs[0].entries()} if len(precs) == 1 else {}
+        check(f"project: one project record, one entry per effect in the image, store id and layout hash "
+              f"as the build ({len(got_entries)} entries)", len(precs) == 1 and got_entries == want_entries
+              and precs[0].store_id == "octabam.brain")
+        old_unknown = unknown.encode()
+        check("project: the unknown record kind is kept byte for byte",
+              any(r.kind == 9 and r.encode() == old_unknown for r in pf.records) and len(pf.records) == 2)
+        check("project: the stale project record is gone", all(e.fx_id != 0x7e for r in precs for e in r.entries()))
+        check("project: brain.strd is brain.work with the .strd kind",
+              ps_[:8] == pw_[:8] and ps_[8] == brainfile.PROJECT_STRD and ps_[9:] == pw_[9:]
+              and pf.kind == brainfile.PROJECT_WORK)
+    ps_counts = struct.unpack(">4I", (OUT / "save_pcounts.bin").read_bytes())
+    check(f"project: one project save, error {ps_counts[1]}, brain.strd written {ps_counts[2]} "
+          f"(errors {ps_counts[3]})", ps_counts == (1, 0, 1, 0))
+
+    # ---- project load: the project record against the image ---------------
+    PC = ("loads", "state", "record", "entries", "same", "moved", "layout", "gone", "skip")
+    ch_, dl_, ds_, sp_ = mods["CHARACTER"], mods["DELAY"], mods["DELAY SERVER"], mods["SPECTRUM"]
+
+    def pentry(m_, fx=None, layout=None):
+        return brainfile.Entry(m_.menu.fx2_id if fx is None else fx, brain.fx_store_id(m_),
+                               brain.fx_layout(m_) if layout is None else layout)
+    entries = [pentry(dl_, layout=brain.fx_layout(dl_) ^ 1),        # same store, another layout
+               pentry(ch_),                                        # unchanged
+               brainfile.Entry(0x7e, "octabam.nosuch", 1),         # a store the image lacks
+               pentry(ds_, fx=sp_.menu.fx2_id)]                    # this FX id now names SPECTRUM
+    prec = brainfile.Record(brainfile.PROJECT_RECORD, "octabam.brain",
+                            payload=b"".join(e.encode() for e in entries))
+    pgood = brainfile.File(brainfile.PROJECT_WORK, [prec], "OLD").encode()
+    pstrd = brainfile.File(brainfile.PROJECT_STRD, [prec], "OLD").encode()
+    pbad = pgood[:-3] + b"xyz"
+    for tag, pfiles, want_state in (("pload", {"brain.work": pgood}, 1),
+                                    ("precover", {"brain.work": pbad, "brain.strd": pstrd}, 2),
+                                    ("pdamaged", {"brain.work": pbad}, 3)):
+        roots = []
+        for fn, data in pfiles.items():
+            fp = OUT / f"{tag}_{fn}"
+            fp.write_bytes(data)
+            roots += ["--root-file", f"{fp}:{a.set_name}/{a.name}/{fn}"]
+        pc_card, pc_dump, pc_log = OUT / f"{tag}.img", OUT / f"{tag}_counts.bin", OUT / f"{tag}.txt"
+        r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
+                            "--tree", str(OUT / f"tree_{tag}"), "--out", str(pc_card), *roots],
+                           cwd=ROOT, capture_output=True, text=True)
+        if r.returncode:
+            sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
+        cmd = [EMU, "--image", image, "--card", pc_card, "--set", a.set_name, "--project", a.name,
+               "--mount", "--load-ms", "90000",
+               "--step", f"-:dump:{pcounts_at:#x},{4 * len(PC)}={pc_dump}"]
+        with open(pc_log, "w") as fh:
+            r = subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
+        if r.returncode or not pc_dump.exists():
+            sys.exit(f"verify_brain: the {tag} run did not finish -- {pc_log}")
+        pcs = dict(zip(PC, struct.unpack(f">{len(PC)}I", pc_dump.read_bytes())))
+        if want_state == 3:
+            check(f"project: {tag}: brain.work damaged and no brain.strd, state damaged, no record read  {pcs}",
+                  pcs["state"] == 3 and pcs["record"] == 0 and pcs["entries"] == 0)
+        else:
+            check(f"project: {tag}: state {want_state}, 4 entries: 1 same, 1 layout, 1 moved, 1 gone  {pcs}",
+                  (pcs["state"], pcs["entries"], pcs["same"], pcs["layout"], pcs["moved"], pcs["gone"])
+                  == (want_state, 4, 1, 1, 1, 1))
 
     # a card with no BRAIN folder: the first save creates it
     fcard, fafter, flog = OUT / "save_fresh.img", OUT / "save_fresh_after.img", OUT / "save_fresh.txt"

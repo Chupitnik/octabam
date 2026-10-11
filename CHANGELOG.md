@@ -20,6 +20,7 @@ The full text before this rewrite: `git show 666b6154:CHANGELOG.md`.
 
 - BRAIN: TOOLS > MIDI MONITOR (the last three messages, live) and TOOLS > LOAD (the frame interrupt's share, live; FUNC + LEVEL push on an MKII); LOAD METER (new) measures it (11 Oct, port: `verify_brain`).
 - BRAIN: SETTINGS list (PROJ, BRAIN, SETTINGS) with card-stored settings, a run-time value table and `remix.brain.read_macro` for modules; MIDI LOG and DEFAULTS are BRAIN's first two settings. Measured under the port only.
+- BRAIN: project pair (`brain.work`/`brain.strd` in the project folder), the project record written at SAVE PROJECT and compared at each load, TOOLS > PROJECT CHECK. Measured under the port only.
 - Analog BD: engine selection now lives only in the pool-style browser; the
   former SRC SETUP MODEL control and its encoder editing path are removed.
   Both source outputs are 12.04 dB louder than the 29 September revision,

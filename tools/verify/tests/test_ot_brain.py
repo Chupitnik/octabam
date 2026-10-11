@@ -32,5 +32,32 @@ class RoundTrip(unittest.TestCase):
         self.assertEqual(out["records"][0]["values"][2]["value"], 1234)
 
 
+class ProjectPair(unittest.TestCase):
+    def test_project_kinds_dump_and_pair(self):
+        import contextlib
+        import io
+        import tempfile
+        from remix import brainfile
+        rec = brainfile.Record(brainfile.PROJECT_RECORD, "octabam.brain",
+                               payload=brainfile.Entry(6, "octabam.busdelay", 0x01020304).encode())
+        work = brainfile.File(brainfile.PROJECT_WORK, [rec], "T").encode()
+        strd = brainfile.File(brainfile.PROJECT_STRD, [rec], "T").encode()
+        for blob, kind in ((work, "project .work"), (strd, "project .strd")):
+            j = ot_brain.dump(blob)
+            self.assertEqual(j["file"], kind)
+            self.assertEqual(j["records"][0]["entries"],
+                             [{"fx_id": "0x06", "store_id": "octabam.busdelay", "layout": "01020304"}])
+            self.assertEqual(ot_brain.build(json.loads(json.dumps(j))), blob)
+        with tempfile.TemporaryDirectory() as d:
+            d = pathlib.Path(d)
+            (d / "brain.work").write_bytes(work[:-3] + b"xyz")
+            (d / "brain.strd").write_bytes(strd)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                ot_brain.main(["ot_brain.py", "pair", str(d)])
+            self.assertIn("brain.work", out.getvalue())
+            self.assertIn("1 records", out.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

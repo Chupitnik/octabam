@@ -14,7 +14,7 @@ import struct
 import sys
 
 from remix import schema
-from remix.schema import (Binary, Category, Detour, Gate, Kind, Linked, Module, Poke, Proof, Setting,
+from remix.schema import (Binary, Category, Detour, Gate, Kind, Linked, Module, Poke, Proof, Scope, Setting,
                           Store, SymbolRef)
 
 H = bytes.fromhex
@@ -115,10 +115,11 @@ PANE_W = 15                              # characters BRAIN's list pane shows (b
 def settings_inc(mods):
     """brain_set[] and brain_values[]: one entry per setting the unit holds
     at run time (remix.brain.live_table), in the SETTINGS list's order.
-    An entry is 40 bytes (brain.c struct set_ent): store id, id length,
+    An entry is 44 bytes (brain.c struct set_ent): store id, id length,
     type (1 Binary, 2 Option, 3 Number), apply (0 live, 1 callback, 2 next
     boot), label count, key, min, max, the default after layers 1 and 2,
-    the labels, the name, the module's key (the list's heading). Each value
+    the labels, the name, the module's key (the list's heading), the scope
+    (0 CARD: card.work; 1 PROJECT: the project's brain.work). Each value
     is a long with its own global (remix.brain.value_symbol), which a
     module's read macro loads."""
     from remix import brain, registry
@@ -148,7 +149,8 @@ def settings_inc(mods):
                 f"        .byte   {len(r.store_id)}, {typ}, {applies[s.apply]}, {nl}",
                 f"        .word   {r.key}, {k.step if isinstance(k, Number) else 1}",
                 f"        .long   {lo}, {hi}, {int(r.value)}",
-                f"        .long   {f'brain_slab_{i}' if nl else 0}, brain_snam_{i}, brain_sgrp_{groups[m.key]}"]
+                f"        .long   {f'brain_slab_{i}' if nl else 0}, brain_snam_{i}, brain_sgrp_{groups[m.key]}, "
+                f"{1 if s.scope is Scope.PROJECT else 0}"]
         strs += [f'brain_sid_{i}: .ascii "{r.store_id}"', f'brain_snam_{i}: .asciz "{s.name}"']
         if nl:
             strs.append(f"brain_slab_{i}: .long " + ", ".join(f"brain_slab_{i}_{j}" for j in range(nl)))
@@ -210,6 +212,7 @@ def menu_inc():
             "        .long   brain_lbl_log, 0, brain_menu_log, 0, 0, 0",
             "        .long   brain_lbl_midimon, 0, brain_menu_midimon, 0, 0, 0",
             "        .long   brain_lbl_load, 0, brain_menu_load, 0, 0, 0",
+            "        .long   brain_lbl_pcheck, 0, brain_menu_pcheck, 0, 0, 0",
             # REMIXES: the back row, then REMIX SWITCH's rows (modules/
             # remix-switch/switch.s): up to NMAX (32) images and four text rows
             "brain_rmx_rows:",
@@ -236,7 +239,8 @@ def menu_inc():
             'brain_lbl_clear: .asciz "CLEAR DEFAULT"',
             'brain_lbl_log: .asciz "WRITE DEBUG LOG"',
             'brain_lbl_midimon: .asciz "MIDI MONITOR"',
-            'brain_lbl_load: .asciz "LOAD"']
+            'brain_lbl_load: .asciz "LOAD"',
+            'brain_lbl_pcheck: .asciz "PROJECT CHECK"']
     return "\n".join(out)
 
 
