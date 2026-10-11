@@ -71,7 +71,8 @@ REMIX = ["make check-remix REMIX=bamsep26", "make check-remix REMIX=miniverb"]
 COVER = [SHARED] + REMIX
 ACCEPT = 'make accept REMIXES="bamsep26 miniverb" STRESS_SOURCE=${STRESS_SOURCE}'
 IDENTITY = "python3 tools/verify/image_identity.py --base ${BASE}"
-BUILD = ["make test-acceptance", "scripts/refhash.sh check", IDENTITY, SHARED]
+BUS = "python3 tools/verify/verify_bus.py --base ${BASE}"
+BUILD = ["make test-acceptance", "scripts/refhash.sh check", BUS, IDENTITY, SHARED]
 
 
 def commands(paths, accept_runs_check=False, c=None):
@@ -197,8 +198,14 @@ class DependencyTests(unittest.TestCase):
         self.assertEqual(commands(["tools/verify/reach.py"]), ["make test-acceptance"])
         self.assertEqual(commands(["tools/verify/tests/test_reach.py"]), ["make test-acceptance"])
 
+    def test_the_bus_gate_follows_the_bus(self):
+        # a module of remix bus, and the gate itself
+        self.assertIn(BUS, commands(["modules/send/send_client.asm"]))
+        self.assertIn(BUS, commands(["tools/verify/verify_bus.py"]))
+        self.assertNotIn(BUS, commands(["modules/character/engine.asm"]))
+
     def test_toolchain_and_port(self):
-        self.assertEqual(commands(["tools/patches/dsp56300.patch"]), ["make ci-dsp"] + COVER)
+        self.assertEqual(commands(["tools/patches/dsp56300.patch"]), ["make ci-dsp", BUS] + COVER)
         self.assertEqual(commands(["tools/emu/ot_emu/machine.h"]), ["make ci-emu", "make emu-cf"] + REMIX)
         self.assertEqual(commands(["scripts/refhash.sh"]), ["scripts/refhash.sh check"])
 

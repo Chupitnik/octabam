@@ -141,7 +141,7 @@ is an offline specification test nothing runs.
 
 | target | proves |
 |---|---|
-| `make verify-bus` (`SAVE=1` first) | a bus-layout change is behaviour-preserving over every layout in its case list: stamp, edit, compare |
+| `make verify-bus` (`SAVE=1` first), `verify_bus.py --base REF` | a bus-layout change is behaviour-preserving over every layout in its case list: stamp, edit, compare; or, with `--base`, the merge-base's DEV hatch against this tree's, no stamp (`make reach` runs this form for a change to the build, the DSP toolchain, a module of remix `bus` or the gate). Always remix `bus`: a remix with locked servers renders every layout that moves a server dry. Its `--selftest` shows 11 layouts blind to an extra SEND at position 0, on main as well (12 Oct 2026; not resolved) |
 | `make verify-delay CAND=...`, `make verify-roll CAND=...` | an alternate delay or reverb engine is bit-identical to the shipping one |
 | `make verify-ident MOD=<station>`, `make verify-spectrum-ident` (`SAVE=1` first) | a rewritten station is bit-identical across a knob matrix |
 | `make verify-midi` | the note to PITCH path, through a build override |

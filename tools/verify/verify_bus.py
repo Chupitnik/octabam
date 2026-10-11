@@ -12,7 +12,19 @@ race: a green run is not evidence a timing fix works.
 
     make verify-bus SAVE=1     # on the tree you trust, BEFORE the edit
     ...make the bus change...
-    make verify-bus            # must come back 19/19 bit-identical
+    make verify-bus            # must come back bit-identical, every case
+
+    python3 tools/verify/verify_bus.py --base origin/main
+                               # no stamp: the DEV hatch of remix `bus` built
+                               # from the merge-base (image_identity's base
+                               # worktree) and from this tree, both rendered
+                               # (what `make reach` runs)
+
+The subject is remix `bus`: both servers, neither locked. A remix that
+locks its servers to position 0 (bottleservice, rig, brain: HOSTGUARD)
+renders every layout that moves a server dry -- 11 of the cases came back
+digital silence that way from 27 Sep 2026 (a5bd2828 took the default remix,
+which was `bus`, away) until 12 Oct 2026.
 
 An on-demand gate around one edit, not a member of `make check`: the
 hashes cover the whole render (reverb engine, delay engine and bus
@@ -26,7 +38,9 @@ The sensitivity nudge is the SEND level, the one knob every case carries
 import argparse
 import hashlib
 import json
+import os
 import pathlib
+import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -35,6 +49,20 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1])); import too
 import send_probe  # noqa: E402
 
 REF = ROOT / "out/dsp/bus_reference.json"
+BUS_REMIX = "bus"                              # both servers, neither locked
+
+
+def build_dev(tree):
+    """The DEV hatch (both servers, a real delay in payload A) of remix
+    `bus`, built in `tree`."""
+    env = dict(os.environ, REMIX=BUS_REMIX, DEV="1", XBUS="1")
+    for var in ("MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES", "SPEC"):
+        env.pop(var, None)
+    r = subprocess.run([sys.executable, "tools/build/build_bus.py"], cwd=tree, env=env,
+                       capture_output=True, text=True)
+    if r.returncode:
+        sys.exit(f"verify_bus: the DEV hatch of {BUS_REMIX} did not build in {tree}:\n"
+                 f"{(r.stdout + r.stderr)[-1500:]}")
 REF_MEM = ROOT / "out/dsp/mem_ref_A.mem"      # only needed by --allow-lag
 DEV_MEM = ROOT / "out/dsp/mem_dev_A.mem"
 
@@ -262,6 +290,9 @@ def main():
                     help="candidate dump (default: the DEV delay hatch)")
     ap.add_argument("--save", action="store_true",
                     help="stamp the candidate as the new reference")
+    ap.add_argument("--base", metavar="REF",
+                    help="build the DEV hatch of remix `bus` from the merge-base with REF and from\n"
+                         "this tree, and compare the two (no stamp needed)")
     ap.add_argument("--selftest", action="store_true",
                     help="prove the harness can fail (see the module docstring)")
     ap.add_argument("--allow-lag", type=int, default=0, metavar="N",
@@ -281,12 +312,32 @@ def main():
                          "at the same buffer generation as the reference.")
     a = ap.parse_args()
 
+    if a.base:
+        from image_identity import base_tree, git
+        mb = git("merge-base", a.base, "HEAD", check=False)
+        if mb.returncode:
+            sys.exit(f"verify_bus: no merge-base with {a.base}: {mb.stderr.strip()}")
+        base = base_tree(mb.stdout.strip())
+        for tree in (base, ROOT):
+            build_dev(tree)
+        print(f"bus gate: remix {BUS_REMIX}, base {mb.stdout.strip()[:10]} ({a.base}) vs this tree")
+        refd = collect(base / "out/dsp/mem_dev_A.mem")
+        dead = [k for k, v in refd.items() if v["peak"] == 0]
+        if dead:
+            print("\n  DEAD RENDERS ON THE BASE -- a matching hash would prove nothing:")
+            for k in dead:
+                print(f"    {k}")
+            sys.exit(1)
+        REF.parent.mkdir(parents=True, exist_ok=True)
+        REF.write_text(json.dumps(refd, indent=1, sort_keys=True))
+        a.mem = str(DEV_MEM)
+
     mem = pathlib.Path(a.mem)
     if not mem.exists():
         sys.exit(f"missing {mem} -- build the hatch first:\n"
-                 f"  DEV=1 XBUS=1 python3 tools/build/build_bus.py")
+                 f"  REMIX={BUS_REMIX} DEV=1 XBUS=1 python3 tools/build/build_bus.py")
 
-    print(f"bus gate: {len(CASES)} cases against {mem.relative_to(ROOT)}")
+    print(f"bus gate: {len(CASES)} cases against {mem}")
     if a.allow_lag and not a.save:
         # A lag search needs the reference's SAMPLES, and the stamped file holds
         # only hashes -- so the reference build has to still be on disk. Rather
