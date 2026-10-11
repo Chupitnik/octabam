@@ -633,6 +633,9 @@ AUTOSAVE and KEEP LEVELS in its own header.
 | 4 | how the MIDI CTRL pages draw their labels | image, then port |
 | 4 | the KITS event the brain needs at Kit load and save | `modules/kits/kits.s` |
 | parallel | a ColdFire-to-DSP route for a run-time setting | port, then a hardware probe |
+| later | display values for the 128-count knobs (bipolar raw − 64, +1 offsets, COMB's note names, LO-FI AMPH's degrees, not one-to-one) by running each slot's formatter on the emulated ColdFire for all 128 values, as `stock_labels.py` does for selects; raw stays the stored value (Bryan T, 11 Oct 2026, from octa-bt-pt's checked table) | port |
+| later | a computer editor for `card.work`, project settings and templates (list, edit, rename, delete, export to and import from `templates/`), through `brainfile.py` so unknown records keep their bytes (Bryan T) | computer |
+| later | a hardware-confirmed flag per slot, so a tool shows a measured label apart from an inferred one (Bryan T) | schema |
 
 ## 14. Relation to OTX
 

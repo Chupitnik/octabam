@@ -281,6 +281,18 @@ either stock payload; the X form has 533. Before using a form, grep it in
 `out/dsp/payload_*.asm` (`tools/build/dsp_disasm_all.py`); no precedent means
 a hardware probe first, or the form everything else uses.
 
+**NO `rep` IN AN EFFECT'S `init` OR `proc`, AND NO DENSE X WORK IN A DMA'S
+8K BLOCK.** Neither stock payload contains a `rep`. A `rep` cannot be
+interrupted, and the host-command handlers that arm the ColdFire's DMA must
+answer at once: JamCones' BBD delay on T1 crackled core B and then silenced
+tracks 1-4 (11 Oct 2026), and Zac's MKI voice tore the read-back and wrote
+ColdFire RAM out of place; `do #n,>l / div x0,a / l:` is bit-identical and
+fixed both. Separately, core work that hammers the memory partition a DMA
+channel uses stalls the DMA (core 0: `X:$0000-$1cf`, `$2000` and `$4000`
+host buffers, `$8000` ESAI): a muted track leaking into MAIN, outputs stuck
+one-sided. The port models neither. `docs/contributing/FAILURE_MODES.md`
+has both entries and octabam's open `rep` sites.
+
 **`SPEC=1` requires `XBUS=1`.** Without it the accumulators stay in core-private
 memory and each half of the tracks can reach only its own core's server — worse
 than today, **and it still makes sound.** The build guards this. Do not ungate it.
