@@ -123,9 +123,18 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1])); import too
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools/verify"))
 import slots  # noqa: E402
+import check_shards  # noqa: E402
 import gate_ledger  # noqa: E402
 
 # One command per gate; the order is the order they run in.
+OVERLAP = ("test-acceptance", "refhash", "verify-bus", "check-shared")
+BUILDS = ("refhash", "verify-bus", "check-shared")
+
+
+def is_shards(item):
+    return item[0] == "check-remix" and "check_shards.py" in item[1]
+
+
 ORDER = ("verify_docs", "selftest", "test-acceptance", "ci-dsp", "ci-emu", "emu-cf", "emu-get", "refhash", "verify-bus", "identity", "check-shared", "check", "check-remix", "accept", "ci")
 
 # The build: a change here is every remix, both halves, and refhash proves
@@ -1094,14 +1103,24 @@ def main(argv=None):
     if any(k in PORT_KINDS for k, _, _ in queue) and not any(k == "emu-cf" for k, _, _ in queue) and port_is_stale():
         print("reach: out/emu/ot_emu is missing or older than tools/emu/ot_emu: the port from the store first")
         queue.insert(0, ("emu-get", CMD["emu-get"][1], ["tools/emu/ot_emu"]))
-    def run_command(kind, command):
-        """-> (the command as run, its exit code, seconds), or None when blocked."""
+    def overlap_tree(kind):
+        """A scratch worktree of this tree for a build step that runs beside another."""
+        path = ROOT / "out/overlap" / kind
+        (ROOT / "out/overlap").mkdir(parents=True, exist_ok=True)
+        check_shards.make_shard(path, ROOT / f"out/overlap/{kind}.setup.log")
+        if (ROOT / "out/refhash").is_dir():           # the baseline refhash check compares to
+            shutil.copytree(ROOT / "out/refhash", path / "out/refhash", dirs_exist_ok=True)
+        return path
+
+    def run_command(kind, command, cwd=None):
+        """-> (the command as run, its exit code, seconds); `cwd` a scratch
+        tree of this one (overlap_tree) when the step runs beside another."""
         cmd = command.replace("${STRESS_SOURCE}", stress or "").replace("${BASE}", a.base)
         print(f"reach: running {cmd}", flush=True)
         t0 = time.monotonic()
         if quick and BACKGROUND:
             cmd = f"{BACKGROUND} {cmd}"      # nice 10: the performance cores, below the desktop
-        env = dict(os.environ)
+        env = dict(os.environ) if cwd is None else check_shards.clean_env()
         if a.no_cache:
             env["OCTABAM_GATE_CACHE"] = "0"
         # A command run in this tree holds one of the machine's gate slots
@@ -1111,7 +1130,7 @@ def main(argv=None):
         own_slots = "check_shards.py" in command or kind == "accept"
         with (contextlib.nullcontext(env) if own_slots else slots.slot(f"reach {command}")) as env_slot:
             env.update({k: v for k, v in env_slot.items() if k == "OCTABAM_SLOT"})
-            r = subprocess.run(cmd, shell=True, cwd=ROOT, env=env)
+            r = subprocess.run(cmd, shell=True, cwd=cwd or ROOT, env=env)
         return cmd, r.returncode, time.monotonic() - t0
 
     def record(command, cmd, rc, seconds):
@@ -1130,15 +1149,29 @@ def main(argv=None):
                 return 2
             results.append((command, "BLOCKED", 0.0))
             continue
-        # The shared half and the per-remix shards are independent (the
-        # shards work in their own worktrees; build_bus serialises the
-        # builds of a tree): they run together, each holding its slots.
-        beside = next((it for it in queue if it[0] == "check-remix" and "check_shards.py" in it[1]), None) \
-            if kind == "check-shared" else None
-        if beside:
-            queue.remove(beside)
-            with cf.ThreadPoolExecutor(max_workers=2) as ex:
-                futures = [(c, ex.submit(run_command, k, c)) for k, c, _ in ((kind, command, None), beside)]
+        # Steps that do not depend on one another run together: the unit
+        # tests, refhash, the bus gate, the shared half and the shards. The
+        # steps that build (refhash, the bus gate, the shared half) write
+        # out/ and read their own artifacts back, so the first stays in this
+        # tree and each other one runs in a scratch copy of it
+        # (check_shards.make_shard, out/overlap/); the shards already work
+        # in their own worktrees. identity, the checks and accept stay in
+        # order.
+        group = [(kind, command)]
+        if kind in OVERLAP:
+            while queue and (queue[0][0] in OVERLAP or is_shards(queue[0])):
+                group.append(queue.pop(0)[:2])
+        if len(group) > 1:
+            tasks, in_root = [], False
+            for k, c in group:
+                tree = None
+                if k in BUILDS:
+                    if in_root:
+                        tree = overlap_tree(k)
+                    in_root = True
+                tasks.append((k, c, tree))
+            with cf.ThreadPoolExecutor(max_workers=len(tasks)) as ex:
+                futures = [(c, ex.submit(run_command, k, c, t)) for k, c, t in tasks]
                 done = [(c, f.result()) for c, f in futures]
             for c, (cmd, rc, secs) in done:
                 record(c, cmd, rc, secs)
