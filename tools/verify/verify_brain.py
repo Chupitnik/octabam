@@ -422,7 +422,8 @@ def main():
               and precs[0].store_id == "octabam.brain")
         old_unknown = unknown.encode()
         check("project: the unknown record kind is kept byte for byte",
-              any(r.kind == 9 and r.encode() == old_unknown for r in pf.records) and len(pf.records) == 2)
+              any(r.kind == 9 and r.encode() == old_unknown for r in pf.records)
+              and len([r for r in pf.records if r.kind != brainfile.SETTINGS]) == 2)
         check("project: the stale project record is gone", all(e.fx_id != 0x7e for r in precs for e in r.entries()))
         check("project: brain.strd is brain.work with the .strd kind",
               ps_[:8] == pw_[:8] and ps_[8] == brainfile.PROJECT_STRD and ps_[9:] == pw_[9:]
@@ -768,6 +769,92 @@ def main():
         else:
             check(f"templates: BRAIN > TEMPLATES, RENAME through the name editor (UP, YES) renames TPL 07 to "
                   f"TPL 070, its value kept  {recs}", recs == [(amp["id"], "TPL 070", {1: 5})])
+
+    # ---- shared: one panel run on a staged card ---------------------------
+    def ui_run(tag, keys, roots=(), dumps=(), extra=()):
+        """keys: (code, gap) taps or 'midi ..'/'poke ..' lines. roots: (file,
+        card path). dumps: (address, length). Returns (card files, log text,
+        [dumped bytes])."""
+        uc, uafter, ulog = OUT / f"{tag}.img", OUT / f"{tag}_after.img", OUT / f"{tag}.txt"
+        rr = []
+        for f_, path in roots:
+            rr += ["--root-file", f"{f_}:{path}"]
+        r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
+                            "--tree", str(OUT / f"tree_{tag}"), "--out", str(uc), *rr],
+                           cwd=ROOT, capture_output=True, text=True)
+        if r.returncode:
+            sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
+        t, lines = 1500, []
+        for item in keys:
+            if isinstance(item, str):
+                lines.append(f"{t} {item}"); t += 300
+            else:
+                lines += [f"{t} key {item[0]:#x} down", f"{t + 30} key {item[0]:#x} up"]; t += item[1]
+        lines.append(f"{t + 1500} quit")
+        (OUT / f"{tag}.script").write_text("\n".join(lines) + "\n")
+        dfiles = [OUT / f"{tag}_d{i}.bin" for i in range(len(dumps))]
+        cmd = [EMU, "--image", image, "--card", uc, "--set", a.set_name, "--project", a.name, "--load-ms", "90000",
+               "--mkii", "--live-script", OUT / f"{tag}.script", "--card-out", uafter, *extra]
+        if dumps:
+            cmd += ["--mem-dump", ";".join(f"{ad:#x},{n}={f_}" for (ad, n), f_ in zip(dumps, dfiles))]
+        with open(ulog, "w") as fh:
+            r = subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
+        text = ulog.read_text()
+        if r.returncode or "ended on quit" not in text:
+            sys.exit(f"verify_brain: the {tag} run did not finish -- {ulog}")
+        return emu_card.extract_image(uafter.read_bytes()), text, [f_.read_bytes() for f_ in dfiles]
+
+    def card_file(files, tail):
+        return next((v for k, v in files.items() if k.upper().endswith(tail.upper())), None)
+
+    # ---- MIDI knob names: NAME KNOB, the CTRL1 label, SAVE TEMPLATE ----------
+    # MIDI mode, T1, the CTRL1 page; the shortcut, NAME KNOB (row 6), CC1, the
+    # name editor: UP sets the character at its cursor ('0' on an empty name,
+    # as RENAME measured), YES. Then the shortcut, SAVE TEMPLATE. Checked: the
+    # project's brain.work holds a stock.midi field block for the current
+    # bank and Part with track 1 CC1's name; the CTRL1 drawer pushed that
+    # name for slot 2 (a PC watch at 0x4004e480, the draw call's arguments);
+    # the template carries it as a Name value keyed 129.
+    knames_at = symbol("knames")
+    hold = ["key 0x25 down", "key 0x2d down", "key 0x2d up", "key 0x25 up"]
+    keys = [(0x32, 400), (0x35, 400), (0x10, 500), (0x25, 800)] + hold + [(0x20, 400)] * 5 \
+        + [(0x31, 800), (0x31, 1200), (0x33, 300), (0x31, 2500), (0x25, 800)] + hold \
+        + [(0x20, 400)] * 2 + [(0x31, 800), (0x31, 2500)]
+    files, text, (bank_b, part_b) = ui_run("kn_name", keys, dumps=((0x80000002, 1), (0x80000003, 1)),
+                                           extra=("--watch-pc", "0x4004e480"))
+    bp = (bank_b[0] & 15) * 4 + (part_b[0] & 3)
+    pwork_ = card_file(files, f"{a.set_name}/{a.name}/BRAIN.WORK")
+    blocks = [r for r in brainfile.parse(pwork_).records
+              if r.kind == brainfile.FIELD_BLOCK and r.store_id == "stock.midi"] if pwork_ else []
+    got = {(r.target()[0], v.key): v.data for r in blocks for v in r.values()}
+    check(f"knob names: NAME KNOB on MIDI track 1's CC1 writes a stock.midi field block for the current "
+          f"bank and Part ({bp})  {got}", got == {(bp, 1): b"0\0\0\0\0\0"})
+    label = knames_at + bp * 8 * 10 * 6
+    pushed = [ln for ln in text.splitlines() if "at 0x4004e480" in ln and f"[sp " in ln
+              and ln.split(":", 2)[-1].split()[0] == f"{label:#x}"]
+    check(f"knob names: the CTRL1 page draws CC1 with the name (the label pushed is BRAIN's, "
+          f"{len(pushed)} draws)", len(pushed) >= 1)
+    work_ = card_file(files, "BRAIN/CARD.WORK")
+    trec = [r for r in brainfile.parse(work_).records
+            if r.kind == brainfile.TEMPLATE_REC and r.store_id == "stock.midi"] if work_ else []
+    names_ = {v.key: v.data for r in trec for v in r.values() if v.type == brainfile.NAME}
+    check(f"knob names: SAVE TEMPLATE on the MIDI track carries the name as a Name value keyed 129  {names_}",
+          names_ == {129: b"0\0\0\0\0\0"})
+
+    # ---- CC MAP's block CCs per project (octabam.cc-map, Scope.PROJECT) ------
+    # The project's brain.work sets FX1 CC = 80. On T1's channel CC 82 then
+    # CC 70 (each FX1 page-2 slot 8 under the old and the new base): the
+    # slot takes CC 82's value, and CC 70 now goes to stock.
+    cset = brainfile.Record(brainfile.SETTINGS, "octabam.cc-map",
+                            payload=brainfile.Value(2, brainfile.NUMBER, (80).to_bytes(2, "big")).encode())
+    cfile = OUT / "ccmap_seed.work"
+    cfile.write_bytes(brainfile.File(brainfile.PROJECT_WORK, [cset]).encode())
+    files, text, (dbp, pidx, p2) = ui_run(
+        "ccmap_live", [(0x32, 400), "midi B0 52 21", "midi B0 46 22", (0x32, 1500)],
+        roots=((cfile, f"{a.set_name}/{a.name}/brain.work"),),
+        dumps=((0x46c82456, 4), (0x80000003, 1), (part_at + 0x8f07e, 6)))
+    check(f"cc map: with FX1 CC = 80 in the project, CC 82 sets T1's FX1 page-2 slot 8 and CC 70 does not "
+          f"(slot 8 = {p2[2]:#x}, want 0x21)", p2[2] == 0x21)
 
     # ---- live popups: TOOLS > MIDI MONITOR, TOOLS > LOAD, FUNC + LEVEL push --
     # With the frame timer (--frame) so LOAD METER publishes; each run dumps

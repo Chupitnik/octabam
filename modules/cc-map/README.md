@@ -10,6 +10,17 @@ Stock incoming CC reaches page 1 only (CC 16–45): the handler admits
 | CC 62–67 | FX2 page 2, slots 6–11 |
 | CC 68–73 | FX1 page 2, slots 6–11 |
 
+The two blocks' first CCs are settings, per project: `FX2 CC` (default
+62) and `FX1 CC` (default 68), store `octabam.cc-map`, `Scope.PROJECT`,
+`Apply.LIVE`. With BRAIN in the remix the cave loads them from BRAIN's
+value table at every CC (`brain.read_macro`), so a project's `brain.work`
+moves the blocks at its load; without BRAIN they are the defaults as
+constants. The FX2 block wins where the two overlap. The oracle
+(`manifest.CODE`) is the constant form and is checked only when the
+settings are constants (`manifest.reference`). Regenerated 11 Oct 2026
+for the two-block entry; the bytes proved on hardware (image 96) had one
+range test for 62-73.
+
 `Kind.CF_PATCH`: one cave (`cc_map.s`, linked where the ColdFire free region
 places it) and one poke. Named CC PAGE 2 (`modules/ccpage2`) until
 25 Sep 2026. Flash notes and commits before that date use the old name.
