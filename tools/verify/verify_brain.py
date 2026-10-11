@@ -569,14 +569,15 @@ def main():
     # the shortcut, LOAD TEMPLATE, the first name: the page takes TPL 99.
     def tap(code, t, gap=500):
         return [f"{t} key {code:#x} down", f"{t + 30} key {code:#x} up"], t + gap
-    def shortcut(t):
-        return [f"{t} key 0x25 down", f"{t + 200} key 0x2d down", f"{t + 230} key 0x2d up",
-                f"{t + 500} key 0x25 up"], t + 900
-    def tpl_run(tag, picks, seed=None, part_at=None):
+    def shortcut(t, hold):
+        return [f"{t} key {hold:#x} down", f"{t + 200} key 0x2d down", f"{t + 230} key 0x2d up",
+                f"{t + 500} key {hold:#x} up"], t + 900
+    FX1_REGIONS = ((0x8eea6, 6), (0x8f07e, 6))
+    def tpl_run(tag, picks, seed=None, part_at=None, pre=(0x32, 0x10, 0x25), hold=0x25, regions=FX1_REGIONS):
         lines, tt = [], 1500
-        for c in (0x32, 0x10, 0x25):
+        for c in pre:
             l, tt = tap(c, tt); lines += l
-        l, tt = shortcut(tt); lines += l
+        l, tt = shortcut(tt, hold); lines += l
         for c in picks:
             l, tt = tap(c, tt, 800); lines += l
         lines.append(f"{tt + 2000} quit")
@@ -593,7 +594,8 @@ def main():
             sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
         (OUT / f"{tag}.script").write_text("\n".join(lines) + "\n")
         # the current bank's pointer and Part index, and (part_at given) T1's
-        # FX1 page 1 and page 2 in that Part: what LOAD writes. The live lane
+        # regions in that Part (FX1 page 1 and page 2 by default): what LOAD
+        # writes. The live lane
         # is not read: under the port the playing bank is not the bank the UI
         # shows, and the stock writer updates the lane only when they match
         # (AGENTS.md "the part the emulated load applies is not the part that
@@ -601,9 +603,9 @@ def main():
         tdb = OUT / f"{tag}_db.bin"
         dumps = [f"0x46c82456,4={tdb}", f"0x80000003,1={OUT / f'{tag}_part.bin'}"]
         if part_at is not None:
-            dumps += [f"{part_at + 0x8eea6:#x},6={OUT / f'{tag}_p1.bin'}", f"{part_at + 0x8f07e:#x},6={OUT / f'{tag}_p2.bin'}"]
+            dumps += [f"{part_at + off:#x},{n}={OUT / f'{tag}_r{i}.bin'}" for i, (off, n) in enumerate(regions)]
         cmd = [EMU, "--image", image, "--card", tc, "--set", a.set_name, "--project", a.name, "--load-ms", "90000",
-               "--mkii", "--live-script", OUT / f"{tag}.script", "--card-out", tafter,
+               "--mkii", "--live-script", OUT / f"{tag}.script", "--card-out", tafter, "--midi-out", OUT / f"{tag}_midi.bin",
                "--step", f"-:dump:{LANES:#x},144={tl}", "--mem-dump", ";".join(dumps)]
         with open(tlog, "w") as fh:
             r = subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
@@ -613,7 +615,7 @@ def main():
         files = emu_card.extract_image(tafter.read_bytes())
         work = next((v for k, v in files.items() if k.upper().endswith("BRAIN/CARD.WORK")), None)
         db = int.from_bytes(tdb.read_bytes(), "big") + (OUT / f"{tag}_part.bin").read_bytes()[0] * 6322
-        partpage = ((OUT / f"{tag}_p1.bin").read_bytes() + (OUT / f"{tag}_p2.bin").read_bytes()
+        partpage = (b"".join((OUT / f"{tag}_r{i}.bin").read_bytes() for i in range(len(regions)))
                     if part_at is not None else b"")
         return lane[0x12:0x18] + lane[0x32:0x38], work, db, partpage   # T1's FX1 page 1, page 2
 
@@ -639,6 +641,67 @@ def main():
           f"Part ({len(moves)} keyed slots differ from the page before)  {lpage.hex(' ')}  (expected "
           f"{want.hex(' ')}, unkeyed slots not compared)",
           len(moves) >= 1 and len(lpage) == 12 and all(lpage[i] == want[i] for i, k in enumerate(keys) if k))
+
+    # ---- templates on the stock targets: T1's AMP and LFO pages, MIDI track 1 --
+    # Slot order, keys and ranges as brain.c's view_fill: each target's Part
+    # regions in order, the range from the stock page descriptor (entry E,
+    # minimum E+0xa2, count E+0xd2), None for a raw byte (the CTRL enable
+    # bitmaps); key 0 for a slot whose enable nibble has bit 0 clear. SAVE
+    # writes every keyed slot's Part byte; LOAD of a seeded TPL 99 (each
+    # ranged value + 1 inside its count) writes every one.
+    def rng(E, s):
+        return struct.unpack(">i", rd(E + 0xa2 + 4 * s, 4))[0], struct.unpack(">i", rd(E + 0xd2 + 4 * s, 4))[0]
+    def on(E, s):
+        hi, lo = struct.unpack(">II", rd(E + 0x1c2, 8))
+        return ((hi << 32 | lo) >> (4 * s)) & 1
+    D_LFO, D_AMP, D_NOTE, D_ARP, D_MLFO, D_CTL1, D_CTL2 = (0x400d37be, 0x400d3950, 0x400d3e06, 0x400d3f98,
+                                                         0x400d412a, 0x400d42bc, 0x400d444e)
+    midi_desc = (D_NOTE, D_MLFO, D_ARP, D_CTL1, D_CTL2)
+    stock = {
+        "amp": dict(id=brain.STOCK_TARGETS["amp"][0], layout=brain.STOCK_TARGETS["amp"][1], pre=(0x32, 0x10, 0x23), hold=0x23,
+                    regions=((0x8eea0, 6), (0x8f078, 6)),
+                    slots=[(1 + s if on(D_AMP, s) else 0, rng(D_AMP, s)) for s in range(12)]),
+        "lfo": dict(id=brain.STOCK_TARGETS["lfo"][0], layout=brain.STOCK_TARGETS["lfo"][1], pre=(0x32, 0x10, 0x24), hold=0x24,
+                    regions=((0x8ee9a, 6), (0x8f072, 6), (0x8f08a, 6)),
+                    slots=[(1 + s, rng(D_LFO, s if s < 6 else 6 + (s - 6) // 3)) for s in range(18)]),
+        "midi": dict(id=brain.STOCK_TARGETS["midi"][0], layout=brain.STOCK_TARGETS["midi"][1], pre=(0x32, 0x35, 0x10, 0x22), hold=0x22,
+                     regions=((0x8f162, 32), (0x8f262, 36)),
+                     slots=[(64 + f if f >= 30 or on(midi_desc[f // 6], f % 6) else 0,
+                             rng(midi_desc[f // 6], f % 6) if f < 30 else None) for f in range(32)]
+                     + [(1 + o if on(E, s) else 0, rng(E, s))
+                        for o in range(36) for E, s in [(midi_desc[o // 6], 6 + o % 6) if o < 30
+                                                        else (D_MLFO, 8 + (o - 30) // 3)]]),
+    }
+    for name, tg in stock.items():
+        sl = tg["slots"]
+        if name != "lfo":
+            page, mw, _, part = tpl_run(f"tpl_{name}_save", (0x20, 0x20, 0x31, 0x31), None, part_at, tg["pre"],
+                                        tg["hold"], tg["regions"])
+            trecs = [r for r in brainfile.parse(mw).records if r.kind == brainfile.TEMPLATE_REC] if mw else []
+            got = {v.key: v.data[0] for v in trecs[0].values()} if len(trecs) == 1 else {}
+            want = {k: part[i] for i, (k, _) in enumerate(sl) if k}
+            check(f"templates: SAVE TEMPLATE on T1's {name.upper()} writes one {tg['id']} record of its "
+                  f"{len(want)} Part bytes ({len(trecs)} records, {len(got)} values, equal {got == want})",
+                  len(trecs) == 1 and trecs[0].store_id == tg["id"] and got == want)
+        else:
+            _, _, _, part = tpl_run(f"tpl_{name}_read", (0x32,), None, part_at, tg["pre"], tg["hold"], tg["regions"])
+        seedv = [r[0] + (part[i] - r[0] + 1) % r[1] if k and r and r[1] > 1 else part[i] for i, (k, r) in enumerate(sl)]
+        vals = b"".join(brainfile.Value(k, brainfile.BYTE, bytes([seedv[i]])).encode() for i, (k, _) in enumerate(sl) if k)
+        seed = brainfile.File(brainfile.CARD_WORK, [brainfile.Record(brainfile.TEMPLATE_REC, tg["id"],
+            payload=brainfile.prefix_bytes(brainfile.TEMPLATE_REC, layout=tg["layout"], name="TPL 99") + vals)]).encode()
+        moves = [i for i, (k, _) in enumerate(sl) if k and seedv[i] != part[i]]
+        _, _, _, lp = tpl_run(f"tpl_{name}_load", (0x20, 0x20, 0x20, 0x31, 0x31), seed, part_at, tg["pre"],
+                              tg["hold"], tg["regions"])
+        bad = [i for i, (k, _) in enumerate(sl) if k and lp[i] != seedv[i]]
+        check(f"templates: LOAD TEMPLATE of a seeded {tg['id']} TPL 99 writes T1's {name.upper()} bytes in the "
+              f"current Part ({len(moves)} slots differ from before, {len(bad)} wrong: {bad[:8]})",
+              len(moves) >= 1 and len(lp) == len(sl) and not bad)
+        if name == "midi":
+            chan, prog = seedv[32], seedv[34]
+            tx = (OUT / f"tpl_{name}_load_midi.bin").read_bytes()
+            pc = bytes([0xc0 | (chan - 1), prog])
+            check(f"templates: the MIDI LOAD sends program {prog} on channel {chan} ({tx.hex(' ')[:60]})",
+                  chan == 0 or prog >= 128 or pc in tx)
 
     # ---- live popups: TOOLS > MIDI MONITOR, TOOLS > LOAD, FUNC + LEVEL push --
     # With the frame timer (--frame) so LOAD METER publishes; each run dumps
