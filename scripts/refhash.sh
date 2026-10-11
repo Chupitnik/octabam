@@ -6,9 +6,12 @@
 # of the stock OS (out/raw/section_3_MAIN_OS.bin), so the baseline is untracked
 # and only means anything on the machine that saved it.
 #
-#   scripts/refhash.sh save     # on the tree you trust, BEFORE touching anything
-#   ...refactor...
 #   scripts/refhash.sh check    # every artifact and every build report must match
+#                               # the baseline of this branch's merge-base with
+#                               # origin/main (tools/verify/refhash_store.py: saved
+#                               # once per merge-base, shared by every worktree)
+#   scripts/refhash.sh save     # a LOCAL baseline of this tree, for
+#                               # REFHASH_LOCAL=1 scripts/refhash.sh check
 #
 # Why this matrix: a refactor of build_bus.py breaks things that still build,
 # still boot and still make sound. The cases pin the failure modes that have no
@@ -133,11 +136,19 @@ case "${1:-}" in
   save)
     echo "refhash: saving baseline (${#CASES[@]} builds)"
     run_matrix out/refhash/baseline
+    echo local > out/refhash/baseline/KEY
     restore
     echo
     echo "  baseline -> out/refhash/baseline/manifest.txt"
     ;;
   check)
+    # The baseline is the 24 builds of this branch's merge-base with
+    # REFHASH_BASE (origin/main), saved once for every worktree
+    # (tools/verify/refhash_store.py). REFHASH_LOCAL=1 compares against the
+    # baseline `save` left in this tree instead.
+    if [ "${REFHASH_LOCAL:-}" != "1" ]; then
+      python3 tools/verify/refhash_store.py fetch || exit 2
+    fi
     [ -f out/refhash/baseline/manifest.txt ] || {
       echo "refhash: no baseline -- run 'scripts/refhash.sh save' on a tree you trust"; exit 2; }
     echo "refhash: checking against baseline (${#CASES[@]} builds)"
