@@ -7,7 +7,8 @@ missing project directory.
     python3 tools/verify/verify_kits.py REMIX [--project DIR] [--octakit-project DIR]
                                               [--strand-project DIR]
 
-KITS_JOBS (default 3) is the scenario forks run at once.
+KITS_JOBS is the scenario forks run at once; by default the free gate
+slots, at least 3 (fork_jobs).
 
 The project (OT_PROJECT, ~/.octabam_project) is staged once with no
 kits.work, so its Parts migrate at the load; every panel scenario forks
@@ -161,9 +162,24 @@ def run(cmd, log):
 
 
 STARTED = {}        # log -> the boot start() launched
-# The MKII scenarios that run longest, longest first (12 Oct 2026, from the
-# order their logs completed at 6 jobs); the rest keep their order after.
-LONGEST = ("unattended", "saveproj", "extplay", "extnoclk", "trackbtn1", "trackbtn", "presses", "a5", "cc", "chain")
+
+
+def fork_jobs():
+    """Scenario forks at once: KITS_JOBS, else the machine's gate slots no
+    other session holds, at least 3 (tools/verify/slots.py). bottleservice,
+    longest first: 3 jobs 264 s, 4 251 s, 5 231 s (12 Oct 2026; the
+    performance cores are shared with the MKI pass and strand)."""
+    if os.environ.get("KITS_JOBS"):
+        return int(os.environ["KITS_JOBS"])
+    import slots
+    return max(3, slots.count() - len([h for h in slots.holders() if f"pid {os.getpid()} " not in h[1]]))
+# The MKII scenarios that run longest, longest first: wall seconds of each
+# fork on bottleservice at 3 jobs (12 Oct 2026, its log's birth to its last
+# write): swback 81, unattended 77, chain 63, presses 61, saveproj 48, a5
+# 31, extplay 31, trackbtn 25, progchg 24, free 24, trackbtn1 24, repoint
+# 23, extnoclk 21; the rest 11 s or less, in their own order after.
+LONGEST = ("swback", "unattended", "chain", "presses", "saveproj", "a5", "extplay", "trackbtn",
+           "progchg", "free", "trackbtn1", "repoint", "extnoclk")
 
 
 def start(cmd, log):
@@ -559,13 +575,13 @@ def main():
     # The MKI pass is its own load: beside the MKII scenarios, not after them.
     if mki_scen:
         start([x for x in base if x != "--mkii"] + [x for sc in mki_scen for x in ("--scenario", sc)]
-              + ["--scenario-jobs", os.environ.get("KITS_JOBS", "3")], OUT / "port_mki.txt")
+              + ["--scenario-jobs", str(fork_jobs())], OUT / "port_mki.txt")
     if scen:
         # the longest scenarios first (seconds of emulated time: unattended
         # 60 s, saveproj three boots), so the fork queue does not end on one
         scen.sort(key=lambda e: next((i for i, t in enumerate(LONGEST) if e.startswith(f"{OUT / t}.txt ")),
                                      len(LONGEST)))
-        run(base + [x for sc in scen for x in ("--scenario", sc)] + ["--scenario-jobs", os.environ.get("KITS_JOBS", "3")], OUT / "port.txt")
+        run(base + [x for sc in scen for x in ("--scenario", sc)] + ["--scenario-jobs", str(fork_jobs())], OUT / "port.txt")
     if mki_scen:
         finish(OUT / "port_mki.txt")
 
