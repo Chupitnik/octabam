@@ -506,6 +506,94 @@ static int proj_paths(void)
 	return 1;
 }
 
+/* ---- MIDI knob names (BRAIN.md section 3) -------------------------------- */
+
+/* A name per bank, Part, MIDI track and assignable CC (CC1..CC10): four
+ * characters and a NUL in a Name value's six bytes. In the project's
+ * brain.work as field blocks (kind 5) of store stock.midi, one per Part
+ * that has a name: target bank * 4 + Part, instance 0, a Name value keyed
+ * track * 10 + cc + 1. Cleared and read at each project load; drawn on
+ * the CTRL1/CTRL2 pages by brain_klabel. */
+#define K_FIELD   5
+#define T_NAME    6
+#define KN_PARTS  64
+#define KN_LEN    6
+#define KN_CHARS  4
+#define KN_STORE  "stock.midi"
+static char knames[KN_PARTS][8][10][KN_LEN];
+
+/* bank * 4 + Part of the current Part */
+static u32 kn_part(void)
+{
+	return ((u32)(*(volatile u8 *)0x80000002 & 15) << 2) | (*(volatile u8 *)0x80000003 & 3);
+}
+
+static void kn_clear(void)
+{
+	char *p = &knames[0][0][0][0];
+	for (u32 k = 0; k < sizeof knames; k++)
+		p[k] = 0;
+}
+
+/* the field blocks of the project file in buf */
+static void kn_load(void)
+{
+	u32 count = be16(buf + 10);
+	for (u32 r = 0, at = HDR; r < count; r++, at += be32(buf + at + 16)) {
+		const u8 *p = buf + at;
+		if (p[0] != K_FIELD || !same_id(p + REC_HDR, p[1], KN_STORE, 10))
+			continue;
+		const u8 *pay = p + REC_HDR + align4(p[1]);
+		u32 plen = be32(p + 8);
+		if (plen < 4 || crc32(pay, plen) != be32(p + 12) || be16(pay) >= KN_PARTS)
+			continue;
+		char (*part)[10][KN_LEN] = knames[be16(pay)];
+		for (u32 v = 4; v + 4 <= plen && pay[v + 3] != 0xff; v += 4 + align4(pay[v + 3])) {
+			u32 key = be16(pay + v);
+			if (pay[v + 2] != T_NAME || pay[v + 3] != KN_LEN || key < 1 || key > 80)
+				continue;
+			char *o = part[(key - 1) / 10][(key - 1) % 10];
+			for (u32 c = 0; c < KN_CHARS; c++)
+				o[c] = (char)pay[v + 4 + c];
+			o[KN_CHARS] = 0;
+		}
+	}
+}
+
+/* The Name values keyed 129..138 of template record p onto MIDI track t's
+ * names in the current Part; 1 when it had any. */
+static int kn_take(const u8 *p, u32 t)
+{
+	const u8 *pay = p + REC_HDR + align4(p[1]);
+	u32 plen = be32(p + 8);
+	int any = 0;
+	char (*kn)[KN_LEN] = knames[kn_part()][t & 7];
+	for (u32 v = 16; v + 4 <= plen && pay[v + 3] != 0xff; v += 4 + align4(pay[v + 3])) {
+		u32 key = be16(pay + v);
+		if (pay[v + 2] != T_NAME || pay[v + 3] != KN_LEN || key < 129 || key > 138)
+			continue;
+		for (u32 c = 0; c < KN_CHARS; c++)
+			kn[key - 129][c] = (char)pay[v + 4 + c];
+		kn[key - 129][KN_CHARS] = 0;
+		any = 1;
+	}
+	return any;
+}
+
+/* The label the CTRL page drawer pushes for slot s of descriptor P (the
+ * detour at 0x4004e474, hooks.s brain_klabel_hook): the current MIDI
+ * track's name for that CC when it has one, else dflt. CTL1 (P
+ * 0x400d42f4): slots 2-5 are CC1-CC4; CTL2 (P 0x400d4486): slots 0-5 are
+ * CC5-CC10. Bank, Part and track as the UI's writers read them. */
+const char *brain_klabel(u32 P, u32 s, const char *dflt)
+{
+	int cc = P == 0x400d42f4 ? (int)s - 2 : P == 0x400d4486 ? 4 + (int)s : -1;
+	if (cc < 0 || cc > 9 || s > 5)
+		return dflt;
+	const char *n = knames[kn_part()][*(volatile u8 *)0x80000000 & 7][cc];
+	return n[0] ? n : dflt;
+}
+
 /* Counters of the last project load, read by the gates. */
 enum { PC_LOADS, PC_STATE, PC_RECORD, PC_ENTRIES, PC_SAME, PC_MOVED, PC_LAYOUT, PC_GONE, PC_SKIP,
        PC_N };
@@ -597,11 +685,13 @@ static void load_project(void)
 	u32 n;
 	if (!proj_paths())
 		return;
+	kn_clear();
 	int st = pair_load(pw, ps, &n);
 	brain_pcounts[PC_STATE] = (u32)st;
 	if (st == 1 || st == 2) {
 		load_settings(1, 1);
 		check_project();
+		kn_load();
 	}
 }
 
@@ -1080,10 +1170,13 @@ void brain_post_settings(void)
 
 enum { T_SAVE, T_DELETE, T_RENAME, T_COPY };
 static int write_template(int del, u32 t, u32 kind, u32 e, u32 i);
+static int write_names(void);
 
 void brain_job(void)
 {
-	if (job_args & 0x600000)
+	if (job_args & 0x800000)
+		brain_save_counts[S_SAVE_ERR] = (u32)write_names();
+	else if (job_args & 0x600000)
 		brain_save_counts[S_SAVE_ERR] = (u32)write_template(job_args & 0x200000 ? T_RENAME : T_COPY, 0, 0,
 								     (job_args >> 8) & 0xff, job_args & 0xff);
 	else if (job_args & 0x100000)
@@ -1722,7 +1815,7 @@ static void tpl_values(const u8 *p, const struct view *v, u8 *vals)
 		vals[i] = v->cur[i];
 	const u8 *pay = p + REC_HDR + align4(p[1]);
 	u32 plen = be32(p + 8);
-	for (u32 at = 16; at + 8 <= plen; at += 8) {
+	for (u32 at = 16; at + 4 <= plen && pay[at + 3] != 0xff; at += 4 + align4(pay[at + 3])) {
 		u32 key = be16(pay + at);
 		if (pay[at + 2] != T_BYTE || pay[at + 3] != 1 || !key)
 			continue;
@@ -1827,10 +1920,14 @@ static int write_template(int del, u32 t, u32 kind, u32 e, u32 i)
 				}
 			}
 		}
-		u32 nvals = 0;
+		u32 nvals = 0, nnames = 0;
 		for (u32 s = 0; s < v->n; s++)
 			nvals += v->key[s] != 0;
-		u32 plen = 16 + 8 * nvals, size = REC_HDR + align4(id_len) + plen;
+		/* a MIDI track carries its knob names: Name values keyed 129 + cc */
+		const char (*kn)[KN_LEN] = knames[kn_part()][t & 7];
+		for (u32 c = 0; kind == V_MIDI && c < 10; c++)
+			nnames += kn[c][0] != 0;
+		u32 plen = 16 + 8 * nvals + 12 * nnames, size = REC_HDR + align4(id_len) + plen;
 		if (at + size > BUF_LEN)
 			return 3;
 		u8 *r = out + at;
@@ -1857,6 +1954,15 @@ static int write_template(int del, u32 t, u32 kind, u32 e, u32 i)
 				w[3] = 1;
 				w[4] = v->cur[s];
 				w += 8;
+			}
+		for (u32 c = 0; nnames && c < 10; c++)
+			if (kn[c][0]) {
+				put16(w, 129 + c);
+				w[2] = T_NAME;
+				w[3] = KN_LEN;
+				for (u32 k = 0; k < KN_LEN; k++)
+					w[4 + k] = (u8)kn[c][k];
+				w += 12;
 			}
 		put32(r + 12, crc32(pay, plen));
 		at += size;
@@ -1890,15 +1996,17 @@ void brain_tpl_load(u32 unused);
 void brain_tpl_delete(u32 unused);
 
 static u32 pop_sel;
-static const char *const page_lbl[5] = { "SAVE AS DEFAULT", "CLEAR DEFAULT", "SAVE TEMPLATE",
-					 "LOAD TEMPLATE", "DELETE TEMPLATE" };
-static void (*const page_fn[5])(u32) = { brain_menu_save, brain_menu_clear, brain_tpl_save,
-					 brain_tpl_load, brain_tpl_delete };
+void brain_kn_list(u32 unused);
+static const char *const page_lbl[6] = { "SAVE AS DEFAULT", "CLEAR DEFAULT", "SAVE TEMPLATE",
+					 "LOAD TEMPLATE", "DELETE TEMPLATE", "NAME KNOB" };
+static void (*const page_fn[6])(u32) = { brain_menu_save, brain_menu_clear, brain_tpl_save,
+					 brain_tpl_load, brain_tpl_delete, brain_kn_list };
 
+/* NAME KNOB: on a MIDI track only */
 void brain_page_func(void)
 {
 	pop_sel = 0;
-	LISTPOP(5, 0, &pop_sel, page_lbl, (void *)page_fn);
+	LISTPOP(MIDI_MODE ? 6 : 5, 0, &pop_sel, page_lbl, (void *)page_fn);
 }
 
 static char tpl_lbl[TPL_MAX][TPL_NAME + 1];
@@ -1945,6 +2053,8 @@ static void tpl_apply_sel(u32 unused)
 	u8 vals[NSLOT];
 	tpl_values(p, &tpl_view, vals);
 	apply_view(&tpl_view, vals);
+	if (tpl_view.kind == V_MIDI && kn_take(p, tpl_view.t))
+		brain_post_template(0x800000);
 }
 
 static void tpl_delete_sel(u32 unused)
@@ -2143,6 +2253,137 @@ void brain_tpl_row(u32 unused)
 		LISTPOP(1, 0, &pop_sel, trow_img_lbl, (void *)trow_img_fn);
 	else
 		LISTPOP(2, 0, &pop_sel, trow_card_lbl, (void *)trow_card_fn);
+}
+
+/* ---- NAME KNOB: the page shortcut on a MIDI track ------------------------- */
+
+/* The current MIDI track's ten CCs, each "CCn  NAME" (---- without one); YES
+ * opens the name editor (four characters) on that CC's name, and on
+ * confirm the engine task rewrites the project's knob-name field blocks
+ * (write_names). An empty name clears it. */
+static char kn_lbl[10][16];
+static const char *kn_lp[10];
+static void (*kn_fp[10])(u32);
+static u32 kn_sel, kn_t, kn_bp;
+static char kn_buf[16];
+
+static void kn_named(u32 confirmed)
+{
+	if (!confirmed || kn_sel > 9)
+		return;
+	char *o = knames[kn_bp][kn_t][kn_sel];
+	u32 k = 0;
+	for (; k < KN_CHARS && kn_buf[k]; k++)
+		o[k] = kn_buf[k];
+	while (k > 0 && o[k - 1] == ' ')
+		k--;
+	for (; k < KN_LEN; k++)
+		o[k] = 0;
+	brain_post_template(0x800000);
+}
+
+static void kn_pick(u32 unused)
+{
+	(void)unused;
+	if (kn_sel > 9)
+		return;
+	for (u32 k = 0; k < sizeof kn_buf; k++)
+		kn_buf[k] = 0;
+	const char *n = knames[kn_bp][kn_t][kn_sel];
+	for (u32 k = 0; k < KN_CHARS && n[k]; k++)
+		kn_buf[k] = n[k];
+	NAMEED(KN_CHARS, "KNOB NAME", kn_buf, 1, kn_named);
+}
+
+void brain_kn_list(u32 unused)
+{
+	(void)unused;
+	if (!MIDI_MODE)
+		return;
+	kn_t = CUR_TRACK & 7;
+	kn_bp = kn_part();
+	for (u32 c = 0; c < 10; c++) {
+		char *o = kn_lbl[c];
+		u32 k = 0;
+		o[k++] = 'C'; o[k++] = 'C';
+		if (c == 9) {
+			o[k++] = '1'; o[k++] = '0';
+		} else
+			o[k++] = (char)('1' + c);
+		while (k < 6)
+			o[k++] = ' ';
+		const char *n = knames[kn_bp][kn_t][c];
+		for (u32 j = 0; j < KN_CHARS; j++)
+			o[k++] = n[0] ? (n[j] ? n[j] : ' ') : '-';
+		o[k] = 0;
+		kn_lp[c] = o;
+		kn_fp[c] = kn_pick;
+	}
+	kn_sel = 0;
+	LISTPOP(10, 0, &kn_sel, kn_lp, (void *)kn_fp);
+}
+
+/* The engine task: the project's brain.work with one stock.midi field
+ * block per Part that has a name, every other record kept. 0, or an error
+ * code as write_set_file's. */
+static int write_names(void)
+{
+	if (!proj_paths())
+		return 5;
+	int n = cur(pw, ps);
+	if (n < 0)
+		return 2;
+	u32 at = HDR, kept = 0;
+	for (u32 r = 0, i = HDR; n && r < be16(buf + 10); r++, i += be32(buf + i + 16)) {
+		const u8 *p = buf + i;
+		u32 size = be32(p + 16);
+		if (p[0] == K_FIELD && same_id(p + REC_HDR, p[1], KN_STORE, 10))
+			continue;
+		if (at + size > BUF_LEN)
+			return 3;
+		for (u32 b = 0; b < size; b++)
+			out[at + b] = p[b];
+		at += size;
+		kept++;
+	}
+	for (u32 bp = 0; bp < KN_PARTS; bp++) {
+		u32 nn = 0;
+		for (u32 t = 0; t < 8; t++)
+			for (u32 c = 0; c < 10; c++)
+				nn += knames[bp][t][c][0] != 0;
+		if (!nn)
+			continue;
+		u32 plen = 4 + 12 * nn, size = REC_HDR + align4(10) + plen;
+		if (at + size > BUF_LEN)
+			return 3;
+		u8 *r = out + at;
+		for (u32 b = 0; b < size; b++)
+			r[b] = 0;
+		r[0] = K_FIELD;
+		r[1] = 10;
+		put16(r + 2, 1);
+		put32(r + 8, plen);
+		put32(r + 16, size);
+		for (u32 b = 0; b < 10; b++)
+			r[REC_HDR + b] = (u8)KN_STORE[b];
+		u8 *pay = r + REC_HDR + align4(10);
+		put16(pay, bp);
+		u8 *w = pay + 4;
+		for (u32 t = 0; t < 8; t++)
+			for (u32 c = 0; c < 10; c++)
+				if (knames[bp][t][c][0]) {
+					put16(w, t * 10 + c + 1);
+					w[2] = T_NAME;
+					w[3] = KN_LEN;
+					for (u32 k = 0; k < KN_LEN; k++)
+						w[4 + k] = (u8)knames[bp][t][c][k];
+					w += 12;
+				}
+		put32(r + 12, crc32(pay, plen));
+		at += size;
+		kept++;
+	}
+	return write_store(pw, 2, at, kept) < 0 ? 4 : 0;
 }
 
 /* ---- live popups: TOOLS > MIDI MONITOR and TOOLS > LOAD ------------------- */

@@ -176,3 +176,24 @@ brain_boot_frame:
 brain_boot_snapf: .long 0
 brain_boot_snap: .space 1024
         .text
+
+| ---- the CTRL pages' knob labels (MIDI_TRACKS.md section 6) ---------------
+| Detour at 0x4004e474 (`movel %fp@(-56),%sp@-` / `bras 0x4004e480`), the
+| CTRL page drawer's label push for slot %a4 of descriptor %fp@(-80):
+| brain_klabel(P, slot, stock label) chooses the label, which is pushed in
+| its place before the draw call's other arguments at 0x4004e480. The
+| drawer keeps %d0, %d1 and %a0 live across the site.
+        .globl  brain_klabel_hook
+brain_klabel_hook:
+        lea     %sp@(-12),%sp
+        movem.l %d0-%d1/%a0,%sp@
+        move.l  %fp@(-56),%sp@-
+        move.l  %a4,%sp@-
+        move.l  %fp@(-80),%sp@-
+        jsr     brain_klabel
+        lea     %sp@(12),%sp
+        move.l  %d0,%a1
+        movem.l %sp@,%d0-%d1/%a0
+        lea     %sp@(12),%sp
+        move.l  %a1,%sp@-
+        jmp     0x4004e480

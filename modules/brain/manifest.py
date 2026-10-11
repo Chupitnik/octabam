@@ -300,6 +300,8 @@ MODULE = Module(
                kind="jsr"),
         Detour(0x4008485e, H("7192722db280"), "brain", "brain_on_job",
                "the engine task's job switch: type 0x41 runs SAVE AS DEFAULT"),
+        Detour(0x4004e474, H("2f2effc86006"), "brain", "brain_klabel_hook",
+               "the CTRL pages' label push: a MIDI track's knob names (NAME KNOB)"),
         *(Detour(site, H("4eb94008ee74"), "brain", "brain_on_store",
                  "SAVE PROJECT's project store: card.work copied to card.strd", kind="jsr")
           for site in (0x40085642, 0x400856dc, 0x40085780)),
