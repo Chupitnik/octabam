@@ -172,9 +172,14 @@ The draw call (`0x4004e474..0x4004e49c`) is
 `0x40013904(0x400ba876, 0x400bf10a, x, y, 1, 0, "XXXX", label)`. The label is
 passed as the format string, so a `%` in a name would be expanded.
 
-Injection point: `0x4004e474`, the 4-byte `movel %fp@(-56),%sp@-`. A detour
-there can push a per-(Part, t, slot) string when `P` is `0x400d42f4` or
-`0x400d4486` 🟡. Labels longer than 4 characters on page 1 are not measured.
+Injection point: `0x4004e474`, the 4-byte `movel %fp@(-56),%sp@-` and the
+`bras 0x4004e480` after it (six bytes). The slot index is `%a4` (0-5) and
+the descriptor `%fp@(-80)`. BRAIN's knob names use it
+(`modules/brain/README.md`, "MIDI knob names"): a detour there pushes a
+per-(bank, Part, track, CC) string when `P` is `0x400d42f4` (CTL1) or
+`0x400d4486` (CTL2); under the port the pushed pointer was BRAIN's at the
+draw call (11 Oct 2026). Labels longer than 4 characters on page 1 are not
+measured.
 
 The value text comes from formatter array A (CTL1 `0x4003c6a0..0x4003c45c`,
 CTL2 `0x4003c3e4..0x4003c194`): `%d` or OFF according to the enable bits. The

@@ -171,7 +171,28 @@ and their setup pages); over SRC they say to open an LFO, AMP or FX page.
   confirm the engine task rewrites the record's name field and payload
   CRC, every other byte kept.
 - Not built yet: template files on the card for sharing, templates for
-  the SRC page, knob names for MIDI tracks (phase 4).
+  the SRC page (phase 4).
+
+## MIDI knob names
+
+On a MIDI track the page shortcut has a sixth row, NAME KNOB: a list of
+the track's ten assignable CCs (`CC1  NAME`, `----` without a name); YES
+opens the stock name editor on that CC's name (four characters; an empty
+name clears it).
+
+- The names are per bank, Part, MIDI track and CC, in the project's
+  `brain.work` as field blocks (kind 5) of store `stock.midi`: one per Part
+  with a name, target `bank * 4 + Part`, a Name value keyed `track * 10 +
+  cc + 1`. `brain_load` clears them and reads the project's blocks; the
+  engine task rewrites the blocks after each edit (`write_names`).
+- The CTRL1 and CTRL2 pages draw them: a detour at `0x4004e474`, the
+  drawer's label push (`docs/firmware/MIDI_TRACKS.md` section 6), calls
+  `brain_klabel(P, slot, stock label)`, which returns the current track's
+  name for CTRL1 slots 2-5 (CC1-CC4) and CTRL2 slots 0-5 (CC5-CC10) when
+  it has one.
+- A MIDI track's template (`stock.midi`) carries its names as Name values
+  keyed `129 + cc`; LOAD TEMPLATE puts them on the track and rewrites the
+  blocks.
 
 ## Live dialogs
 

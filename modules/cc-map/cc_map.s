@@ -47,6 +47,7 @@
 | mode's view -- a2 = slot2, d2 = the clamped value, d4 = track, d5 = part,
 | everything preserved but d0/d1/a0/a1.
 
+        .include "remix.inc"           | CC_FX2, CC_FX1 (manifest.py cc_inc)
         .text
         .global ccm_entry
 | ---- CAVE(msg): dispatch entry (jsr'd), msg* at %sp@(4) ------------------
@@ -54,16 +55,25 @@ ccm_entry:
 CAVE:   movel   %sp@(4),%a0            | a0 = msg {status, cc, value}
         moveq   #0,%d0
         moveb   %a0@(1),%d0            | d0 = CC number
-        subil   #62,%d0                | d0 = cc - 62
-        moveq   #11,%d1
-        cmpl    %d0,%d1                | 11 - (cc-62); carry if 11 < (cc-62)
-        bcs.s   tostk                  | not 62..73 (also catches cc < 62)
+        CC_FX2  %d1                    | the FX2 block's first CC (setting FX2 CC)
+        subl    %d1,%d0                | d0 = cc - FX2 CC
+        moveq   #5,%d1
+        cmpl    %d0,%d1                | carry if 5 < (cc - FX2 CC), unsigned
+        bcc.s   mine                   | 0..5: an FX2 slot
+        moveq   #0,%d0
+        moveb   %a0@(1),%d0
+        CC_FX1  %d1                    | the FX1 block's first CC (setting FX1 CC)
+        subl    %d1,%d0
+        moveq   #5,%d1
+        cmpl    %d0,%d1
+        bcs.s   tostk                  | in neither block
+        addql   #6,%d0                 | 6..11: an FX1 slot
         bra.s   mine
 tostk:  jmp     (CC_NEXT).l            | tail-call the next handler, argument intact
 
 mine:   lea     %sp@(-28),%sp
         movem.l %d2-%d7/%a2,%sp@
-        movel   %d0,%d4                | d4 = cc-62: 0..5 = FX2 slot2, 6..11 = FX1 slot2+6 -- MAPBUILD preserves d2-d4/a2 only
+        movel   %d0,%d4                | d4: 0..5 = FX2 slot2, 6..11 = FX1 slot2+6 -- MAPBUILD preserves d2-d4/a2 only
         moveal  %a0,%a2                | a2 = msg (preserved across MAPBUILD)
         movel   MAPGLOB,%d3            | mimic stock register environment
         jsr     MAPBUILD               | rebuild CHANMASK[16]. ⚠️ CLOBBERS d5-d7: it
