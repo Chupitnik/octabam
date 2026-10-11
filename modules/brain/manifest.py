@@ -40,9 +40,25 @@ def fx_inc(modules):
                 "        .word   0"]
     for i, m in enumerate(targets):
         out.append(f'brain_id_{i}: .ascii "{brain.fx_store_id(m)}"')
-    return ("\n".join(out) + "\n" + menu_inc() + "\n" + settings_inc(mods) + "\n" + boot_inc()
+    return ("\n".join(out) + "\n" + tpl_inc(mods) + "\n" + menu_inc() + "\n" + settings_inc(mods) + "\n" + boot_inc()
             + "\n" + page_keys_inc() + "\n" + func_keys_inc()
             + "\n        .text\n")
+
+
+def tpl_inc(mods):
+    """The image's templates (Remix.templates, docs/proposals/BRAIN.md section
+    4.2): brain_img_tpl, the records tools/remix/brain.py compile_templates
+    makes from templates/*.json, and brain_img_tpl_len, their bytes."""
+    from remix import brain, registry
+    remix = registry.remix(os.environ.get("REMIX")) if os.environ.get("REMIX") else None
+    stock = pathlib.Path(schema.__file__).resolve().parents[2] / "out/raw/section_3_MAIN_OS.bin"
+    data = brain.compile_templates(remix, mods, stock.read_bytes()) if remix is not None and remix.templates else b""
+    out = ["        .section .rodata", "        .balign 4", "        .globl  brain_img_tpl, brain_img_tpl_len",
+           f"brain_img_tpl_len: .long {len(data)}", "brain_img_tpl:"]
+    for i in range(0, len(data), 16):
+        out.append("        .byte   " + ", ".join(f"0x{b:02x}" for b in data[i:i + 16]))
+    out.append("        .byte   0")
+    return "\n".join(out)
 
 
 PAGE_LAYER_KEYS, PAGE_KEYS, PAGE_RECORDS, KEY_RECORD = 0x400bab72, 0x400baad2, 5, 0x1a
@@ -196,11 +212,13 @@ def menu_inc():
             "        .balign 4",
             "        .globl  brain_list",
             # shipped at the top level; brain.c's show() repoints it
-            "brain_list: .long 4, 0, 0, 0, 7, 4, brain_top_rows",
+            "brain_list: .long 5, 0, 0, 0, 7, 5, brain_top_rows",
             "        .globl  brain_top_rows, brain_def_rows, brain_tool_rows, brain_rmx_rows, brain_rmx_n, brain_set_rows",
+           "        .globl  brain_tpl_rows",
             "brain_top_rows:",
             "        .long   brain_lbl_settings, 0, brain_open_settings, 0, 0, 0",
             "        .long   brain_lbl_defaults, 0, brain_open_defaults, 0, 0, 0",
+            "        .long   brain_lbl_templates, 0, brain_open_templates, 0, 0, 0",
             "        .long   brain_lbl_remixes, 0, brain_open_remixes, 0, 0, 0",
             "        .long   brain_lbl_tools, 0, brain_open_tools, 0, 0, 0",
             "brain_def_rows:",
@@ -221,6 +239,11 @@ def menu_inc():
             "brain_rmx_n: .long 1",
             # SETTINGS: the back row, then brain.c's rows (a heading per
             # module and each setting: up to 48 settings and their headings)
+            # TEMPLATES: the back row, then brain.c's rows (headings and
+            # templates, up to 160: brain.c TROWS)
+            "brain_tpl_rows:",
+            "        .long   brain_lbl_btemplates, 0, brain_menu_back, 0, 0, 0",
+            "        .space  160 * 0x18",
             "brain_set_rows:",
             "        .long   brain_lbl_bsettings, 0, brain_menu_back, 0, 0, 0",
             "        .space  97 * 0x18",
@@ -230,6 +253,8 @@ def menu_inc():
             'brain_lbl_settings: .asciz "SETTINGS    \\x14"',
             'brain_lbl_bsettings: .asciz "\\x13 SETTINGS"',
             'brain_lbl_defaults: .asciz "DEFAULTS    \\x14"',
+            'brain_lbl_templates: .asciz "TEMPLATES   \\x14"',
+            'brain_lbl_btemplates: .asciz "\\x13 TEMPLATES"',
             'brain_lbl_remixes: .asciz "REMIXES     \\x14"',
             'brain_lbl_tools: .asciz "TOOLS       \\x14"',
             'brain_lbl_bdefaults: .asciz "\\x13 DEFAULTS"',

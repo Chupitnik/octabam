@@ -296,6 +296,146 @@ def fx_targets(remix, mods) -> list:
     return [m for m in _selected(remix, mods) if m.menu is not None and len(m.params) == 12]
 
 
+# ---- templates from the image (BRAIN.md sections 3 and 4.2) ---------------
+
+TEMPLATES = ROOT / "templates"
+STOCK_IMAGE = ROOT / "out/raw/section_3_MAIN_OS.bin"
+TPL_IMAGE_MAX = 4096       # brain.c TPL_IMAGE: bytes of image template records
+
+# The stock page descriptors' entry starts (PARAM_PAGES.md section 3).
+_D = dict(lfo=0x400d37be, amp=0x400d3950, note=0x400d3e06, arp=0x400d3f98, mlfo=0x400d412a,
+          ctl1=0x400d42bc, ctl2=0x400d444e)
+_MIDI_PAGES = (("NOTE", "note"), ("LFO", "mlfo"), ("ARP", "arp"), ("CTL1", "ctl1"), ("CTL2", "ctl2"))
+
+
+def _desc(img: bytes, E: int, s: int) -> tuple[str, int, int, bool]:
+    """Slot s of the stock descriptor at entry E: name, minimum, count, and
+    whether its enable nibble has bit 0 set."""
+    o = E - 0x40000400
+    name = img[o + 0x4e + 6 * s:o + 0x54 + 6 * s].split(b"\0", 1)[0].decode("latin1")
+    lo = int.from_bytes(img[o + 0xa2 + 4 * s:o + 0xa6 + 4 * s], "big", signed=True)
+    cnt = int.from_bytes(img[o + 0xd2 + 4 * s:o + 0xd6 + 4 * s], "big", signed=True)
+    en = int.from_bytes(img[o + 0x1c2:o + 0x1ca], "big") >> (4 * s) & 1
+    return name, lo, cnt, bool(en)
+
+
+def stock_slots(target: str, img: bytes) -> list[tuple[int, str, int, int]]:
+    """(key, name, minimum, count) of every stored slot of a stock target, in
+    brain.c view_fill's order, from the user's stock image. Names: AMP and
+    LFO as the page draws them, LFO's per-LFO slots numbered (PMTR1..TRIG3);
+    a MIDI track's as PAGE.NAME (NOTE, LFO, ARP, CTL1, CTL2), a setup slot
+    that repeats a page-1 name with '#' (CTL1.CC1#: the CC number), the
+    enable bitmaps CTL1.ON and CTL2.ON (raw bytes)."""
+    out = []
+    def add(key, name, E, s):
+        n, lo, cnt, en = _desc(img, E, s)
+        if en and cnt > 0:
+            out.append((key, name or n, lo, cnt))
+    if target == "amp":
+        for s in range(12):
+            add(1 + s, None, _D["amp"], s)
+    elif target == "lfo":
+        for s in range(6):
+            add(1 + s, None, _D["lfo"], s)
+        for i, nm in enumerate(("PMTR", "WAVE", "MULT", "TRIG")):
+            for k in range(3):
+                add(7 + 3 * i + k, f"{nm}{k + 1}", _D["lfo"], 6 + i)
+    elif target == "midi":
+        for f in range(30):
+            pg, d = _MIDI_PAGES[f // 6]
+            add(64 + f, f"{pg}.{_desc(img, _D[d], f % 6)[0]}", _D[d], f % 6)
+        out += [(94, "CTL1.ON", 0, 256), (95, "CTL2.ON", 0, 256)]
+        taken = {n for _k, n, _l, _c in out}
+        for o in range(30):
+            pg, d = _MIDI_PAGES[o // 6]
+            if pg == "LFO":                 # PMTR x3, WAVE x3: one descriptor slot per kind
+                add(1 + o, f"LFO.{('PMTR', 'WAVE')[(o - 6) // 3]}{(o - 6) % 3 + 1}", _D[d], 6 + (o - 6) // 3)
+                continue
+            nm = f"{pg}.{_desc(img, _D[d], 6 + o % 6)[0]}"
+            add(1 + o, nm + "#" if nm in taken else nm, _D[d], 6 + o % 6)
+        for i, nm in enumerate(("MULT", "TRIG")):
+            for k in range(3):
+                add(31 + 3 * i + k, f"LFO.{nm}{k + 1}", _D["mlfo"], 8 + i)
+    return out
+
+
+def _template_target(spec: dict, remix, mods, img: bytes | None):
+    """(store id, layout, {knob name: (key, minimum, count)}) of a template's
+    target, or a reason string."""
+    t = spec.get("target")
+    for short, (sid, layout) in STOCK_TARGETS.items():
+        if t in (short, sid):
+            if img is None:
+                return None
+            return sid, layout, {n: (k, lo, c) for k, n, lo, c in stock_slots(short, img)}
+    m = next((m for m in fx_targets(remix, mods) if m.key == t), None)
+    if m is None:
+        return (f"target {t!r} is not an effect with knobs in this remix "
+                f"nor one of {', '.join(v[0] for v in STOCK_TARGETS.values())}")
+    knobs = {p.name: (k, 0, p.count or 128) for k, p in zip(fx_keys(m), m.params) if k}
+    return fx_store_id(m), fx_layout(m), knobs
+
+
+def load_template(name: str) -> dict:
+    return json.loads((TEMPLATES / f"{name}.json").read_text())
+
+
+def check_templates(remix, mods, img: bytes | None = None) -> list[str]:
+    """Remix.templates refusals: a missing file, an unknown target or knob, a
+    value outside the knob's range, a name that is not 1 to 8 printable
+    characters, two templates of one target under one name, more than
+    TPL_IMAGE_MAX bytes. Stock targets are checked when the stock image is
+    given."""
+    bad, seen = [], set()
+    for n in remix.templates:
+        p = TEMPLATES / f"{n}.json"
+        if not p.is_file():
+            bad.append(f"templates: {n!r} has no file templates/{n}.json")
+            continue
+        try:
+            spec = json.loads(p.read_text())
+        except ValueError as e:
+            bad.append(f"templates/{n}.json: {e}")
+            continue
+        nm = spec.get("name", "")
+        if not (isinstance(nm, str) and 1 <= len(nm) <= 8 and all(32 <= ord(c) < 127 for c in nm)):
+            bad.append(f"templates/{n}.json: name {nm!r}: 1 to 8 printable ASCII characters")
+        tg = _template_target(spec, remix, mods, img)
+        if isinstance(tg, str):
+            bad.append(f"templates/{n}.json: {tg}")
+            continue
+        if tg is None:
+            continue
+        sid, _layout, knobs = tg
+        if (sid, nm) in seen:
+            bad.append(f"templates/{n}.json: a second {sid} template named {nm!r}")
+        seen.add((sid, nm))
+        for k, v in spec.get("knobs", {}).items():
+            if k not in knobs:
+                bad.append(f"templates/{n}.json: {sid} has no knob {k!r} (has {', '.join(knobs)})")
+            elif not (isinstance(v, int) and knobs[k][1] <= v < knobs[k][1] + knobs[k][2]):
+                bad.append(f"templates/{n}.json: {k} = {v!r} outside {knobs[k][1]}.."
+                           f"{knobs[k][1] + knobs[k][2] - 1}")
+    if not bad and img is not None and len(compile_templates(remix, mods, img)) > TPL_IMAGE_MAX:
+        bad.append(f"templates: the image's records exceed {TPL_IMAGE_MAX} bytes")
+    return bad
+
+
+def compile_templates(remix, mods, img: bytes) -> bytes:
+    """The image's template records, back to back as brain.c reads them
+    (brainfile record layout, 7.3), in Remix.templates order."""
+    from remix import brainfile
+    out = b""
+    for n in remix.templates:
+        spec = load_template(n)
+        sid, layout, knobs = _template_target(spec, remix, mods, img)
+        vals = b"".join(brainfile.Value(knobs[k][0], brainfile.BYTE, bytes([v])).encode()
+                        for k, v in spec.get("knobs", {}).items())
+        out += brainfile.Record(brainfile.TEMPLATE_REC, sid, payload=brainfile.prefix_bytes(
+            brainfile.TEMPLATE_REC, layout=layout, name=spec["name"]) + vals).encode()
+    return out
+
+
 # ---- refusals -------------------------------------------------------------
 
 def check_modules(mods) -> list[str]:
@@ -367,6 +507,9 @@ def check_remix(remix, mods) -> list[str]:
         if why:
             bad.append(f"settings {entry!r}: {why}")
     bad += check_defaults(remix, mods)
+    if remix.templates and not has_brain(remix):
+        bad.append(f"templates {list(remix.templates)}: the remix does not carry {BRAIN_KEY}")
+    bad += check_templates(remix, mods, STOCK_IMAGE.read_bytes() if STOCK_IMAGE.is_file() else None)
     if has_brain(remix) and not bad:
         need = sum(s.size for _m, s in early_settings(remix, mods))
         room = early_budget(remix, mods)
@@ -380,7 +523,7 @@ def report(remix, mods) -> list[str]:
     """The build report's settings section: every setting and remix knob
     default with its value and layer. Empty when there is neither."""
     rows = resolve(remix, mods)
-    if not rows and not remix.defaults:
+    if not rows and not remix.defaults and not remix.templates:
         return []
     out = ["=== Settings: resolved at build (docs/proposals/BRAIN.md) ==="]
     for r, s in rows:
@@ -388,6 +531,9 @@ def report(remix, mods) -> list[str]:
         out.append(f"  {r.store_id} {r.name} = {r.shown(s)}  ({r.layer}; {where})")
     for (key, mode, knob), v in remix.defaults.items():
         out.append(f"  {key} {knob}{'' if mode is None else ' in ' + str(mode)} default = {v}  (remix)")
+    for n in remix.templates:
+        spec = load_template(n)
+        out.append(f"  template {spec['name']} for {spec['target']}  (templates/{n}.json)")
     return out
 
 

@@ -470,6 +470,11 @@ with a name editor, copy, paste and clear (✅ on the unit, image A6).
   row removes the record and returns the target to layers 1 and 2.
 - **TEMPLATES**: a list per target type, built like the KITS lists: name,
   apply, copy, clear, rename.
+
+  Built (11 Oct 2026, port): one sub-list, a heading per target and its
+  templates, the image's first (marked IMG). A card template takes RENAME
+  (the stock name editor) and DELETE, an image template COPY TO CARD.
+  Apply stays on the page shortcut, where the track and page are known.
 - On an FX page, a MIDI track page or an audio track page, one key
   combination opens a short list for the current page: SAVE AS DEFAULT,
   LOAD TEMPLATE, SAVE TEMPLATE.
@@ -530,7 +535,7 @@ with a name editor, copy, paste and clear (✅ on the unit, image A6).
 | 0 | this document; `Param.key`, `Store`, `Setting`, `Pin` in the schema; `brainfile.py` and the format corpus; the lock file | no | no |
 | 1 | the build-time layer: the USB audio migration (five `usb-audio-out-*` and three `usb-audio-in-*` modules to two, 17 test remixes to pins); remix `defaults`; the resolved-value report | no | no |
 | 2 | the brain: card store, SETTINGS, FX-page card defaults, SAVE AS DEFAULT, project pair, project record (reported; stock clamps, section 8), CS1 block | yes | yes |
-| 3 | templates for FX pages: image, card, saved on the unit; the TEMPLATES lists | yes | yes |
+| 3 | templates for FX pages: image, card, saved on the unit; the TEMPLATES lists. Built 11 Oct 2026 (port): image templates (`templates/`, `Remix.templates`) for effects and the stock targets, BRAIN > TEMPLATES with rename and copy to card | yes | yes |
 | 4 | the stock provider: MIDI track target, instrument templates with knob names, incoming CC map, controller presets; audio track pages; project-level stock settings. Built 11 Oct 2026 (port): card templates for the AMP and LFO pages and for MIDI tracks (`stock.amp`, `stock.lfo`, `stock.midi`) | yes | yes |
 | from 2, in parallel | DSP run-time delivery: probe, route, first DSP setting | yes | yes |
 | REMIX SWITCH | sanderlegit's OS SWITCH (PR #542), renamed, carried by every remix with BRAIN: the `.RMX` images in `/BRAIN/REMIXES/` in BRAIN's REMIXES sub-list, rebuilt at each MAIN MENU opening (PR #542's power-on picker left out). Built 8 Oct 2026 (`verify_remixswitch` under the port; a switch on an MKII as image B2) | yes | yes |

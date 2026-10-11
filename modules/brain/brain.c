@@ -441,6 +441,10 @@ static void load_settings(int have, u32 scope)
 
 static u8 tpl_cache[TPL_CACHE];
 static u32 tpl_len DATA;			/* bytes of records in tpl_cache */
+/* the image's templates (Remix.templates, compiled at build by
+ * tools/remix/brain.py compile_templates; manifest.py fx_inc) */
+extern const u8 brain_img_tpl[];
+extern const u32 brain_img_tpl_len;
 
 /* the copy: every template record of the file in buf (called by brain_load
  * and after each template write) */
@@ -637,7 +641,8 @@ void brain_load(void)
 
 enum { S_SAVES, S_SAVE_ERR, S_STRD, S_STRD_ERR, S_N };
 /* S_SAVE_ERR: last error of brain_save_default (0 none, 1 no effect, 2 card
- * store damaged, 3 too large, 4 write); S_STRD: card.strd copies written */
+ * store damaged, 3 too large, 4 write, 5 a template of that name is on the
+ * card); S_STRD: card.strd copies written */
 u32 brain_save_counts[S_N] DATA;
 
 static u8 out[BUF_LEN];
@@ -1073,14 +1078,18 @@ void brain_post_settings(void)
 	Q_SEND(ENGINE_Q, job_msg);
 }
 
+enum { T_SAVE, T_DELETE, T_RENAME, T_COPY };
 static int write_template(int del, u32 t, u32 kind, u32 e, u32 i);
 
 void brain_job(void)
 {
-	if (job_args & 0x100000)
-		brain_save_counts[S_SAVE_ERR] = (u32)write_template(1, 0, 0, (job_args >> 8) & 0xff, job_args & 0xff);
+	if (job_args & 0x600000)
+		brain_save_counts[S_SAVE_ERR] = (u32)write_template(job_args & 0x200000 ? T_RENAME : T_COPY, 0, 0,
+								     (job_args >> 8) & 0xff, job_args & 0xff);
+	else if (job_args & 0x100000)
+		brain_save_counts[S_SAVE_ERR] = (u32)write_template(T_DELETE, 0, 0, (job_args >> 8) & 0xff, job_args & 0xff);
 	else if (job_args & 0x80000)
-		brain_save_counts[S_SAVE_ERR] = (u32)write_template(0, job_args & 7, (job_args >> 8) & 7, 0, 0);
+		brain_save_counts[S_SAVE_ERR] = (u32)write_template(T_SAVE, job_args & 7, (job_args >> 8) & 7, 0, 0);
 	else if (job_args & 0x40000)
 		brain_save_counts[S_SAVE_ERR] = (u32)write_settings();
 	else if (job_args & 0x20000)
@@ -1292,7 +1301,7 @@ void brain_menu_log(u32 unused)
 
 /* The stock menu engine is two levels deep: LEFT always focuses the root,
  * and YES on a list row runs its action (0x40064e64; docs/firmware/
- * MAINMENU.md section 4). So BRAIN's DEFAULTS, REMIXES and TOOLS rows each
+ * MAINMENU.md section 4). So BRAIN's top rows each
  * point brain_list at another row array, and the redraw that follows every
  * key (0x40064d7c) shows it. Each sub-list's first row goes back to the
  * top; MAIN MENU's opening (REMIX SWITCH's osw_menu) resets to the top too. */
@@ -1317,7 +1326,7 @@ static void show(struct mrow *rows, u32 n, u32 at)
 	brain_list.sel = at;
 }
 
-#define TOP_N   4				/* SETTINGS, DEFAULTS, REMIXES, TOOLS */
+#define TOP_N   5				/* SETTINGS, DEFAULTS, TEMPLATES, REMIXES, TOOLS */
 #define PANE_W  15				/* characters the list pane shows */
 #define NOOP    ((void (*)(u32))0x400648f8)	/* stock's shared row action, `rts` */
 
@@ -1342,14 +1351,14 @@ void brain_open_defaults(u32 unused)
 void brain_open_remixes(u32 unused)
 {
 	(void)unused;
-	brain_from = 2;
+	brain_from = 3;
 	show(brain_rmx_rows, brain_rmx_n, brain_rmx_n > 1 ? 1 : 0);
 }
 
 void brain_open_tools(u32 unused)
 {
 	(void)unused;
-	brain_from = 3;
+	brain_from = 4;
 	show(brain_tool_rows, 5, 1);
 }
 
@@ -1595,9 +1604,9 @@ static int view_fill(struct view *v, u32 kind, u32 t)
 		for (u32 f = 0; f < 32; f++)	/* page 1: 30 values, CTRL1/CTRL2 enable bitmaps */
 			slot(v, 64 + f, 0x8f162 + t * 32 + f, f < 30 ? f : NOFLAT,
 			     f < 30 ? midi_desc[f / 6] : 0, f % 6);
-		for (u32 o = 0; o < 36; o++)
+		for (u32 o = 0; o < 36; o++)	/* LFO PMTR x3, WAVE x3 at 6-11; MULT x3, TRIG x3 at 30-35 */
 			slot(v, 1 + o, 0x8f262 + t * 36 + o, NOFLAT, o < 30 ? midi_desc[o / 6] : D_MLFO,
-			     o < 30 ? 6 + o % 6 : 8 + (o - 30) / 3);
+			     o >= 30 ? 8 + (o - 30) / 3 : o / 6 == 1 ? 6 + (o - 6) / 3 : 6 + o % 6);
 	}
 	return 1;
 }
@@ -1635,17 +1644,24 @@ static const u8 *nth_in(const u8 *recs, u32 len, u32 e, u32 i)
 	return 0;
 }
 
-static const u8 *tpl_nth(u32 e, u32 i)
-{
-	return nth_in(tpl_cache, tpl_len, e, i);
-}
-
-static u32 tpl_count(u32 e)
+static u32 img_count(u32 e)
 {
 	u32 n = 0;
-	while (n < TPL_MAX && tpl_nth(e, n))
+	while (n < TPL_MAX && nth_in(brain_img_tpl, brain_img_tpl_len, e, n))
 		n++;
 	return n;
+}
+
+/* The i-th template of entry e: the image's first, then the card's. */
+static const u8 *tpl_nth(u32 e, u32 i)
+{
+	u32 k = img_count(e);
+	return i < k ? nth_in(brain_img_tpl, brain_img_tpl_len, e, i) : nth_in(tpl_cache, tpl_len, e, i - k);
+}
+
+static const u8 *card_nth(u32 e, u32 i)
+{
+	return nth_in(tpl_cache, tpl_len, e, i);
 }
 
 /* ---- apply: each slot through the stock paths ----------------------------- */
@@ -1716,13 +1732,26 @@ static void tpl_values(const u8 *p, const struct view *v, u8 *vals)
 	}
 }
 
-/* ---- the engine task: a template saved or deleted ------------------------ */
+/* ---- the engine task: a template saved, deleted, renamed or copied ------- */
 
-/* Save (del 0): track t's view kind becomes a new template of its target,
- * named "TPL nn" with the lowest free nn. Delete (del 1): the i-th template
- * of entry e leaves card.work. Every other record keeps its bytes. The copy
- * is read back after the write. 0, or an error code as write_default's. */
+/* op T_SAVE: track t's view kind becomes a new template of its target,
+ * named "TPL nn" with the lowest free nn. T_DELETE: the i-th card template
+ * of entry e leaves card.work. T_RENAME: it takes the name in tpl_newname.
+ * T_COPY: the i-th image template of entry e is added to card.work (error
+ * 5 when a card template of the target has its name). Every other record
+ * keeps its bytes. The copy is read back after the write. 0, or an error
+ * code as write_default's. */
 static struct view job_view;
+static char tpl_newname[TPL_NAME + 1];
+
+static int same_name(const u8 *rec, const u8 *nm)
+{
+	const u8 *a = rec + REC_HDR + align4(rec[1]) + 8;
+	for (u32 k = 0; k < TPL_NAME; k++)
+		if (a[k] != nm[k])
+			return 0;
+	return 1;
+}
 
 static int write_template(int del, u32 t, u32 kind, u32 e, u32 i)
 {
@@ -1730,7 +1759,19 @@ static int write_template(int del, u32 t, u32 kind, u32 e, u32 i)
 	if (n < 0)
 		return 2;
 	struct view *v = &job_view;
-	if (!del) {
+	const u8 *add = 0;			/* T_COPY: the image record */
+	if (del == T_COPY) {
+		add = nth_in(brain_img_tpl, brain_img_tpl_len, e, i);
+		if (!add)
+			return 1;
+		for (u32 j = 0; n && j < TPL_MAX; j++) {
+			const u8 *q = nth_in(buf + HDR, (u32)n - HDR, e, j);
+			if (!q)
+				break;
+			if (same_name(q, add + REC_HDR + align4(add[1]) + 8))
+				return 5;
+		}
+	} else if (!del) {
 		if (kind > V_MIDI || t > 7 || !view_fill(v, kind, t))
 			return 1;
 		e = v->e;
@@ -1738,23 +1779,38 @@ static int write_template(int del, u32 t, u32 kind, u32 e, u32 i)
 	const char *id;
 	u32 id_len, layout;
 	ent_id(e, &id, &id_len, &layout);
-	const u8 *drop = (del && n) ? nth_in(buf + HDR, (u32)n - HDR, e, i) : 0;
-	if (del && !drop)
+	const u8 *drop = ((del == T_DELETE || del == T_RENAME) && n) ? nth_in(buf + HDR, (u32)n - HDR, e, i) : 0;
+	if ((del == T_DELETE || del == T_RENAME) && !drop)
 		return 1;
 	u32 at = HDR, kept = 0;
 	for (u32 r = 0, k = HDR; n && r < be16(buf + 10); r++, k += be32(buf + k + 16)) {
 		const u8 *p = buf + k;
 		u32 size = be32(p + 16);
-		if (p == drop)
+		if (p == drop && del == T_DELETE)
 			continue;
 		if (at + size > BUF_LEN)
 			return 3;
 		for (u32 b = 0; b < size; b++)
 			out[at + b] = p[b];
+		if (p == drop) {		/* T_RENAME: the name, then the payload CRC */
+			u8 *pay = out + at + REC_HDR + align4(p[1]);
+			for (u32 c = 0; c < TPL_NAME; c++)
+				pay[8 + c] = (u8)tpl_newname[c];
+			put32(out + at + 12, crc32(pay, be32(p + 8)));
+		}
 		at += size;
 		kept++;
 	}
-	if (!del) {
+	if (add) {
+		u32 size = be32(add + 16);
+		if (at + size > BUF_LEN)
+			return 3;
+		for (u32 b = 0; b < size; b++)
+			out[at + b] = add[b];
+		at += size;
+		kept++;
+	}
+	if (del == T_SAVE) {
 		/* the lowest free number among this target's names */
 		u32 num = 1;
 		for (int again = 1; again && num < 100;) {
@@ -1851,9 +1907,10 @@ static void (*tpl_fp[TPL_MAX])(u32);
 static u32 tpl_sel;
 static struct view tpl_view;		/* the view the lists were opened over */
 
-/* The names of the templates of the view in front, each row calling fn;
- * their count (0: msg[] says why, the popup shown). */
-static u32 tpl_list(const char *title, void (*fn)(u32))
+/* The names of the templates of the view in front (the image's and the
+ * card's, or the card's alone), each row calling fn; their count (0: msg[]
+ * says why, the popup shown). */
+static u32 tpl_list(const char *title, void (*fn)(u32), int card)
 {
 	if (!view_here(&tpl_view)) {
 		POPUP(title, 2, msg, 0, 0);
@@ -1861,7 +1918,7 @@ static u32 tpl_list(const char *title, void (*fn)(u32))
 	}
 	u32 n = 0;
 	for (; n < TPL_MAX; n++) {
-		const u8 *p = tpl_nth(tpl_view.e, n);
+		const u8 *p = card ? card_nth(tpl_view.e, n) : tpl_nth(tpl_view.e, n);
 		if (!p)
 			break;
 		const u8 *nm = p + REC_HDR + align4(p[1]) + 8;
@@ -1902,7 +1959,7 @@ static void tpl_delete_sel(u32 unused)
 void brain_tpl_load(u32 unused)
 {
 	(void)unused;
-	u32 n = tpl_list("LOAD TEMPLATE", tpl_apply_sel);
+	u32 n = tpl_list("LOAD TEMPLATE", tpl_apply_sel, 0);
 	if (n) {
 		tpl_sel = 0;
 		LISTPOP(n, 0, &tpl_sel, tpl_lp, (void *)tpl_fp);
@@ -1912,7 +1969,7 @@ void brain_tpl_load(u32 unused)
 void brain_tpl_delete(u32 unused)
 {
 	(void)unused;
-	u32 n = tpl_list("DELETE TEMPLATE", tpl_delete_sel);
+	u32 n = tpl_list("DELETE TEMPLATE", tpl_delete_sel, 1);
 	if (n) {
 		tpl_sel = 0;
 		LISTPOP(n, 0, &tpl_sel, tpl_lp, (void *)tpl_fp);
@@ -1937,6 +1994,155 @@ void brain_tpl_save(u32 unused)
 	msg[0] = line1;
 	msg[1] = "TEMPLATE SAVED";
 	POPUP("SAVE TEMPLATE", 2, msg, 0, 0);
+}
+
+/* ---- BRAIN > TEMPLATES ----------------------------------------------------- */
+
+/* The back row, then per target with templates a heading (its store id
+ * after the first '.') and its templates, the image's first, each marked
+ * IMG. YES on a row opens the stock list popup: a card template takes
+ * RENAME (the stock name editor, 0x4007e664(max, title, buffer, 1,
+ * done(confirmed)), KITS' SAVE KIT call) and DELETE, an image template
+ * COPY TO CARD. Each posts an engine job and returns the pane to the top,
+ * so no row built from the old file is acted on. */
+
+#define NAMEED   ((void (*)(u32, const char *, char *, u32, void (*)(u32)))0x4007e664)
+#define TROWS    160				/* brain_tpl_rows after its back row (manifest.py) */
+
+extern struct mrow brain_tpl_rows[];
+static char trow_lbl[TROWS][PANE_W + 1];
+static u16 trow_ref[TROWS + 1];			/* row -> e << 8 | i, bit 7 of i: image; 0xffff none */
+static u32 trow_ref_sel;
+static char tname[16];
+
+static void trow_name(char *o, const u8 *rec, int img)
+{
+	const u8 *nm = rec + REC_HDR + align4(rec[1]) + 8;
+	u32 k = 0;
+	for (; k < TPL_NAME && nm[k]; k++)
+		o[k] = (char)nm[k];
+	if (img) {
+		for (; k < PANE_W - 3; k++)
+			o[k] = ' ';
+		o[k++] = 'I'; o[k++] = 'M'; o[k++] = 'G';
+	}
+	o[k] = 0;
+}
+
+void brain_tpl_row(u32 unused);
+
+void brain_open_templates(u32 unused)
+{
+	(void)unused;
+	u32 n = 1, first = 0;
+	for (u32 i = 0; i <= TROWS; i++)
+		trow_ref[i] = 0xffff;
+	for (u32 e = 0; e < ST_BASE + 3 && n < TROWS; e++) {
+		if (e >= brain_fx_n && e < ST_BASE)
+			continue;
+		u32 ki = img_count(e), kc = 0;
+		while (kc < TPL_MAX && card_nth(e, kc))
+			kc++;
+		if (!ki && !kc)
+			continue;
+		const char *id;
+		u32 id_len, layout;
+		ent_id(e, &id, &id_len, &layout);
+		u32 d = 0;
+		while (d < id_len && id[d] != '.')
+			d++;
+		d = d < id_len ? d + 1 : 0;
+		char *h = trow_lbl[n - 1];
+		u32 k = 0;
+		for (; d < id_len && k < PANE_W; d++, k++)
+			h[k] = (char)(id[d] >= 'a' && id[d] <= 'z' ? id[d] - 32 : id[d]);
+		h[k] = 0;
+		put_row(brain_tpl_rows + n++, h, 0);
+		for (u32 j = 0; j < ki + kc && n < TROWS; j++) {
+			int img = j < ki;
+			const u8 *rec = img ? nth_in(brain_img_tpl, brain_img_tpl_len, e, j) : card_nth(e, j - ki);
+			trow_name(trow_lbl[n - 1], rec, img);
+			trow_ref[n] = (u16)(e << 8 | (img ? 0x80 | j : j - ki));
+			put_row(brain_tpl_rows + n, trow_lbl[n - 1], brain_tpl_row);
+			if (!first)
+				first = n;
+			n++;
+		}
+	}
+	if (n == 1) {
+		put_row(brain_tpl_rows + 1, "NO TEMPLATES", 0);
+		n = 2;
+	}
+	brain_from = 2;
+	show(brain_tpl_rows, n, first ? first : 1);
+}
+
+static void tpl_job(u32 args, const char *done)
+{
+	brain_post_template(args);
+	msg[0] = tname;
+	msg[1] = done;
+	POPUP("TEMPLATES", 2, msg, 0, 0);
+	brain_menu_back(0);
+}
+
+static void tpl_renamed(u32 confirmed)
+{
+	if (!confirmed)
+		return;
+	for (u32 k = 0; k <= TPL_NAME; k++)
+		tpl_newname[k] = 0;
+	for (u32 k = 0; k < TPL_NAME && tname[k]; k++)
+		tpl_newname[k] = tname[k];
+	if (!tpl_newname[0])
+		return;
+	tpl_job(0x200000 | trow_ref_sel, "RENAMED");
+}
+
+static void trow_rename(u32 unused)
+{
+	(void)unused;
+	NAMEED(TPL_NAME, "TEMPLATE NAME", tname, 1, tpl_renamed);
+}
+
+static void trow_delete(u32 unused)
+{
+	(void)unused;
+	tpl_job(0x100000 | trow_ref_sel, "DELETED");
+}
+
+static void trow_copy(u32 unused)
+{
+	(void)unused;
+	tpl_job(0x400000 | (trow_ref_sel & 0xff7f), "COPIED TO CARD");
+}
+
+static const char *const trow_card_lbl[2] = { "RENAME", "DELETE" };
+static void (*const trow_card_fn[2])(u32) = { trow_rename, trow_delete };
+static const char *const trow_img_lbl[1] = { "COPY TO CARD" };
+static void (*const trow_img_fn[1])(u32) = { trow_copy };
+
+void brain_tpl_row(u32 unused)
+{
+	(void)unused;
+	u32 r = brain_list.sel;
+	if (r > TROWS || trow_ref[r] == 0xffff)
+		return;
+	trow_ref_sel = trow_ref[r];
+	u32 e = trow_ref_sel >> 8, i = trow_ref_sel & 0x7f;
+	const u8 *rec = trow_ref_sel & 0x80 ? nth_in(brain_img_tpl, brain_img_tpl_len, e, i) : card_nth(e, i);
+	if (!rec)
+		return;
+	for (u32 k = 0; k < sizeof tname; k++)
+		tname[k] = 0;
+	const u8 *nm = rec + REC_HDR + align4(rec[1]) + 8;
+	for (u32 k = 0; k < TPL_NAME && nm[k]; k++)
+		tname[k] = (char)nm[k];
+	pop_sel = 0;
+	if (trow_ref_sel & 0x80)
+		LISTPOP(1, 0, &pop_sel, trow_img_lbl, (void *)trow_img_fn);
+	else
+		LISTPOP(2, 0, &pop_sel, trow_card_lbl, (void *)trow_card_fn);
 }
 
 /* ---- live popups: TOOLS > MIDI MONITOR and TOOLS > LOAD ------------------- */

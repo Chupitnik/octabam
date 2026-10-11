@@ -16,6 +16,7 @@ PROJ (MAIN MENU), then BRAIN, the fifth category. Its pane:
 |---|---|
 | SETTINGS ► | its sub-list: `◄ SETTINGS`, then a heading row per module and a value row per setting (below) |
 | DEFAULTS ► | its sub-list: `◄ DEFAULTS`, SAVE AS DEFAULT, CLEAR DEFAULT |
+| TEMPLATES ► | its sub-list: `◄ TEMPLATES`, then per target with templates a heading (its store id after the first `.`, upper case) and its templates by name, the image's first and marked `IMG` |
 | REMIXES ► | its sub-list: `◄ REMIXES`, then REMIX SWITCH's rows (`modules/remix-switch`, sanderlegit): each `.RMX` in `/BRAIN/REMIXES/`, sorted; after a switch a `FLASHED` separator and the image a power-cycle returns to |
 | TOOLS ► | its sub-list: `◄ TOOLS`, WRITE DEBUG LOG, MIDI MONITOR, LOAD, PROJECT CHECK |
 
@@ -25,6 +26,8 @@ PROJ (MAIN MENU), then BRAIN, the fifth category. Its pane:
 | SAVE AS DEFAULT | the FX1 or FX2 page in view (of the current audio track, in the current Part) becomes that effect's default on this card; a popup names the page |
 | CLEAR DEFAULT | that effect's default leaves `card.work`; the descriptor goes back to the image's |
 | a setting row | `NAME  VALUE` (a Binary reads ON or OFF); YES steps the value (a Binary toggles; an Option steps by one and a Number by its step, each wrapping to its minimum past the maximum) and writes it to `card.work` through an engine-task job |
+| a card template | YES: a list with RENAME (the stock name editor, eight characters) and DELETE; either runs as an engine-task job and the pane returns to its top |
+| an image template | YES: COPY TO CARD, which adds it to `card.work` under its name (refused when a card template of the target has that name) |
 | an image | [YES]: `SWITCH TO <NAME>?`; YES boots it without writing the flash (REMIX SWITCH) |
 | WRITE DEBUG LOG | the last 256 MIDI messages (clock and active sensing left out), each with the sync flags, the playing pattern and the next pattern after its handler ran, written to `/BRAIN/debug.txt` by the engine task |
 | MIDI MONITOR | a dialog with the last three MIDI messages decoded (`CH01 CC 7= 20`, `CH01 PC 2 P3`: the pattern the program change queued, `CH02 NOTE 36 100`), redrawn every half second; it reads the debug log's ring, so SETTINGS > MIDI LOG must be on |
@@ -155,11 +158,20 @@ and their setup pages); over SRC they say to open an LFO, AMP or FX page.
   CHAN changed and `0x4009ec70(bank, part)` (bank and program out), then
   its page-1 values. A template carries MODE with the other knobs, so MODE
   DEFAULTS' re-default is not called.
-- Not built yet: renaming (names are `TPL nn` until a host tool or a name
-  editor renames them), templates from the image (`templates/`, BRAIN.md
-  section 3), template files on the card for sharing, a TEMPLATES list in
-  the BRAIN pane, templates for the SRC page, knob names for MIDI tracks
-  (phase 4).
+- **Templates from the image.** A remix's `templates=` names files in
+  the top-level `templates/` (format in `templates/README.md`).
+  `tools/remix/brain.py` `compile_templates` turns each into a template
+  record at build (knobs by name to keys; the stock targets' names and
+  ranges come from the stock image's page descriptors) and `manifest.py`
+  `tpl_inc` puts the records in BRAIN's read-only data (`brain_img_tpl`,
+  at most 4096 bytes). LOAD TEMPLATE lists them before the card's;
+  DELETE TEMPLATE lists the card's alone.
+- **Rename** opens the stock name editor (`0x4007e664(max, title,
+  buffer, 1, done(confirmed))`, the call KITS' SAVE KIT makes); on
+  confirm the engine task rewrites the record's name field and payload
+  CRC, every other byte kept.
+- Not built yet: template files on the card for sharing, templates for
+  the SRC page, knob names for MIDI tracks (phase 4).
 
 ## Live dialogs
 
