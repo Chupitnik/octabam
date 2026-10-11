@@ -561,10 +561,18 @@ A new module's gates, `dear` and behavioral tests belong in that same PR.
 
 ## 9. Bit-identity: proving a change changed nothing
 
-- **`scripts/refhash.sh save` then `check`**: 24 build configurations of
+- **`scripts/refhash.sh check`**: 24 build configurations of
   `remixes/test/bus` (the shipping flags, the plain build, the DEV hatch,
   the probes, the overrides); every artifact and every build report
-  hashed. Save on main, check on the branch. A path in the report is part
+  hashed, against the baseline of the branch's merge-base with origin/main.
+  `tools/verify/refhash_store.py` saves that baseline once per merge-base
+  into `<git common dir>/octabam-refhash/` (a temporary detached worktree
+  at the merge-base, under an flock; keyed by the merge-base, the stock
+  slice, `dsp_asm`/`dsp_host` and the assembler version; the newest eight
+  kept) and `check` copies it in: 137 s for the first check after a main
+  merge (save plus check), 56 s for every later one (12 Oct 2026; before,
+  every session ran its own save). `save` is a local baseline for
+  `REFHASH_LOCAL=1 scripts/refhash.sh check`. A path in the report is part
   of the report. Three cases (`probe`, `xprobe`, `tprobe`: the probes in a plain
   layout, where the real delay overruns the region) refuse to build and the
   refusal is pinned the same way (`scripts/refhash.sh`).
