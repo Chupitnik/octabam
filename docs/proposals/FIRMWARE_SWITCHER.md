@@ -102,10 +102,12 @@ own reset (5).
 
 ### 2.4 Memory the OS never touches ✅
 
-The platform reserve (`docs/contributing/PLACEMENT.md`) is the bottom 1,707
-pages of the audio page arena, `0x40a955e0..0x41495de0`, in every remix
-that carries a DRAM unit. Stock never touches it once the base literal
-moves. Its top 2.6 MB is room for an image.
+The platform reserve (`docs/contributing/PLACEMENT.md`) is the bottom of
+the audio page arena, `0x40a955e0` upward. Stock never touches it once the
+base literal moves. REMIX SWITCH declares its image stage,
+`0x41200000..0x41495de0` (2.6 MB), as an ArenaReserve, so MEMORY keeps the
+reserve reaching past it (the bottom 1,707 pages, as in every DRAM remix
+before 11 Oct 2026).
 
 ---
 

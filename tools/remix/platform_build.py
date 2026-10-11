@@ -133,6 +133,59 @@ def link_runtime(units, work: pathlib.Path, defsyms: dict, base: int, includes=N
     return raw.read_bytes(), _nm(elf, work)
 
 
+def place_regions(ceiling: int, regions, fixed=()) -> dict:
+    """DramRegions (symbol, size, align) stacked down from `ceiling` in
+    order, each moved below any fixed claim (label, start, end) it would
+    overlap. Returns {symbol: (address, size)}."""
+    placed, top = {}, ceiling
+    for r_sym, r_size, r_align in regions:
+        at = (top - r_size) & ~(r_align - 1)
+        moved = True
+        while moved:
+            moved = False
+            for _l, lo, hi in fixed:
+                if at < hi and lo < at + r_size:
+                    at = (lo - r_size) & ~(r_align - 1)
+                    moved = True
+        placed[r_sym] = (at, r_size)
+        top = at
+    return placed
+
+
+def pages_needed(base: int, top: int, regions, fixed=()) -> int:
+    """The fewest arena pages whose reserve (base .. base + pages x PAGE)
+    holds the runtime up to `top`, every fixed claim, and every region
+    placed under the ceiling (place_regions) above `top`."""
+    from remix import arena
+    n = arena.pages_for(max([top] + [hi for _l, _lo, hi in fixed]) - base)
+    while n * arena.PAGE <= arena.MAX_RESERVE:
+        placed = place_regions(base + n * arena.PAGE, regions, fixed)
+        if all(a >= top for a, _n in placed.values()):
+            return n
+        n += 1
+    sys.exit(f"platform build: the runtime (to 0x{top:08x}) and its DRAM regions need more "
+             f"than {arena.MAX_RESERVE // arena.PAGE:,} pages, the most the arena may give "
+             f"(arena.MIN_PAGES_LEFT stay for samples and recorders)")
+
+
+def unit_sizes(units, work: pathlib.Path) -> list:
+    """(text+data, bss) of each unit's object as link_runtime assembled it."""
+    out = []
+    for i, (_k, u) in enumerate(units):
+        obj = work / f"{i:02d}_{u.label}.o"
+        r = subprocess.run(["m68k-elf-size", "-A", str(obj)], capture_output=True, text=True, check=True)
+        td = bss = 0
+        for line in r.stdout.splitlines():
+            f = line.split()
+            if len(f) >= 2 and f[0].startswith("."):
+                if f[0].startswith(".bss"):
+                    bss += int(f[1])
+                elif f[0].startswith((".text", ".data", ".rodata")):
+                    td += int(f[1])
+        out.append((td, bss))
+    return out
+
+
 def preboot_layout(layout, entries):
     """Declare cached-address extents and reject overlap with the runtime/stage."""
     if not entries:
@@ -166,7 +219,7 @@ def preboot_layout(layout, entries):
 
 
 def build(units, payloads, work: pathlib.Path, reserve=None, defsyms=None, preboot=(), includes=None,
-          unit_defs=None, regions=(), patch=None, early=()):
+          unit_defs=None, regions=(), patch=None, early=(), fixed=()):
     """units: [(module key, Linked)] with dram=True, in link order.
     payloads: [dict(name, blob, stage, dst, rawlen, rhash, backup)] for
     payloads built elsewhere: `blob` = signature + GKA3 stream.
@@ -184,7 +237,9 @@ def build(units, payloads, work: pathlib.Path, reserve=None, defsyms=None, prebo
     --defsym symbol=address. patch: {address: bytes} written over the
     linked runtime before it is packed, each over bytes the link left zero
     (the build's descriptor clones, filled after every pass that writes
-    them)."""
+    them). fixed: [(label, start, end)] of ArenaReserves: the regions
+    stack below them and the runtime, its stage and its .bss may not
+    reach them."""
     import json
     work = work.resolve()
     work.mkdir(parents=True, exist_ok=True)
@@ -200,12 +255,9 @@ def build(units, payloads, work: pathlib.Path, reserve=None, defsyms=None, prebo
         for p in payloads:
             defs.update(p.get("symbols", {}))
         defs.update(defsyms or {})
-        # DramRegions: stacked down from the ceiling, named to the link.
-        placed = {}
-        top = ceiling
-        for r_sym, r_size, r_align in regions:
-            top = (top - r_size) & ~(r_align - 1)
-            placed[r_sym] = (top, r_size)
+        # DramRegions: stacked down from the ceiling below the fixed
+        # claims, named to the link.
+        placed = place_regions(ceiling, regions, fixed)
         defs.update({s: a for s, (a, _) in placed.items()})
         raw, symbols = link_runtime(units, work / "runtime", defs, base, includes, unit_defs)
         if patch:
@@ -225,29 +277,37 @@ def build(units, payloads, work: pathlib.Path, reserve=None, defsyms=None, prebo
         if stage_end > ceiling:
             sys.exit(f"platform build: the runtime does not fit its arena reserve -- raw "
                      f"{len(raw):,} B at 0x{base:08x}, stage 0x{stage:08x}..0x{stage_end:08x}, "
-                     f"ceiling 0x{ceiling:08x} ({size:,} B). Reserve more pages "
-                     f"(tools/remix/arena.py PLATFORM_PAGES).")
+                     f"ceiling 0x{ceiling:08x} ({size:,} B). MEMORY sizes the "
+                     f"reserve (modules/memory).")
         # A unit's .bss follows the image, is never loaded and holds whatever
         # the boot left (the stage sits inside it until the depack is done):
         # the unit initialises it. It has to end below the ceiling.
         bss_end = symbols.get("_end", base + len(raw))
         if bss_end > ceiling:
             sys.exit(f"platform build: the runtime's .bss ends at 0x{bss_end:08x}, past the "
-                     f"reserve's ceiling 0x{ceiling:08x} ({size:,} B). Reserve more pages "
-                     f"(tools/remix/arena.py PLATFORM_PAGES).")
+                     f"reserve's ceiling 0x{ceiling:08x} ({size:,} B). MEMORY sizes the "
+                     f"reserve (modules/memory).")
         if placed:
             floor_sym, (floor, _) = min(placed.items(), key=lambda kv: kv[1][0])
             if max(stage_end, bss_end) > floor:
                 sys.exit(f"platform build: the runtime, its stage and its .bss end at "
                          f"0x{max(stage_end, bss_end):08x}, above DRAM region {floor_sym} at "
-                         f"0x{floor:08x} -- shrink the regions or reserve more pages "
-                         f"(tools/remix/arena.py PLATFORM_PAGES).")
+                         f"0x{floor:08x} -- MEMORY sizes the "
+                         f"reserve (modules/memory).")
+        for f_label, f_lo, f_hi in fixed:
+            if f_lo < max(stage_end, bss_end) and base < f_hi:
+                sys.exit(f"platform build: {f_label} (0x{f_lo:08x}..0x{f_hi:08x}) is under the "
+                         f"runtime, its stage or its .bss (0x{base:08x}..0x{max(stage_end, bss_end):08x}); "
+                         f"a fixed arena claim and this much DRAM code cannot share a remix")
         entries.append(dict(name="octabam", blob=SIGNATURE + packed,
                             stage=stage + UNCACHED, dst=base + UNCACHED,
                             rawlen=len(raw), rhash=roll(raw), backup=0))
         (work / "runtime.raw").write_bytes(raw)
         layout.update(base=base, runtime_end=base + len(raw), stage=stage,
-                      stage_end=stage_end, ceiling=ceiling, size=size)
+                      stage_end=stage_end, ceiling=ceiling, size=size,
+                      top=max(stage_end, bss_end),
+                      units=[[k, u.label, td, b] for (k, u), (td, b)
+                             in zip(units, unit_sizes(units, work / "runtime"))])
         if bss_end > symbols.get("__bss_start", bss_end):
             layout.update(bss_end=bss_end)
         if placed:

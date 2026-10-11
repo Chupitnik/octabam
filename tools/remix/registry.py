@@ -25,6 +25,7 @@ from remix import schema  # noqa: E402
 from remix.schema import NO_FALLBACK, on_the_bus  # noqa: E402
 
 REMIX_SWITCH = "REMIX SWITCH"
+MEMORY = "MEMORY"
 MODULES_DIR = ROOT / "modules"
 
 _cache: dict[str, object] | None = None
@@ -275,6 +276,12 @@ def remix(name: str | None):
     # id and no region word.
     if schema.BRAIN_KEY in r.modules and REMIX_SWITCH not in r.modules and REMIX_SWITCH in known:
         r = dataclasses.replace(r, modules=r.modules + (REMIX_SWITCH,))
+    # MEMORY WITH EVERY DRAM UNIT: the platform's arena reserve, sized from
+    # what the remix's modules claim (modules/memory). Appended last; it has
+    # no code, so nothing it selects moves.
+    if MEMORY not in r.modules and MEMORY in known and any(
+            u.dram for k in r.modules for u in getattr(known[k], "linked", ())):
+        r = dataclasses.replace(r, modules=r.modules + (MEMORY,))
     return r
 
 

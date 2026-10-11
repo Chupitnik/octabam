@@ -8,7 +8,7 @@ it is, not an address; the build decides which bytes land where.
 | class | declared as | where it lands | budget |
 |---|---|---|---|
 | **ROM cave** | `CavePatch` (pinned hex, or a `.s` source that is the truth) | one of the OS image's free zero runs; floats after what precedes it unless pinned | ~8.4 KB total, shared by everyone |
-| **DRAM unit** | `Linked(..., dram=True)` | linked with every other DRAM unit in the remix as one image, packed, appended after the OS behind octabam's loader, depacked at boot into the platform's arena reserve | 10 MiB, off the unit's sample/recorder pool |
+| **DRAM unit** | `Linked(..., dram=True)` | linked with every other DRAM unit in the remix as one image, packed, appended after the OS behind octabam's loader, depacked at boot into the platform's arena reserve | the pages the remix claims (MEMORY), off the unit's sample/recorder pool |
 
 Until 6 Oct 2026 there was a third, the appended runtime (`Runtime` + 
 `ArenaReserve`): Em's Octakit, built from her recipe and carried as a
@@ -86,7 +86,7 @@ at exit, the write watch folding the uncached alias.
 |---|---|---|
 | `0x40000000..0x47ffffff` | the cached SDRAM, 128 MB | boot code (ACR0 mask) + hardware |
 | `0x48000000..0x4fffffff` | the same memory uncached: `SDCS0 = 0x4000001b` is a 256 MB decode over a 128 MB part (NXP's own example uses `0x1a` for 128 MB); `CACR = 0xa50ce100` has `DDCM_P` (default data mode cache-inhibited) and `ACR0 = 0x4007e020` covers only the lower 128 MB copyback; no MMU | boot code; hardware (Octakit writes through `0x4dd0dde0` and executes at `0x45d0dde0`; mxldyn's canary at `0x47800000` was clobbered by the rings the OS addresses at `0x4f8…`) |
-| `0x40a955e0..0x46025de0` | the audio page arena: 14,602 × 6,144 B = 89,720,832 B = 85.56 MiB, Elektron's "85.5 MB" (cold init `0x40096f7a`: count `0x390a`, free-list fill to 14,603, `memset(0x40a955e0, 0x05590800)` at `0x40097006`; the Flex cap is the `0x04000000` literal at `0x40004028`). Octakit took the top 528 pages (until 6 Oct 2026), octamax 2.0 the bottom 64 (base moved to `0x40af55e0`), the platform reserve the bottom 1,707 | measured; both authors' placements hardware-proven |
+| `0x40a955e0..0x46025de0` | the audio page arena: 14,602 × 6,144 B = 89,720,832 B = 85.56 MiB, Elektron's "85.5 MB" (cold init `0x40096f7a`: count `0x390a`, free-list fill to 14,603, `memset(0x40a955e0, 0x05590800)` at `0x40097006`; the Flex cap is the `0x04000000` literal at `0x40004028`). Octakit took the top 528 pages (until 6 Oct 2026), octamax 2.0 the bottom 64 (base moved to `0x40af55e0`), the platform reserve the bottom pages its remix claims (1,707 in every DRAM remix until 11 Oct 2026; MEMORY) | measured; both authors' placements hardware-proven |
 | `0x45d0dde0..0x46025de0` | Octakit's window until 6 Oct 2026 ("reserved recorder pages"). Stock's engine zero-fills exactly this extent at project load, twice; her post-clear relocation re-depacks from a stage the OS never touches | measured |
 | `0x46025de0..0x4763d580` | zero-filled at boot by the loop after the boot detour (`0x40000518`); the base of stock's object pool (`pool_init(0x46025de0)` at `0x4002000e`): globals and heap. Not free; its first long is also zeroed by every clear that ends at the arena's top (the stock `memset` writes one long past a length that is a multiple of 16; `docs/firmware/STEM_REC.md` section 19.1) | static |
 | `0x47500a10` | an 8,704 B sector bounce buffer just below the rings (`0x4f500a10 − (offset & 511)` at `0x40091f94`) | static |
@@ -130,10 +130,13 @@ the Flex list reads FREE MEM 71.4 MB; the page count `0x390a` appears at
 `0x400d6b00`; as a module they claim `LAB_MENU`, 402 B at
 `0x400d64e0..0x400d6671`.
 
-octabam's runtime and stage live in 1,707 pages (10,487,808 B) taken off
-the bottom of the audio page arena, `0x40a955e0..0x41495de0`
-(`tools/remix/arena.py`, `PLATFORM_PAGES`), the way octamax 2.0 takes its
-64. The base literal moves up by that much at its 24 sites (23 direct plus
+octabam's runtime and stage live in pages taken off the bottom of the
+audio page arena at `0x40a955e0` (`tools/remix/arena.py`), the way
+octamax 2.0 takes its 64. MEMORY (`modules/memory/README.md`) sizes the
+reserve per remix from the claims: the linked runtime, its stage and
+`.bss`, every DramRegion and every fixed-address ArenaReserve (a fixed
+1,707 pages, 10,487,808 B, `0x40a955e0..0x41495de0`, until 11 Oct 2026).
+The base literal moves up by that much at its 24 sites (23 direct plus
 `lea base+6144` at `0x40094a62`), and the four geometry words (page count,
 free-list fill limit, arena clear length, recorder page cap) are computed
 from the reservation (`tools/remix/arena.py` stacks any number; until 6
@@ -228,8 +231,8 @@ stock Part routines and the CC dispatch as stock, so none is needed (`git show 2
 
 ## Open
 
-- More than 10 MB is a bigger `PLATFORM_PAGES` (the ledger refuses below
-  2,048 pages left). The route that costs no sample memory (a remix with
+- The reserve is what the remix claims (MEMORY); the ledger refuses
+  claims that leave fewer than 2,048 pages. The route that costs no sample memory (a remix with
   the stock DELAY off both choosers detouring its frame routine
   `0x400031a0` so the eight rings are never written, 10.8 MB) is
   unmeasured; whether the routine has duties beyond the delay is the

@@ -127,6 +127,7 @@ from the card (section 5).
 | module | author | what it does | proof |
 |---|---|---|---|
 | [**BRAIN**](modules/brain/README.md) | [Sam Banks](https://github.com/sambanks) | The settings store on the unit: card-wide knob defaults read from BRAIN/card.work at each project load (docs/proposals/BRAIN.md). | port-gated: `verify_brain` under the port (6 Oct 2026); not on hardware |
+| [**MEMORY**](modules/memory/README.md) | [Sam Banks](https://github.com/sambanks) | Platform: the DRAM reserve in stock's audio page arena, sized from what the remix's modules claim. | port-gated: the reserve's size per remix in the build report; `verify_dram_boot` under the port |
 
 ### Reference
 

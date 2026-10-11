@@ -1167,8 +1167,8 @@ class Linked:
     # of every such unit in the remix, linked together (cross-unit symbols
     # resolve in the one link), packed, appended after the OS with the
     # loader (tools/remix/loader.S) and depacked at boot into the
-    # platform's reserve at the bottom of the audio page arena (10 MiB,
-    # tools/remix/arena.py; docs/remixer/PLACEMENT). `cave_addr` is
+    # platform's reserve at the bottom of the audio page arena (sized by
+    # MEMORY, modules/memory; tools/remix/arena.py; docs/remixer/PLACEMENT). `cave_addr` is
     # ignored. This is where anything bigger than a few hundred bytes
     # belongs; the ~8 KB of zero runs inside the OS image are for what
     # must be ROM.
@@ -1349,12 +1349,38 @@ class SymbolRef:
 
 
 @dataclass(frozen=True)
+class ArenaReserve:
+    """Arena bytes a module uses at a fixed address without a link symbol:
+    REMIX SWITCH's image stage, Analog BD's pre-boot upload scratch. `at`
+    and `size` are on the cached alias, inside stock's audio page arena.
+    MEMORY sizes the platform's reserve to reach past every one, and the
+    build refuses one that overlaps the runtime, its stage, its .bss or a
+    DramRegion."""
+
+    label: str
+    at: int
+    size: int
+
+    def __post_init__(self):
+        from remix import arena
+        if self.size <= 0:
+            raise ValueError(f"ArenaReserve {self.label}: size must be positive")
+        if not arena.BASE <= self.at < self.at + self.size <= arena.END:
+            raise ValueError(f"ArenaReserve {self.label}: 0x{self.at:08x}+{self.size:#x} is not "
+                             f"inside the audio page arena 0x{arena.BASE:08x}..0x{arena.END:08x}")
+
+    @property
+    def end(self) -> int:
+        return self.at + self.size
+
+
+@dataclass(frozen=True)
 class DramRegion:
     """Uninitialised DRAM a module's DRAM units name by `symbol`.
 
     Placed by the platform build at the TOP of the platform's arena reserve
-    (arena.PLATFORM_PAGES, which any remix with DRAM units already pays
-    for), stacked downward in declaration order, and handed to the link as
+    (sized per remix by MEMORY, modules/memory), stacked downward in
+    declaration order below any ArenaReserve, and handed to the link as
     `--defsym symbol=address`. The build refuses when the runtime, its
     loader stage or its .bss reach the lowest region. The loader never
     writes these bytes and nothing clears them: a region must not need
@@ -1414,6 +1440,9 @@ class Module:
     # (schema.DramRegion) -- requires at least one dram=True Linked unit,
     # since a region with no unit to name it can never be referenced.
     dram_regions: tuple[DramRegion, ...] = ()
+    # Fixed-address arena bytes (schema.ArenaReserve); MEMORY's reserve
+    # reaches past them.
+    arena_reserves: tuple[ArenaReserve, ...] = ()
     detours: tuple[Detour, ...] = ()
     tables: tuple[TableGrow, ...] = ()
     symbol_refs: tuple[SymbolRef, ...] = ()

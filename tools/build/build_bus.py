@@ -1312,48 +1312,6 @@ def main():
     # base of the platform's arena reserve, packed and carried behind
     # octabam's loader, one boot detour. The loader itself is the append;
     # nothing here touches the OS zero runs.
-    # ---- the audio page arena: every reservation, one geometry -----------
-    # The platform reserves its pages at the bottom whenever the remix
-    # carries DRAM units. tools/remix/arena.py yields the writes: the base
-    # literal at its 24 sites and the four geometry words.
-    from remix import arena
-    _reservations = []
-    if _dram:
-        _reservations.append(("octabam platform", "bottom", arena.PLATFORM_PAGES))
-    _reserve = None
-    if _reservations:
-        _placed, _abase, _acount = arena.layout(_reservations)
-        for _pa, _pexp, _pw, _pnote in arena.pokes(_reservations):
-            _got = bytes(img[_pa - BASE:_pa - BASE + len(_pexp)])
-            if _got != _pexp:
-                sys.exit(f"arena: 0x{_pa:08x} ({_pnote}) holds {_got.hex()}, not stock "
-                         f"{_pexp.hex()} -- another module got there first; refusing")
-            img[_pa - BASE:_pa - BASE + len(_pw)] = _pw
-        for _p in _placed:
-            print(f"  arena: {_p.owner} takes {_p.pages} pages at the {_p.where}, "
-                  f"0x{_p.start:08x}..0x{_p.end:08x} ({_p.pages * arena.PAGE:,} B)")
-            if _p.owner == "octabam platform":
-                _reserve = (_p.start, _p.end - _p.start)
-        print(f"  arena: base 0x{_abase:08x}, {_acount:,} pages "
-              f"({_acount * arena.PAGE // 1048576} MB) left for samples and recorders "
-              f"(stock {arena.PAGES:,}); {len(arena.pokes(_reservations))} words rewritten")
-    # A cave that compares against the arena base (RECORDER LOOP FIX's hold caves: the fetch
-    # returns the base for an unmapped page) carries the stock literal; it
-    # follows the base like the firmware's own sites. The declared count is
-    # checked in every build, moved or not.
-    _pbase = _abase if _reservations else arena.BASE
-    for _lbl, _ca, _cl, _want in _pool_caves:
-        _stock = arena.BASE.to_bytes(4, "big")
-        _hits = [_o for _o in range(0, _cl - 3, 2)
-                 if bytes(img[_ca - BASE + _o:_ca - BASE + _o + 4]) == _stock]
-        if len(_hits) != _want:
-            sys.exit(f"{_lbl}: {len(_hits)} arena-base literal(s) in the cave, "
-                     f"the manifest declares {_want}; refusing")
-        if _pbase != arena.BASE:
-            for _o in _hits:
-                img[_ca - BASE + _o:_ca - BASE + _o + 4] = _pbase.to_bytes(4, "big")
-            print(f"  arena: {_lbl}: {_want} arena-base literal(s) -> 0x{_pbase:08x}")
-
     # ---- the label formatters' plan (placed below, after the links) -----
     # One entry per select that prints its words: (module, slot, param,
     # renames, names table). The table is the clone's own (P + NAMES_AT) or,
@@ -1417,33 +1375,128 @@ def main():
             _dram.append((_MODS[name], Linked(_ul, str(_f.resolve()), dram=True)))
             _ldram[(name, _i)] = _ul
 
-    # DRAM units' Linked.defsyms, resolved as a ROM unit's; one link, so
-    # one value per name.
-    _dram_defs: dict[str, int] = {}
-    _unit_defs: dict[str, tuple] = {}
-    # ARENA_BASE is the remix's audio arena base (the stock literal moved by
-    # the reservation), as the build rewrites a ROM cave's base literals.
-    _build_defs = {"ARENA_BASE": _pbase}
-    for _m, _u in _dram:
-        _mine = tuple((n, _build_defs.get(n, _exports.get(n, v))) for n, v in _u.defsyms)
-        for _n, _v in _mine:
-            if _dram_defs.get(_n, _v) != _v:
-                sys.exit(f"{_m.key} {_u.label}: defsym {_n} = 0x{_v:x}, but another DRAM unit "
-                         f"has 0x{_dram_defs[_n]:x} -- the platform runtime is one link")
-            _dram_defs[_n] = _v
-        _unit_defs[_u.label] = _mine
-    _pdefs = dict(_dram_defs)
+    # ---- MEMORY: the platform's arena reserve, sized from its claims -----
+    # Every `dram=True` unit is linked as ONE image at the base of the
+    # platform's reserve at the bottom of the audio page arena, packed and
+    # carried behind octabam's loader. The reserve holds the runtime, its
+    # loader stage and its .bss, every DramRegion, and reaches past every
+    # ArenaReserve (modules/memory). A sizing link at the largest reserve
+    # the arena allows finds the runtime's top; platform_build.pages_needed
+    # adds the regions and the fixed claims; the real link runs at that
+    # size, a page more when the packed stage moved past it.
+    # tools/remix/arena.py yields the writes: the base literal at its 24
+    # sites and the four geometry words.
+    from remix import arena, platform_build
     _sel = {_k: remix_modules()[_k] for _k in REMIX.modules}
     _regions = [(_r.symbol, _r.size, _r.align) for _k in REMIX.modules
                 for _r in getattr(remix_modules()[_k], "dram_regions", ())]
+    _fixed = [(f"{_k} {_r.label}", _r.at, _r.end) for _k in REMIX.modules
+              for _r in getattr(remix_modules()[_k], "arena_reserves", ())]
+    _incs = {_u.label: _u.include(_sel) for _m, _u in _dram + _early if _u.include is not None}
+
+    def _defs_for(pbase):
+        """The DRAM units' Linked.defsyms, resolved as a ROM unit's; one
+        link, so one value per name. ARENA_BASE is the remix's audio arena
+        base (the stock literal moved by the reservation), as the build
+        rewrites a ROM cave's base literals."""
+        _dram_defs: dict[str, int] = {}
+        _unit_defs: dict[str, tuple] = {}
+        _build_defs = {"ARENA_BASE": pbase}
+        for _m, _u in _dram:
+            _mine = tuple((n, _build_defs.get(n, _exports.get(n, v))) for n, v in _u.defsyms)
+            for _n, _v in _mine:
+                if _dram_defs.get(_n, _v) != _v:
+                    sys.exit(f"{_m.key} {_u.label}: defsym {_n} = 0x{_v:x}, but another DRAM unit "
+                             f"has 0x{_dram_defs[_n]:x} -- the platform runtime is one link")
+                _dram_defs[_n] = _v
+            _unit_defs[_u.label] = _mine
+        return _dram_defs, _unit_defs
+
+    def _platform(reserve, pbase, **kw):
+        _d, _ud = _defs_for(pbase)
+        return platform_build.build(
+            [(_m.key, _u) for _m, _u in _dram], [], pathlib.Path("out/platform"),
+            reserve=reserve, defsyms=_d, unit_defs=_ud, includes=_incs,
+            regions=_regions, early=[_u for _m, _u in _early], fixed=_fixed, **kw)
+
+    _FIT = ("does not fit its arena reserve", "past the reserve's ceiling", "above DRAM region")
+    _reservations = []
+    _reserve = None
+    _pbase = arena.BASE
+    if _dram:
+        _platform((arena.BASE, arena.MAX_RESERVE), arena.BASE + arena.MAX_RESERVE)
+        _ptop = json.loads(pathlib.Path("out/platform", platform_build.LAYOUT).read_text())["top"]
+        _ppages = platform_build.pages_needed(arena.BASE, _ptop, _regions, _fixed)
+        for _try in range(4):
+            _reserve = (arena.BASE, _ppages * arena.PAGE)
+            _pbase = arena.BASE + _ppages * arena.PAGE
+            try:
+                _plinked = _platform(_reserve, _pbase)
+                break
+            except SystemExit as _e:
+                if not any(_f in str(_e) for _f in _FIT):
+                    raise
+                _ppages += 1
+        else:
+            sys.exit("MEMORY: the platform runtime did not fit four pages past its sized reserve")
+        _reservations.append(("octabam platform", "bottom", _ppages))
+    _pdefs, _unit_defs = _defs_for(_pbase)
+    if _reservations:
+        _placed, _abase, _acount = arena.layout(_reservations)
+        for _pa, _pexp, _pw, _pnote in arena.pokes(_reservations):
+            _got = bytes(img[_pa - BASE:_pa - BASE + len(_pexp)])
+            if _got != _pexp:
+                sys.exit(f"arena: 0x{_pa:08x} ({_pnote}) holds {_got.hex()}, not stock "
+                         f"{_pexp.hex()} -- another module got there first; refusing")
+            img[_pa - BASE:_pa - BASE + len(_pw)] = _pw
+        _lay = json.loads(pathlib.Path("out/platform", platform_build.LAYOUT).read_text())
+        print("\n=== MEMORY: the platform's arena reserve ===")
+        _rows = {}
+        for _k, _l, _td, _bss in _lay["units"]:
+            # the build's own units: the descriptor clones, the label formatters
+            _k = ("(descriptor clones)" if _l == "clones" else
+                  "(label formatters)" if _l.startswith("lfmt_") else _k)
+            _r = _rows.setdefault(_k, [0, 0, 0])
+            _r[0] += 1
+            _r[1] += _td
+            _r[2] += _bss
+        for _k, (_nu, _td, _bss) in _rows.items():
+            print(f"  {_k:24s} {_nu:2d} unit(s)  {_td:>10,} B code+data  {_bss:>10,} B .bss")
+        print(f"  {'(link alignment)':24s}            "
+              f"{_lay['runtime_end'] - _lay['base'] - sum(r[1] for r in _rows.values()):>10,} B")
+        print(f"  {'loader stage':24s}            {_lay['stage_end'] - _lay['stage']:>10,} B  "
+              f"packed runtime, dead after the boot depack")
+        for _rs, (_ra, _rn) in _lay.get("regions", {}).items():
+            _ro = next(_k for _k in REMIX.modules
+                       for _r in getattr(remix_modules()[_k], "dram_regions", ()) if _r.symbol == _rs)
+            print(f"  {_ro + ' ' + _rs:24s}            {_rn:>10,} B  DramRegion at 0x{_ra:08x}")
+        for _fl, _flo, _fhi in _fixed:
+            print(f"  {_fl:24s}            {_fhi - _flo:>10,} B  ArenaReserve at 0x{_flo:08x}")
+        for _p in _placed:
+            print(f"  arena: {_p.owner} takes {_p.pages} pages at the {_p.where}, "
+                  f"0x{_p.start:08x}..0x{_p.end:08x} ({_p.pages * arena.PAGE:,} B)")
+        print(f"  arena: base 0x{_abase:08x}, {_acount:,} pages "
+              f"({_acount * arena.PAGE // 1048576} MB) left for samples and recorders "
+              f"(stock {arena.PAGES:,}); {len(arena.pokes(_reservations))} words rewritten")
+    # A cave that compares against the arena base (RECORDER LOOP FIX's hold caves: the fetch
+    # returns the base for an unmapped page) carries the stock literal; it
+    # follows the base like the firmware's own sites. The declared count is
+    # checked in every build, moved or not.
+    for _lbl, _ca, _cl, _want in _pool_caves:
+        _stock = arena.BASE.to_bytes(4, "big")
+        _hits = [_o for _o in range(0, _cl - 3, 2)
+                 if bytes(img[_ca - BASE + _o:_ca - BASE + _o + 4]) == _stock]
+        if len(_hits) != _want:
+            sys.exit(f"{_lbl}: {len(_hits)} arena-base literal(s) in the cave, "
+                     f"the manifest declares {_want}; refusing")
+        if _pbase != arena.BASE:
+            for _o in _hits:
+                img[_ca - BASE + _o:_ca - BASE + _o + 4] = _pbase.to_bytes(4, "big")
+            print(f"  arena: {_lbl}: {_want} arena-base literal(s) -> 0x{_pbase:08x}")
+
 
     if _dram:
-        from remix import platform_build
-        _pappend, _psyms, _boot, _pnames = platform_build.build(
-            [(_m.key, _u) for _m, _u in _dram], [], pathlib.Path("out/platform"),
-            reserve=_reserve, defsyms=_pdefs, unit_defs=_unit_defs,
-            includes={_u.label: _u.include(_sel) for _m, _u in _dram + _early if _u.include is not None},
-            regions=_regions, early=[_u for _m, _u in _early])
+        _pappend, _psyms, _boot, _pnames = _plinked
         for _m, _u in _early:
             _sym[_u.label] = _psyms
             print(f"  {_m.key}: {_u.label} in the loader at 0x{_psyms.get(_u.label, 0):08x}")
@@ -3493,7 +3546,7 @@ hostquit:
             [(_m.key, _u) for _m, _u in _dram], [], pathlib.Path("out/platform"),
             reserve=_reserve, defsyms=_pdefs, unit_defs=_unit_defs,
             includes={_u.label: _u.include(_sel) for _m, _u in _dram + _early if _u.include is not None},
-            regions=_regions, patch=_rt_patch, early=[_u for _m, _u in _early])
+            regions=_regions, patch=_rt_patch, early=[_u for _m, _u in _early], fixed=_fixed)
         if _psyms2 != _psyms:
             sys.exit("descriptor clones: the platform runtime linked differently the second time")
         _appends[_platform_at] = (
@@ -3530,7 +3583,7 @@ hostquit:
             reserve=_reserve, defsyms=_pdefs, preboot=_pres, unit_defs=_unit_defs,
             includes={_u.label: _u.include(_sel) for _m, _u in _dram + _early if _u.include is not None},
             regions=_regions,       # the same regions as the first link, or its symbols differ
-            patch=_rt_patch, early=[_u for _m, _u in _early])
+            patch=_rt_patch, early=[_u for _m, _u in _early], fixed=_fixed)
         if _psyms2 != _psyms or _platform_at is None:
             sys.exit("analog bd: the platform runtime linked differently the second time")
         _appends[_platform_at] = (

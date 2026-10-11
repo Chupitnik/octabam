@@ -20,12 +20,21 @@ README.md beside this file is the procedure.
 """
 
 import pathlib
+import re
 
-from remix.schema import Category, Detour, DspHook, DspSection, Gate, Kind, Linked, Module, Proof
+from remix.schema import ArenaReserve, Category, Detour, DspHook, DspSection, Gate, Kind, Linked, Module, Proof
 
 H = bytes.fromhex
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
+
+# The image stage (mailbox, stub, body, image), 0x41200000..0x41495de0 (the
+# top of the fixed 10 MiB reserve before MEMORY), read from osw.inc's uncached addresses: MEMORY keeps the
+# platform's reserve reaching past it, so stock never writes it.
+_OSW = {m[0]: int(m[1], 16) for m in re.findall(r"\.set\s+(OSW_\w+),\s+0x([0-9a-fA-F]+)",
+                                                (HERE / "osw.inc").read_text())}
+UNCACHED = 0x08000000
+STAGE = ArenaReserve("image stage", _OSW["OSW_MBOX"] - UNCACHED, _OSW["OSW_END"] - _OSW["OSW_MBOX"])
 
 
 def _include(_modules):
@@ -92,7 +101,8 @@ MODULE = Module(
                "MAIN MENU opening: the REMIXES list rescanned from the card, BRAIN's pane reset to its top"),
     ),
     # the list is BRAIN's REMIXES sub-list (brain_rmx_rows, brain_rmx_n)
-    requires=("BRAIN",),
+    requires=("BRAIN", "MEMORY"),
+    arena_reserves=(STAGE,),
     gates=(Gate("tools/verify/verify_remixswitch.py", venv=True),
            # The park's 40 words could come out of the DSP's unused
            # interrupt vectors instead of the effect region. That is only

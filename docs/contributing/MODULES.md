@@ -585,11 +585,12 @@ it places it. Symbols the unit `.global`s are what the detours name;
 cross-unit references resolve in the one link (a unit may name symbols of
 units before it). `dram=True` puts it in the platform runtime: every DRAM
 unit in the remix linked as one image at the base of the platform's arena
-reserve (1,707 pages, 10 MiB off the bottom of stock's audio page arena,
-the placement Octakit and octamax have both proven on hardware;
-`tools/remix/arena.py`, `docs/contributing/PLACEMENT.md`), packed, appended
-behind octabam's loader and depacked there at boot. The cost is 10 MB of
-the unit's 85.5 MB sample/recorder pool. `dram=False` places the unit in
+reserve (pages off the bottom of stock's audio page arena, the placement
+Octakit and octamax have both proven on hardware; sized per remix by
+MEMORY, `modules/memory/README.md`, `docs/contributing/PLACEMENT.md`),
+packed, appended behind octabam's loader and depacked there at boot. The
+cost is the pages the remix claims, off the unit's 85.5 MB
+sample/recorder pool. `dram=False` places the unit in
 one of the OS image's free zero runs (~8 KB, shared with everyone). Prefer
 DRAM unless the code has to run before the loader, or you are matching an
 author's ROM layout byte for byte. A unit's `.bss` (uninitialised; KITS's

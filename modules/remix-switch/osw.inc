@@ -1,9 +1,10 @@
 | REMIX SWITCH -- the addresses both units share, and the gate reads
 | (tools/verify/verify_remixswitch.py parses the `.set` lines of this file).
 |
-| The stage is the top of octabam's platform reserve (tools/remix/arena.py:
-| the first 1,707 pages of stock's audio page arena, 0x40a955e0..0x41495de0,
-| in every remix that carries a DRAM unit). Stock never touches the reserve
+| The stage is the top of octabam's platform reserve, which MEMORY keeps
+| reaching to 0x41495de0 in every remix that carries this module (its
+| manifest's ArenaReserve, read from OSW_MBOX and OSW_END below; the first
+| 1,707 pages of stock's audio page arena). Stock never touches the reserve
 | (docs/contributing/PLACEMENT.md), and nothing between a reset and the OS
 | entry's `movea.l #0x48000000,%sp` writes SDRAM above the image the
 | bootstrap depacks (read from the bootstrap's copy in the image,
