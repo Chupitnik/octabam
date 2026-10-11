@@ -450,6 +450,7 @@ remix: ## The remixer: swap effects in and out, dial + hear them, build the imag
 # local instrumentation there goes with it.
 .PHONY: dsp-repatch
 dsp-repatch: ## Re-apply tools/patches/dsp56300.patch to vendor/dsp56300 (reverts its tracked edits), rebuild dsp_asm/dsp_host, check the one-word move
+	@test ! -L vendor || { echo "dsp-repatch: vendor/ is a symlink to another checkout's: this would rewrite it for every worktree; run it from the main checkout"; exit 3; }
 	git -C vendor/dsp56300 checkout -- source
 	git -C vendor/dsp56300 apply "$(CURDIR)/tools/patches/dsp56300.patch"
 	cmake --build vendor/dsp56300/build --target dsp56kDisassemble dsp_asm dsp_host -j8
@@ -482,6 +483,13 @@ ci-dsp: ## CI: dsp56300 at its pin + our patch, built; upstream's test runner; c
 .PHONY: ci-emu
 ci-emu: ## CI: build the ColdFire port (tools/emu/ot_emu) and run its unit tests that need no stock OS
 	scripts/vendor.sh mc68k dsp56300
+	@$(MAKE) --no-print-directory ci-emu-tree
+
+# ci-emu without fetching: the build and the tests, into out/emu-ci of this
+# tree, against the vendor/ already here. What `make reach RUN=1` runs in a
+# worktree, where scripts/vendor.sh is refused (vendor/ is shared).
+.PHONY: ci-emu-tree
+ci-emu-tree:
 	cmake -S tools/emu/ot_emu -B out/emu-ci -DCMAKE_BUILD_TYPE=Release
 	cmake --build out/emu-ci -j
 	ctest --test-dir out/emu-ci --output-on-failure -E '^(rtos|dsp|repitch-stock|repitch-patch)$$'
