@@ -3,6 +3,7 @@
 
     python3 tools/emu/port_store.py install [DEST]     # out/emu by default
     python3 tools/emu/port_store.py key                # the key, in this tree
+    python3 tools/emu/port_store.py tree               # out/emu's CMake tree, built in place if absent
 
 A fresh worktree's first `make reach RUN=1` built the port in the
 worktree (69 s) and again in each new shard (125 s for three, 11 Oct
@@ -120,11 +121,38 @@ def install(dest=None, root=ROOT):
     return dest, k
 
 
+TREE_FILES = ("CMakeFiles/ot_emu.dir/flags.make", "CMakeFiles/ot_emu.dir/link.txt")
+
+
+def ensure_tree(root=ROOT):
+    """out/emu's CMake build tree, built in place when absent. The store
+    copies executables only, so a tree that came from `install` (every shard
+    and every fresh worktree since #671) has no CMakeFiles, and a harness
+    that recompiles ot_emu with an injected probe (ab_source_probe,
+    benchmark_analog_bd) reads flags.make and link.txt and the libraries the
+    link line names. Such a harness calls this first. Returns the build dir."""
+    build = root / "out/emu"
+    if all((build / f).is_file() for f in TREE_FILES):
+        return build
+    cache = build / "CMakeCache.txt"
+    own = cache.is_file() and f"CMAKE_HOME_DIRECTORY:INTERNAL={(root / 'tools/emu/ot_emu').resolve()}" in cache.read_text()
+    for cmd in (["cmake"] + ([] if own else ["--fresh"]) + ["-B", str(build), "-S", str(root / "tools/emu/ot_emu"),
+                                                             f"-DCMAKE_OSX_ARCHITECTURES={host_arch()}"],
+                ["cmake", "--build", str(build), "-j8"]):
+        r = subprocess.run(cmd, cwd=root, capture_output=True, text=True)
+        if r.returncode:
+            raise SystemExit(f"port_store: {' '.join(cmd)} failed ({r.returncode})\n{r.stdout[-1500:]}{r.stderr[-1500:]}")
+    return build
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     cmd = argv.pop(0) if argv else "install"
     if cmd == "key":
         print(key())
+        return 0
+    if cmd == "tree":
+        print(ensure_tree())
         return 0
     if cmd == "install":
         dest, k = install(argv[0] if argv else None)
