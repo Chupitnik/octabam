@@ -20,7 +20,7 @@ REMIX = Remix(
              "SCENES P2", "PLOCKS P2",
              "DELAY",
              "FX2 LOCK",
-             "BRAIN"),
+             "BRAIN", "LOAD METER"),
     fallback="SEND",
     hidden=("REVERB SERVER", "DELAY SERVER"),
     host_slots=(("DELAY SERVER", 2), ("REVERB SERVER", 2)),

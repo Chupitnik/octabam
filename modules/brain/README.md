@@ -17,7 +17,7 @@ PROJ (MAIN MENU), then BRAIN, the fifth category. Its pane:
 | SETTINGS ► | its sub-list: `◄ SETTINGS`, then a heading row per module and a value row per setting (below) |
 | DEFAULTS ► | its sub-list: `◄ DEFAULTS`, SAVE AS DEFAULT, CLEAR DEFAULT |
 | REMIXES ► | its sub-list: `◄ REMIXES`, then REMIX SWITCH's rows (`modules/remix-switch`, sanderlegit): each `.RMX` in `/BRAIN/REMIXES/`, sorted; after a switch a `FLASHED` separator and the image a power-cycle returns to |
-| TOOLS ► | its sub-list: `◄ TOOLS`, WRITE DEBUG LOG |
+| TOOLS ► | its sub-list: `◄ TOOLS`, WRITE DEBUG LOG, MIDI MONITOR, LOAD |
 
 | sub-list row | does |
 |---|---|
@@ -27,6 +27,8 @@ PROJ (MAIN MENU), then BRAIN, the fifth category. Its pane:
 | a setting row | `NAME  VALUE` (a Binary reads ON or OFF); YES steps the value (a Binary toggles; an Option steps by one and a Number by its step, each wrapping to its minimum past the maximum) and writes it to `card.work` through an engine-task job |
 | an image | [YES]: `SWITCH TO <NAME>?`; YES boots it without writing the flash (REMIX SWITCH) |
 | WRITE DEBUG LOG | the last 256 MIDI messages (clock and active sensing left out), each with the sync flags, the playing pattern and the next pattern after its handler ran, written to `/BRAIN/debug.txt` by the engine task |
+| MIDI MONITOR | a dialog with the last three MIDI messages decoded (`CH01 CC 7= 20`, `CH01 PC 2 P3`: the pattern the program change queued, `CH02 NOTE 36 100`), redrawn every half second; it reads the debug log's ring, so SETTINGS > MIDI LOG must be on |
+| LOAD | a dialog with LOAD METER's window (`modules/load-meter`): the frame interrupt's share and its peak, the average and longest run in µs, interrupts a second; redrawn every half second. Also FUNC + LEVEL push on an MKII (a record in a copy of the FUNC layer's keys, `0x400bfa36`). Without LOAD METER in the remix it says so |
 
 The stock menu engine is two levels deep: LEFT always focuses the root and
 YES on a list row runs its action (`0x40064e64`). A sub-list is BRAIN's
@@ -135,6 +137,16 @@ track, each says to open an FX page.
   section 3), template files on the card for sharing, a TEMPLATES list in
   the BRAIN pane, templates for SRC/AMP/LFO pages and MIDI tracks
   (phase 4).
+
+## Live dialogs
+
+MIDI MONITOR and LOAD open the stock dialog (`0x4006d57c`, YES and NO
+close it) and start a soft timer (`0x40031a0c`, about 0.5 s on the sys
+task's tick) that rewrites the dialog's copies of its three lines
+(`0x460e5d28`, 31 bytes apart) and redraws it (`0x4006d128`): REMIX
+SWITCH's boot picker's sequence (PR #542). The tick stops itself when the
+dialog closes or another replaces it (it clears its slot's function
+word); the answer handler stops it with `UNTIMER` (`0x40031abc`).
 
 ## The boot screen
 

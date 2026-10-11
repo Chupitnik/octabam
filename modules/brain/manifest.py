@@ -41,7 +41,7 @@ def fx_inc(modules):
     for i, m in enumerate(targets):
         out.append(f'brain_id_{i}: .ascii "{brain.fx_store_id(m)}"')
     return ("\n".join(out) + "\n" + menu_inc() + "\n" + settings_inc(mods) + "\n" + boot_inc()
-            + "\n" + page_keys_inc()
+            + "\n" + page_keys_inc() + "\n" + func_keys_inc()
             + "\n        .text\n")
 
 
@@ -62,6 +62,31 @@ def page_keys_inc():
         f'        .incbin "{stock}", 0x{PAGE_KEYS - 0x40000400:x}, {PAGE_RECORDS * KEY_RECORD}',
         "        .byte   0x2d, 0",
         "        .long   brain_page_func, 0, 0, 0, 0",
+        "        .word   0",
+        "        .byte   0xff, 0", "        .long   0, 0, 0, 0, 0", "        .word   0"])
+
+
+FUNC_LAYER_KEYS, FUNC_KEYS = 0x400bfa36, 0x400bf628   # the MKII FUNC layer (0x400bfa32) and its keys
+
+
+def func_keys_inc():
+    """The MKII FUNC layer's keys, copied from the user's stock image at
+    build time (docs/firmware/PANEL.md; the records up to the 0xff end,
+    counted here), with BRAIN's record for the LEVEL encoder's push (0x3e)
+    after them: FUNC + LEVEL push opens TOOLS > LOAD (brain.c
+    brain_load_chord). Stock's FUNC layer has no record for 0x3e, and the
+    push handler 0x4004ecfc ignores FUNC (docs/proposals/BRAIN.md section
+    9). The MKI's encoders do not push and its FUNC layer is left alone."""
+    stock = pathlib.Path(schema.__file__).resolve().parents[2] / "out/raw/section_3_MAIN_OS.bin"
+    img = stock.read_bytes()
+    n = 0
+    while img[FUNC_KEYS - 0x40000400 + n * KEY_RECORD] != 0xff:
+        n += 1
+    return "\n".join([
+        "        .data", "        .balign 2", "        .globl  brain_func_keys", "brain_func_keys:",
+        f'        .incbin "{stock}", 0x{FUNC_KEYS - 0x40000400:x}, {n * KEY_RECORD}',
+        "        .byte   0x3e, 0",
+        "        .long   brain_load_chord, 0, 0, 0, 0",
         "        .word   0",
         "        .byte   0xff, 0", "        .long   0, 0, 0, 0, 0", "        .word   0"])
 
@@ -183,6 +208,8 @@ def menu_inc():
             "brain_tool_rows:",
             "        .long   brain_lbl_btools, 0, brain_menu_back, 0, 0, 0",
             "        .long   brain_lbl_log, 0, brain_menu_log, 0, 0, 0",
+            "        .long   brain_lbl_midimon, 0, brain_menu_midimon, 0, 0, 0",
+            "        .long   brain_lbl_load, 0, brain_menu_load, 0, 0, 0",
             # REMIXES: the back row, then REMIX SWITCH's rows (modules/
             # remix-switch/switch.s): up to NMAX (32) images and four text rows
             "brain_rmx_rows:",
@@ -207,7 +234,9 @@ def menu_inc():
             'brain_lbl_btools: .asciz "\\x13 TOOLS"',
             'brain_lbl_save: .asciz "SAVE AS DEFAULT"',
             'brain_lbl_clear: .asciz "CLEAR DEFAULT"',
-            'brain_lbl_log: .asciz "WRITE DEBUG LOG"']
+            'brain_lbl_log: .asciz "WRITE DEBUG LOG"',
+            'brain_lbl_midimon: .asciz "MIDI MONITOR"',
+            'brain_lbl_load: .asciz "LOAD"']
     return "\n".join(out)
 
 
@@ -229,7 +258,7 @@ MODULE = Module(
               Setting(2, "DEFAULTS", Binary(), default=1,
                       doc="the card's knob defaults (BRAIN/card.work) apply at each project load; off, every effect takes the image's defaults")),
     linked=(Linked("brain", SOURCE, cpu="5475", dram=True, include=fx_inc,
-                   defsyms=(("MODEDEF_TABLE", 0),)),),
+                   defsyms=(("MODEDEF_TABLE", 0), ("LM_STATS", 0))),),
     detours=tuple(d for d in (
         Detour(0x40085342, H("721b2d41fdc6"), "brain", "brain_on_load",
                "LOAD PROJECT, before the empty-project init: the card's defaults onto the descriptors", kind="jsr"),
@@ -248,7 +277,9 @@ MODULE = Module(
     ) if not (_NOLOAD and d.site in (0x40085342, 0x40084d4a))),
     # the BRAIN root category: the root list's rows pointer to brain_root_rows
     # and its count 4 -> 5 (two modules growing the root are refused by the ledger)
-    symbol_refs=(SymbolRef(PAGE_LAYER_KEYS, PAGE_KEYS, "brain", "brain_page_keys",
+    symbol_refs=(SymbolRef(FUNC_LAYER_KEYS, FUNC_KEYS, "brain", "brain_func_keys",
+                           "the MKII FUNC layer's keys: stock's records + LEVEL push, the LOAD view"),
+                 SymbolRef(PAGE_LAYER_KEYS, PAGE_KEYS, "brain", "brain_page_keys",
                            "the page-held key layer's keys: stock's five records + FUNC, the page shortcut"),
                  SymbolRef(ROOT_DESC + 0x18, ROOT_ROWS, "brain", "brain_root_rows",
                            "MAIN MENU root rows: the four stock categories + BRAIN"),),

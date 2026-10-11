@@ -554,6 +554,49 @@ def main():
           f"{want.hex(' ')}, unkeyed slots not compared)",
           len(moves) >= 1 and len(lpage) == 12 and all(lpage[i] == want[i] for i, k in enumerate(keys) if k))
 
+    # ---- live popups: TOOLS > MIDI MONITOR, TOOLS > LOAD, FUNC + LEVEL push --
+    # With the frame timer (--frame) so LOAD METER publishes; each run dumps
+    # the stock dialog's copies of its three lines (0x460e5d28, 31 apart),
+    # which the popup's tick rewrites every half second.
+    def live_run(tag, script, wait):
+        lc, ll, lines = OUT / f"{tag}.img", OUT / f"{tag}.txt", OUT / f"{tag}_lines.bin"
+        r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
+                            "--tree", str(OUT / f"tree_{tag}"), "--out", str(lc)], cwd=ROOT, capture_output=True, text=True)
+        if r.returncode:
+            sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
+        t, out_lines = 1500, []
+        for item in script:
+            if isinstance(item, str):
+                out_lines.append(f"{t} {item}"); t += 300
+            else:
+                code, gap = item
+                out_lines += [f"{t} key {code:#x} down", f"{t + 30} key {code:#x} up"]; t += gap
+        out_lines.append(f"{t + wait} quit")
+        (OUT / f"{tag}.script").write_text("\n".join(out_lines) + "\n")
+        cmd = [EMU, "--image", image, "--card", lc, "--set", a.set_name, "--project", a.name, "--load-ms", "90000",
+               "--mkii", "--frame", "--live-script", OUT / f"{tag}.script", "--mem-dump", f"0x460e5d28,93={lines}"]
+        with open(ll, "w") as fh:
+            r = subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
+        if r.returncode or "ended on quit" not in ll.read_text():
+            sys.exit(f"verify_brain: the {tag} run did not finish -- {ll}")
+        raw = lines.read_bytes()
+        return [raw[i * 31:i * 31 + 30].split(b"\0")[0].decode("ascii", "replace") for i in range(3)]
+
+    tools = [(0x1c, 500)] + [(0x20, 500)] * 4 + [(0x21, 500)] + [(0x20, 500)] * 3 + [(0x31, 500)]  # BRAIN > TOOLS
+    got = live_run("midimon", [(0x32, 500), "midi B0 07 14", "midi C0 02", "midi 91 24 64"]
+                   + tools + [(0x20, 500), (0x31, 500)], 2000)
+    check(f"midimon: TOOLS > MIDI MONITOR shows the last three messages decoded  {got}",
+          got[0].startswith("CH01 CC") and got[0].replace(" ", "").endswith("7=20")
+          and got[1].startswith("CH01 PC") and got[2].startswith("CH02 NOTE"))
+    got = live_run("loadview", [(0x32, 500)] + tools + [(0x20, 500), (0x20, 500), (0x31, 500)], 20000)
+    check(f"load: TOOLS > LOAD shows LOAD METER's window (the frame interrupt's share, its runs, frames a "
+          f"second)  {got}",
+          got[0].startswith("FRAME IRQ") and "%" in got[0] and got[1].startswith("AVG") and "/S" in got[2])
+    got = live_run("loadchord", [(0x32, 500), (0x10, 500), (0x25, 500), "key 0x2d down", "key 0x3e down",
+                                  "key 0x3e up", "key 0x2d up"], 3000)
+    check(f"load: FUNC + LEVEL push on T1's FX1 page opens LOAD  {got}",
+          got[0].startswith(("FRAME IRQ", "MEASURING")))
+
     # ---- boot screen: the OS's boot animation draws bootart.py -------------
     snapf_at = symbol("brain_boot_snapf")
     bc, blog, bsnap = OUT / "boot.img", OUT / "boot.txt", OUT / "boot_snap.bin"

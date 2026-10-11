@@ -6,7 +6,7 @@
 | 3's free-running count (132 MHz bus clock; CF METER and the OS read it
 | too). Each exit adds the interrupt's duration to a sum and keeps the
 | longest; every WIN counts (0.5 s) the window is published to lm_stats and
-| a new one starts. BRAIN's LOAD view reads lm_stats (its LM_STATS defsym)
+| a new one starts. BRAIN's LOAD view reads it as LM_STATS (its defsym)
 | and shows the share and the longest interrupt.
 |
 | Interrupts are masked at level 5 inside the handler, so the stamps and
@@ -44,9 +44,12 @@ lm_out:
         bcs.s   2f
         lea     lm_stats,%a0                    | publish: seq, window, sum, count, longest
         move.l  %d1,%a0@(4)
-        move.l  lm_sum,%a0@(8)
-        move.l  lm_cnt,%a0@(12)
-        move.l  lm_max,%a0@(16)
+        move.l  lm_sum,%d0                      | ColdFire: no absolute-to-displaced move
+        move.l  %d0,%a0@(8)
+        move.l  lm_cnt,%d0
+        move.l  %d0,%a0@(12)
+        move.l  lm_max,%d0
+        move.l  %d0,%a0@(16)
         addq.l  #1,%a0@                         | the seq last: a reader sees a whole window
         move.l  %d2,lm_w0
         clr.l   lm_sum
@@ -58,7 +61,8 @@ lm_out:
 
         .data
         .balign 4
-        .globl  lm_stats
+        .globl  lm_stats, LM_STATS              | LM_STATS: the name BRAIN's defsym takes (brain_lm)
+LM_STATS:
 lm_stats: .long 0, 0, 0, 0, 0                   | seq, window counts, sum counts, interrupts, longest counts
 lm_t0:  .long   0
 lm_w0:  .long   0

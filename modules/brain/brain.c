@@ -1083,7 +1083,7 @@ void brain_open_tools(u32 unused)
 {
 	(void)unused;
 	brain_from = 3;
-	show(brain_tool_rows, 2, 1);
+	show(brain_tool_rows, 4, 1);
 }
 
 /* SETTINGS: the back row, then per module a heading (its key, no action)
@@ -1536,4 +1536,206 @@ void brain_tpl_save(u32 unused)
 	brain_post_template(0x80000 | t | (fx << 8));
 	msg[1] = "TEMPLATE SAVED";
 	POPUP("SAVE TEMPLATE", 2, msg, 0, 0);
+}
+
+/* ---- live popups: TOOLS > MIDI MONITOR and TOOLS > LOAD ------------------- */
+
+/* The stock dialog (0x4006d57c) with three lines, redrawn every half
+ * second by a soft timer (0x40031a0c, the sys task's ~120 Hz tick): the
+ * tick writes the dialog's copies of its lines (0x460e5d28, 31 bytes
+ * apart) and redraws it (0x4006d128), REMIX SWITCH's boot picker's
+ * sequence (PR #542). The tick stops itself when the dialog closes or
+ * another replaces it, by clearing its slot's function (the service
+ * re-links a node only while that word is nonzero); the answer handler
+ * stops it with UNTIMER, which is only called from outside the tick. */
+
+#define TIMER     ((int (*)(u32, void (*)(void)))0x40031a0c)
+#define UNTIMER   ((void (*)(int))0x40031abc)
+#define TIMERS    0x460d5a28			/* 32 slots, 16 bytes: {period, due, fn, next} */
+#define DLG_OPEN  (*(volatile u32 *)0x460e5cd0)	/* the dialog's window, 0 = none */
+#define DLG_LINES ((char *)0x460e5d28)
+#define DLG_DRAW  ((void (*)(void))0x4006d128)
+#define LIVE_TICKS 60				/* about 0.5 s */
+#define LIVE_W    22				/* characters a dialog line shows */
+
+enum { LIVE_MIDI = 1, LIVE_LOAD = 2 };
+
+static int live_timer DATA = -1;
+static u32 live_kind DATA;
+static u32 live_win DATA;			/* the dialog window ours opened as */
+static char live_lbuf[3][LIVE_W + 1];
+static const char *live_lp[3] = { live_lbuf[0], live_lbuf[1], live_lbuf[2] };
+
+/* LOAD METER's window (modules/load-meter: seq, window, sum, count,
+ * longest, in DMA timer 3 counts at 132 MHz), or 0 without that module
+ * (hooks.s brain_lm, the LM_STATS defsym). */
+extern volatile u32 *const brain_lm;
+static u32 load_peak_pct DATA, load_peak_us DATA;
+
+static void line_set(u32 i, const char *a, u32 an)
+{
+	u32 k = 0;
+	for (; k < an && k < LIVE_W; k++)
+		live_lbuf[i][k] = a[k];
+	live_lbuf[i][k] = 0;
+}
+
+static void fill_load(void)
+{
+	char t[LIVE_W + 8];
+	u32 n;
+	if (!brain_lm) {
+		line_set(0, "NO LOAD METER", 13);
+		line_set(1, "IN THIS REMIX", 13);
+		line_set(2, "", 0);
+		return;
+	}
+	u32 seq = brain_lm[0], win = brain_lm[1], sum = brain_lm[2], cnt = brain_lm[3], max = brain_lm[4];
+	if (!seq || !win || !cnt) {
+		line_set(0, "MEASURING", 9);
+		line_set(1, "", 0);
+		line_set(2, "", 0);
+		return;
+	}
+	u32 pct = sum / (win / 100 ? win / 100 : 1), us = max / 132, avg = sum / cnt / 132;
+	u32 ms = win / 132000;					/* the window in ms (no 64-bit maths here) */
+	u32 rate = ms ? cnt * 1000 / ms : 0;
+	if (pct > load_peak_pct)
+		load_peak_pct = pct;
+	if (us > load_peak_us)
+		load_peak_us = us;
+	n = put_s(t, "FRAME IRQ ");				/* the interrupt's share */
+	n += put_dec(t + n, pct, 3);
+	n += put_s(t + n, "% PK ");
+	n += put_dec(t + n, load_peak_pct, 3);
+	n += put_s(t + n, "%");
+	line_set(0, t, n);
+	n = put_s(t, "AVG ");					/* the run, average and longest */
+	n += put_dec(t + n, avg, 3);
+	n += put_s(t + n, "US MAX ");
+	n += put_dec(t + n, us, 3);
+	n += put_s(t + n, "US");
+	line_set(1, t, n);
+	n = put_dec(t, rate, 0);
+	n += put_s(t + n, " /S  PK ");
+	n += put_dec(t + n, load_peak_us, 0);
+	n += put_s(t + n, "US");
+	line_set(2, t, n);
+}
+
+/* One logged message as text: "CH01 CC 007=020", "CH10 NOTE 036 100",
+ * "START" ... */
+static u32 midi_text(char *t, const struct dbg_ent *e)
+{
+	u32 st = e->st, n = 0;
+	static const char *const sys[16] = { "SYSEX", "MTC", "SPP", "SONG", "", "", "TUNE", "EOX",
+					     "CLOCK", "", "START", "CONT", "STOP", "", "SENSE", "RESET" };
+	if (st >= 0xf0)
+		return put_s(t, sys[st & 15]);
+	n = put_s(t, "CH");
+	n += put_dec(t + n, (st & 15) + 1, 2);
+	if (t[2] == ' ')
+		t[2] = '0';
+	switch (st >> 4) {
+	case 0x8: n += put_s(t + n, " OFF "); break;
+	case 0x9: n += put_s(t + n, " NOTE "); break;
+	case 0xa: n += put_s(t + n, " PAT "); break;
+	case 0xb: n += put_s(t + n, " CC "); break;
+	case 0xc: n += put_s(t + n, " PC "); n += put_dec(t + n, e->d1, 3);
+		  n += put_s(t + n, " P"); return n + put_dec(t + n, e->pnext + 1, 0);
+	case 0xd: n += put_s(t + n, " CP "); return n + put_dec(t + n, e->d1, 3);
+	case 0xe: n += put_s(t + n, " PB "); return n + put_dec(t + n, ((u32)e->d2 << 7) | e->d1, 5);
+	default: return n;
+	}
+	n += put_dec(t + n, e->d1, 3);
+	t[n++] = (st >> 4) == 0xb ? '=' : ' ';
+	return n + put_dec(t + n, e->d2, 3);
+}
+
+static void fill_midi(void)
+{
+	char t[LIVE_W + 8];
+	if (!brain_v_octabam_brain_1) {
+		line_set(0, "MIDI LOG IS OFF", 15);
+		line_set(1, "SETTINGS > MIDI LOG", 19);
+		line_set(2, "", 0);
+		return;
+	}
+	for (u32 i = 0; i < 3; i++) {
+		u32 back = 3 - i;			/* the newest last */
+		if (dbg_seq < back) {
+			line_set(i, i == 0 && !dbg_seq ? "NO MESSAGES YET" : "", i == 0 && !dbg_seq ? 15 : 0);
+			continue;
+		}
+		const struct dbg_ent *e = &dbg_ring[(dbg_seq - back) % LOG_N];
+		line_set(i, t, midi_text(t, e));
+	}
+}
+
+static void live_fill(void)
+{
+	if (live_kind == LIVE_LOAD)
+		fill_load();
+	else
+		fill_midi();
+}
+
+void brain_live_tick(void)
+{
+	if (live_timer < 0)
+		return;
+	if (!DLG_OPEN || DLG_OPEN != live_win) {
+		*(volatile u32 *)(TIMERS + (u32)live_timer * 16 + 8) = 0;	/* not re-linked */
+		live_timer = -1;
+		return;
+	}
+	live_fill();
+	for (u32 i = 0; i < 3; i++) {
+		char *d = DLG_LINES + 31 * i;
+		u32 k = 0;
+		for (; live_lbuf[i][k] && k < 30; k++)
+			d[k] = live_lbuf[i][k];
+		d[k] = 0;
+	}
+	DLG_DRAW();
+}
+
+void brain_live_answer(u32 answer)
+{
+	(void)answer;
+	if (live_timer >= 0) {
+		UNTIMER(live_timer);
+		live_timer = -1;
+	}
+}
+
+static void live_open(u32 kind, const char *title)
+{
+	brain_live_answer(0);
+	live_kind = kind;
+	if (kind == LIVE_LOAD)
+		load_peak_pct = load_peak_us = 0;
+	live_fill();
+	POPUP(title, 3, live_lp, 3, (u32)brain_live_answer);
+	live_win = DLG_OPEN;
+	live_timer = TIMER(LIVE_TICKS, brain_live_tick);
+}
+
+void brain_menu_midimon(u32 unused)
+{
+	(void)unused;
+	live_open(LIVE_MIDI, "MIDI MONITOR");
+}
+
+void brain_menu_load(u32 unused)
+{
+	(void)unused;
+	live_open(LIVE_LOAD, "LOAD");
+}
+
+/* FUNC + LEVEL push on an MKII: the record manifest.py adds to the FUNC
+ * layer's keys; the record's press handler. */
+void brain_load_chord(void)
+{
+	brain_menu_load(0);
 }
