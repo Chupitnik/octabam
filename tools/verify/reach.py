@@ -339,6 +339,35 @@ def recipe_scripts(make_text, target):
     return set(re.findall(r"tools/\S+\.py", m.group(1))) if m else set()
 
 
+def variant_gates(m):
+    """Every gate the module declares, in every build variant: a variant
+    (schema.Module.variant) can name gates the unbound module does not
+    carry (USB AUDIO OUT's verify_usb_post and verify_usb_align, by
+    LAYOUT). Until 12 Oct 2026 a change to such a gate reached nothing.
+    Each Apply.BUILD Option takes every label and a Binary 0 and 1; any
+    other kind keeps its default."""
+    import itertools
+    from remix.schema import Apply, Binary, Option
+    gates = list(getattr(m, "gates", ()))
+    if getattr(m, "variant", None) is None:
+        return gates
+    axes = []
+    for st in m.settings:
+        if st.apply is not Apply.BUILD:
+            continue
+        if isinstance(st.kind, Option):
+            axes.append([(st.name, label) for label in st.kind.labels])
+        elif isinstance(st.kind, Binary):
+            axes.append([(st.name, 0), (st.name, 1)])
+        else:
+            axes.append([(st.name, st.default)])
+    for combo in itertools.product(*axes):
+        for g in m.bind(dict(combo)).gates:
+            if g not in gates:
+                gates.append(g)
+    return gates
+
+
 class Context:
     """What the classifier needs from the registry and the tree, so tests
     can fake it."""
@@ -346,7 +375,7 @@ class Context:
     def __init__(self, module_key, remixes_of, gate_owners, remixes, exists=None, deps=None,
                  shared_scripts=(), remix_scripts=(), gate_shared=None, make_base=None, make_head=None,
                  all_remixes=False, read=None, read_base=None, quick=False, test_remixes=(),
-                 test_carriers=None, include_tests=True, gate_once=None):
+                 test_carriers=None, include_tests=True, gate_once=None, gate_remixes=None):
         self.module_key = module_key        # module directory -> key
         self.remixes_of = remixes_of        # key -> sorted remix names carrying it
         self.gate_owners = gate_owners      # verifier path -> keys whose manifests name it
@@ -370,10 +399,15 @@ class Context:
         self.remix_scripts = set(remix_scripts) - set(ACCEPTANCE)     # the verify-remix recipe's
         self.gate_shared = gate_shared or {}   # manifest gate script -> True when remix_arg=False
         self.gate_once = gate_once or {}       # manifest gate script -> True when once=True
+        self.gate_remixes = gate_remixes or {}   # a variant-only gate -> the remixes whose bound module carries it
         self.make_base, self.make_head = make_base, make_head
         self.read = read or (lambda path: (ROOT / path).read_text() if (ROOT / path).is_file() else None)
         self.read_base = read_base or (lambda path: None)   # the file at the base commit, or None
         self._dependents = None
+
+    def keys_of(self, remix):
+        """The module keys `remix` carries."""
+        return {k for k, names in self.remixes_of.items() if remix in names}
 
     def _modules_of(self):
         n = {}
@@ -475,11 +509,27 @@ class Context:
                 else:
                     test_carriers.setdefault(k, []).append(name)
         gate_owners, gate_shared, gate_once = {}, {}, {}
+        plain = {g.script for m in mods.values() for g in getattr(m, "gates", ())}
         for m in mods.values():
-            for g in getattr(m, "gates", ()):
+            for g in variant_gates(m):
                 gate_owners.setdefault(g.script, []).append(m.key)
-                gate_shared[g.script] = gate_shared.get(g.script, True) and not g.remix_arg
+                # the shared half runs the isolated remix-independent gates;
+                # an image-stage gate runs in each carrying remix's half
+                gate_shared[g.script] = (gate_shared.get(g.script, True) and not g.remix_arg
+                                         and g.stage == "isolated")
                 gate_once[g.script] = gate_once.get(g.script, False) or getattr(g, "once", False)
+        # A gate only a build variant declares runs where that variant is
+        # built: the remixes whose bound module carries it (verify_usb_post:
+        # the TRACKS POST layout's remixes, not every USB AUDIO OUT remix).
+        gate_remixes = {}
+        if set(gate_owners) - plain:
+            for name in registry.remix_names():
+                r = registry.remix(name)
+                b = registry.bound(r)
+                for k in r.modules:
+                    for g in getattr(b[k], "gates", ()):
+                        if g.script not in plain:
+                            gate_remixes.setdefault(g.script, set()).add(name)
         make_head = (ROOT / "Makefile").read_text()
         make_base = None
 
@@ -496,7 +546,7 @@ class Context:
                    gate_shared=gate_shared, make_base=make_base, make_head=make_head,
                    all_remixes=all_remixes, read_base=read_base, quick=quick,
                    test_remixes=tests, test_carriers=test_carriers, include_tests=include_tests,
-                   gate_once=gate_once)
+                   gate_once=gate_once, gate_remixes=gate_remixes)
 
 
 def route_tool(path, ctx):
@@ -532,7 +582,10 @@ def route_tool(path, ctx):
         notes.append(f"a gate of the per-remix half, run for {ctx.floor_note()}: " + ", ".join(sorted(pathlib.PurePosixPath(u).stem for u in users & ctx.remix_scripts)))
     for script in sorted(users & set(ctx.gate_owners)):
         owners = ctx.gate_owners[script]
-        remixes = sorted({r for k in owners for r in ctx.carriers(ctx.remixes_of.get(k, []))})
+        if script in ctx.gate_remixes:
+            remixes = sorted(ctx.carriers(sorted(ctx.gate_remixes[script])))
+        else:
+            remixes = sorted({r for k in owners for r in ctx.carriers(ctx.remixes_of.get(k, []))})
         if not remixes:
             continue
         if ctx.gate_shared.get(script) or ctx.gate_once.get(script):
@@ -743,7 +796,7 @@ def classify(paths, ctx):
     return out
 
 
-def plan(rows, accept_runs_check=True):
+def plan(rows, accept_runs_check=True, keys_of=None):
     """The commands in run order, each once, with the paths that put it
     there. Two or more remixes to check become ONE `make check-shared`
     (the remix-independent gates, once) and a `make check-remix` each; a
@@ -751,7 +804,9 @@ def plan(rows, accept_runs_check=True):
     accept become ONE `make accept REMIXES="..."` (the runner runs the
     shared half once), and with `accept_runs_check` (STRESS_SOURCE is set,
     so the accept line will run) a remix that is accepted is not checked
-    separately: accept runs both halves of its check itself."""
+    separately: accept runs both halves of its check itself. `keys_of`
+    (remix -> its module keys) lets a merged shared half stay scoped: an
+    unscoped line stands for every module of ITS remixes, not of all."""
     by_cmd = {}
     for path, gates, _ in rows:
         for kind, command in gates:
@@ -787,8 +842,17 @@ def plan(rows, accept_runs_check=True):
     if len(shared) > 1:
         names = sorted({r for _, c in shared for r in shared_remixes(c)})
         scopes = [shared_modules(c) for _, c in shared]
-        # one unscoped line makes the merged line the whole shared half
-        modules = None if any(m is None for m in scopes) else sorted({k for m in scopes for k in m})
+        # An unscoped line is every module of its own remixes; a scoped one
+        # its keys. Until 12 Oct 2026 one unscoped line (a tool change's
+        # floor, octatrick) made the merged line the whole shared half of
+        # every remix in it, so a tool change beside a bottleservice module
+        # change ran verify_kits (739 s) though neither reached KITS.
+        if all(m is None for m in scopes) or keys_of is None and any(m is None for m in scopes):
+            modules = None
+        else:
+            modules = sorted({k for (_, c), m in zip(shared, scopes)
+                              for k in (m if m is not None else
+                                        {k for r in shared_remixes(c) for k in keys_of(r)})})
         paths = sorted({p for v in shared.values() for p in v})
         for k in shared:
             del by_cmd[k]
@@ -856,7 +920,7 @@ def unsharded(items):
     return out
 
 
-def replan(queue, extra, stress, jobs):
+def replan(queue, extra, stress, jobs, keys_of=None):
     """The remaining queue plus identity's extra gates, planned again as
     one: the extra checks fold into the accept line (with STRESS_SOURCE)
     and the check-remix lines into the shards, instead of running one
@@ -870,7 +934,7 @@ def replan(queue, extra, stress, jobs):
         else:
             rows.append((path, [(kind, command)], ""))
     rows += [("image_identity", [g], "") for g in extra]
-    items = plan(rows, accept_runs_check=bool(stress))
+    items = plan(rows, accept_runs_check=bool(stress), keys_of=keys_of)
     return sharded(items, jobs) if jobs > 1 else items
 
 
@@ -936,7 +1000,7 @@ def main(argv=None):
     print("\nremixes reached: " + (", ".join(remixes_reached(rows)) or "none"))
     print("\ngates, in order:")
     stress = os.environ.get("STRESS_SOURCE")
-    items = plan(rows, accept_runs_check=bool(stress) and not quick)
+    items = plan(rows, accept_runs_check=bool(stress) and not quick, keys_of=ctx.keys_of)
     if quick:
         items = [it for it in items if it[0] != "accept"]
     if a.jobs > 1:
@@ -997,7 +1061,7 @@ def main(argv=None):
             extra = [cmd_check(r) for r in changed] + ([cmd_accept(r) for r in changed] if stress else [])
             done = {c for c, _, _ in results}
             before = len(queue)
-            queue = [it for it in replan(queue, extra, stress, a.jobs) if it[1] not in done]
+            queue = [it for it in replan(queue, extra, stress, a.jobs, ctx.keys_of) if it[1] not in done]
             print(f"reach: identity names {len(changed)} changed remix{'es' if len(changed) != 1 else ''}"
                   + (": " + ", ".join(changed) if changed else "")
                   + f" -> {len(queue) - before:+d} gate{'s' if abs(len(queue) - before) != 1 else ''} in the queue")
