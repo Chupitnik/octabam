@@ -20,6 +20,9 @@ brain_modedef: .long MODEDEF_TABLE
 | LOAD METER's lm_stats (modules/load-meter), 0 without that module (LM_STATS defsym)
         .globl  brain_lm
 brain_lm: .long LM_STATS
+| its DSP figures (lm_dsp), 0 without it (LM_DSP defsym)
+        .globl  brain_lmd
+brain_lmd: .long LM_DSP
 
         .text
         .globl  brain_on_load, brain_on_bankload

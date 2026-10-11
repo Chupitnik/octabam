@@ -3045,6 +3045,8 @@ hostquit:
                           f"{', piece ' + str(_n + 1) if len(_cuts) > 1 else ''}"
                           f", in stock's dead vectors (verify_dspvectors)")
                 for _h in (_sec.hooks or ()):
+                    if not _h.on(tag):
+                        continue
                     _hs = _h.site_on(tag)
                     _got = (rdw_p_at(_hs), rdw_p_at(_hs + 1))
                     if _got != tuple(_h.stock):
@@ -3141,6 +3143,8 @@ hostquit:
                     and (init_a is None or proc_a is None)):
                 sys.exit(f"payload {tag}: {name} has no init/proc labels")
             for _h in _hooks:
+                if not _h.on(tag):
+                    continue
                 if _h.label not in _syms:
                     sys.exit(f"payload {tag}: {name}'s hook at P:0x{_h.site_on(tag):05x} names "
                              f"label {_h.label!r}, which the source does not define")
@@ -3210,6 +3214,8 @@ hostquit:
             for _h in _hooks:
                 # the two stock words become `jsr >label`; the section
                 # replays the displaced instruction (schema.DspHook)
+                if not _h.on(tag):
+                    continue
                 _hs = _h.site_on(tag)
                 _got = (rdw_p_at(_hs), rdw_p_at(_hs + 1))
                 _want = _h.stock_on(tag)
