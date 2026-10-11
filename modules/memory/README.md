@@ -48,7 +48,7 @@ A unit's `.bss` needs no declaration; the link measures it.
 
 ## Stock's page pool, measured (11 Oct 2026)
 
-Read from the 1.40C disassembly, then run under the port (`ot_emu`, built at this commit). The project was the tone project of `tools/harness/usb_sig_project.py`: eight Flex samples of 2 s stereo 16-bit, one per track, `RESERVED_RECORDER_COUNT=8`, `RESERVED_RECORDER_LENGTH=16`, 120 BPM. The images were `bus` (2-page reserve) and `bottleservice` (535 pages). ✅ marks a reading confirmed by a port run; the others are from the disassembly.
+Read from the 1.40C disassembly, then run under the port (`tools/harness/pool_probe.py`). The project was the tone project of `tools/harness/usb_sig_project.py`: eight Flex samples of 2 s stereo 16-bit, one per track, `RESERVED_RECORDER_COUNT=8`, `RESERVED_RECORDER_LENGTH=16`, 120 BPM. The images were `bus` (2-page reserve) and `bottleservice` (535 pages). ✅ marks a reading confirmed by a port run; the others are from the disassembly.
 
 ### Globals and tables
 
