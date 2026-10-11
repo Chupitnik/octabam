@@ -28,6 +28,13 @@ The build links the runtime once at the largest reserve the arena allows (`arena
   arena: base <new base>, <pages> pages (<MB>) left for samples and recorders (stock 14,602)
 ```
 
+## The gate
+
+`tools/verify/verify_reserve_writes.py <remix>` runs `verify_set` (the gate project, loaded and playing) with every write into the pages the reserve gave back (its ceiling up to `0x41495de0`, the fixed reserve's end) recorded when the writing PC lies outside stock's code (`ot_emu --foreign-writes`). A write from a module there is a claim it never declared. What it cannot see:
+- writes on paths the set does not exercise (a menu, a sample load, a recorder take, a switch);
+- a module that calls a stock routine (memset, memcpy) or pokes stock code into writing there, since the PC is stock's;
+- writes inside the reserve or above `0x41495de0`.
+
 ## Refusals
 
 - The ledger: declared regions and fixed claims past `arena.MAX_RESERVE`; two fixed claims that overlap; a fixed claim in a remix with no DRAM unit.
@@ -97,14 +104,10 @@ The fixed 1,707-page reserve would have left bottleservice 12,895, 7,375 and 6,9
 
 A project that fills Flex RAM was not measured; the tone project's samples total 464 pages.
 
-### What this means for run-time allocation (phase 3, not started)
+### Why the reserve is sized at build, not taken at run time
 
-- **A project load resets the pool** ✅ (cold init inside LOAD PROJECT). It clears the whole arena and every slot. A module's pages from the stock allocator would be lost at every load, and the module would have to take them again after it. An allocation made before a load would be zeroed under the module.
-- **The allocator takes a slot number, 0..127 for Flex.** A module would need a slot no Flex sample uses, or the recorder path's top-down pages. Not measured:
-  - whether a slot past the project's samples stays free;
-  - whether the sample list would show a module's slot.
-- **A Flex slot's pages can move in the list.** A release shifts later slots' starts. A slot's page numbers do not change, so its memory does not move.
-- **To find out before building:**
-  - whether an allocation taken after a load survives a sample load and a sample unload, through the shadow copy and swap;
-  - what the Flex RAM figure on the panel reads from (`docs/contributing/PLACEMENT.md`: the MEMORY page shows 85.5 MB, the Flex list FREE MEM);
-  - a project that fills Flex RAM, to record its free count.
+These facts are the record of why MEMORY does not take pages through stock's allocator while the unit runs:
+- ✅ LOAD PROJECT runs the cold init again. It rewrites the list, resets all 136 slots and clears the whole arena. Pages a module took from the allocator would be zeroed and handed back to the next sample at every project load.
+- The allocator takes a slot number (0..127 for Flex, 128..135 for the recorders). A module would need a slot the project's samples never use.
+
+The reserve is therefore fixed when the image is built and sized from the claims. Stock never sees it: the arena's base literal moves past it.
