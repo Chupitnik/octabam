@@ -7,7 +7,7 @@ Stages the tone project (tools/harness/usb_sig_project.py, from
 ~/.octabam_project), boots <image> with the allocator's paths watched, and
 prints the hits during the boot and LOAD PROJECT, the pool's globals and
 every held slot's pages (first, last, contiguous runs) after the load and
-after releasing slot 3 (). Each snapshot is also
+after releasing slot 3 (call 0x40096300 3). Each snapshot is also
 written as JSON under <out dir>."""
 import json
 import pathlib
