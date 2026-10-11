@@ -2,7 +2,7 @@
 """Run the gates the selected remix's modules declare (schema.Gate).
 
     python3 tools/verify/module_gates.py <remix> --stage isolated|image [--remix-only] [--list]
-    python3 tools/verify/module_gates.py --shared <remix> [<remix> ...] [--list]
+    python3 tools/verify/module_gates.py --shared <remix> [<remix> ...] [--modules A,B] [--list]
 
 `make verify-remix` runs the isolated stage before it restores the
 selected image (those gates build their own scratch images, or none) and
@@ -104,6 +104,9 @@ def main(argv=None):
     ap.add_argument("--remix-only", action="store_true",
                     help="only the gates that take the remix (remix_arg=True)")
     ap.add_argument("--list", action="store_true", help="print the commands, run nothing")
+    ap.add_argument("--modules", default="",
+                    help="with --shared: only the gates of these comma-separated module keys "
+                         "(make check-shared MODULES=...; a module change reaches its own gates)")
     a = ap.parse_args(argv)
     env = dict(os.environ)
     env.setdefault("BUILD", "0")
@@ -114,6 +117,12 @@ def main(argv=None):
         gates = [(k, g, remixes[0].name) for k, g in collect(modules, "isolated", remix_arg=False)]
         gates += [(k, g, carrier(k, remixes).name) for k, g in collect(modules, "isolated", once=True)]
         label = f"shared isolated, {', '.join(r.name for r in remixes)}"
+        if a.modules:
+            keys = {k for k in a.modules.split(",") if k}
+            # by script: a gate two modules declare is listed under the first
+            mine = {g.script for m in modules if m.key in keys for g in getattr(m, "gates", ())}
+            gates = [x for x in gates if x[1].script in mine]
+            label += f", modules {', '.join(sorted(keys))}"
     else:
         remix = registry.remix(a.remix[0] if a.remix else os.environ.get("REMIX"))
         gates = [(k, g, remix.name) for k, g in

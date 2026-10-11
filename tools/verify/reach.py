@@ -36,8 +36,9 @@ layout) that replaces "every remix" for a build change; before 28 Sep
 
 HOW A PATH IS PLACED (28 Sep 2026; before, by directory):
 
-  modules/<name>/           the remixes carrying the module: make check (both
-                            halves) and make accept for each
+  modules/<name>/           the remixes carrying the module: the shared half
+                            scoped to the module (MODULES=<key>), the
+                            per-remix half and make accept for each
   remixes/<name>/remix.py   that remix (remixes/test/<name>/remix.py too)
   tools/, scripts/          by DEPENDENCY: the Python imports (`from remix
                             import`, `import send_probe`) and the
@@ -58,7 +59,8 @@ HOW A PATH IS PLACED (28 Sep 2026; before, by directory):
                               modenames, hidden, menu, set, usb)
                                 -> make check-remix for the cover
                               a manifest gate with remix_arg=True
-                                -> make check for its owners' remixes
+                                -> make check-remix for its owners' remixes
+                                   (once=True: the shared half, scoped)
                               the acceptance machinery (acceptance.py,
                               module_gates.py, stress_project.py, pressure.py)
                                 -> the runner tests, the cover, accept for the cover
@@ -94,10 +96,14 @@ half once for every remix it is given), so with STRESS_SOURCE set a remix
 that reaches accept has no separate check line and the accept remixes are
 one `make accept REMIXES="..."`; without it the check lines stay and the
 accept line is listed as blocked. `--run --jobs N` runs the check-remix
-lines through `check_shards.py`, N worktrees at a time.
+lines through `check_shards.py`, N worktrees at a time; a lone `make check`
+becomes its shared half and one remix split by gate. Each command run in
+this tree holds a machine gate slot (slots.py); check_shards takes one per
+job and skips a job whose pass is cached (gate_cache.py, `--no-cache`).
 """
 import argparse
 import ast
+import contextlib
 import hashlib
 import shutil
 import json
@@ -111,6 +117,8 @@ import time
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1])); import toolpath  # noqa: E402,F401
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "tools/verify"))
+import slots  # noqa: E402
 
 # One command per gate; the order is the order they run in.
 ORDER = ("verify_docs", "selftest", "test-acceptance", "ci-dsp", "ci-emu", "emu-cf", "refhash", "identity", "check-shared", "check", "check-remix", "accept", "ci")
@@ -143,8 +151,18 @@ def cmd_check_remix(remix):
     return ("check-remix", f"make check-remix REMIX={remix}")
 
 
-def cmd_check_shared(remixes):
-    return ("check-shared", f'make check-shared REMIXES="{" ".join(sorted(remixes))}"')
+def cmd_check_shared(remixes, modules=None):
+    """The shared half once for `remixes`; with `modules`, only those
+    modules' shared gates (MODULES: a module change, 11 Oct 2026)."""
+    line = f'make check-shared REMIXES="{" ".join(sorted(remixes))}"'
+    if modules:
+        line += f' MODULES="{",".join(sorted(set(modules)))}"'
+    return ("check-shared", line)
+
+
+def shared_modules(command):
+    """A check-shared line's MODULES, or None for the whole shared half."""
+    return command.split('MODULES="')[1].split('"')[0].split(",") if 'MODULES="' in command else None
 
 
 def cmd_accept(remix):
@@ -326,7 +344,7 @@ class Context:
     def __init__(self, module_key, remixes_of, gate_owners, remixes, exists=None, deps=None,
                  shared_scripts=(), remix_scripts=(), gate_shared=None, make_base=None, make_head=None,
                  all_remixes=False, read=None, read_base=None, quick=False, test_remixes=(),
-                 test_carriers=None, include_tests=True):
+                 test_carriers=None, include_tests=True, gate_once=None):
         self.module_key = module_key        # module directory -> key
         self.remixes_of = remixes_of        # key -> sorted remix names carrying it
         self.gate_owners = gate_owners      # verifier path -> keys whose manifests name it
@@ -349,6 +367,7 @@ class Context:
         self.shared_scripts = set(shared_scripts) - set(ACCEPTANCE)   # the verify-shared recipe's
         self.remix_scripts = set(remix_scripts) - set(ACCEPTANCE)     # the verify-remix recipe's
         self.gate_shared = gate_shared or {}   # manifest gate script -> True when remix_arg=False
+        self.gate_once = gate_once or {}       # manifest gate script -> True when once=True
         self.make_base, self.make_head = make_base, make_head
         self.read = read or (lambda path: (ROOT / path).read_text() if (ROOT / path).is_file() else None)
         self.read_base = read_base or (lambda path: None)   # the file at the base commit, or None
@@ -453,11 +472,12 @@ class Context:
                     remixes_of.setdefault(k, []).append(name)
                 else:
                     test_carriers.setdefault(k, []).append(name)
-        gate_owners, gate_shared = {}, {}
+        gate_owners, gate_shared, gate_once = {}, {}, {}
         for m in mods.values():
             for g in getattr(m, "gates", ()):
                 gate_owners.setdefault(g.script, []).append(m.key)
                 gate_shared[g.script] = gate_shared.get(g.script, True) and not g.remix_arg
+                gate_once[g.script] = gate_once.get(g.script, False) or getattr(g, "once", False)
         make_head = (ROOT / "Makefile").read_text()
         make_base = None
 
@@ -473,7 +493,8 @@ class Context:
                    remix_scripts=recipe_scripts(make_head, "verify-remix"),
                    gate_shared=gate_shared, make_base=make_base, make_head=make_head,
                    all_remixes=all_remixes, read_base=read_base, quick=quick,
-                   test_remixes=tests, test_carriers=test_carriers, include_tests=include_tests)
+                   test_remixes=tests, test_carriers=test_carriers, include_tests=include_tests,
+                   gate_once=gate_once)
 
 
 def route_tool(path, ctx):
@@ -512,10 +533,11 @@ def route_tool(path, ctx):
         remixes = sorted({r for k in owners for r in ctx.carriers(ctx.remixes_of.get(k, []))})
         if not remixes:
             continue
-        if ctx.gate_shared.get(script):
-            gates.append(cmd_check_shared(remixes))
+        if ctx.gate_shared.get(script) or ctx.gate_once.get(script):
+            # remix_arg=False or once=True: run by the shared half
+            gates.append(cmd_check_shared(remixes, owners))
         else:
-            gates += [cmd_check(r) for r in remixes]
+            gates += [cmd_check_remix(r) for r in remixes]
         notes.append(f"{pathlib.PurePosixPath(script).stem}, a gate of " + ", ".join(owners))
     if path.startswith("tools/verify/") and not gates and path.startswith("tools/verify/verify_"):
         notes.append("a verifier no recipe or manifest runs (its own make target)")
@@ -652,7 +674,10 @@ def classify(paths, ctx):
                 key = ctx.module_key[d]
                 remixes = ctx.carriers(ctx.remixes_of.get(key, []))
                 if remixes:
-                    gates = [cmd_check(r) for r in remixes] + [cmd_accept(r) for r in remixes]
+                    # the shared half for this module's own shared gates
+                    # only; the other modules' are what they were on main
+                    gates = ([cmd_check_shared(remixes, [key])] + [cmd_check_remix(r) for r in remixes]
+                             + [cmd_accept(r) for r in remixes])
                     note = f"{key} -> " + ", ".join(remixes)
                 elif ctx.test_carriers.get(key):
                     note = f"{key}: carried only by test remixes ({', '.join(sorted(ctx.test_carriers[key]))}): not checked; TESTS=1 runs them"
@@ -739,6 +764,10 @@ def plan(rows, accept_runs_check=True):
         if accept_runs_check:
             for k in [k for k in by_cmd if k[0] in ("check", "check-remix") and accept_remix(k[1]) in accepted]:
                 del by_cmd[k]
+            # a module's scoped shared half: accept runs the whole shared half
+            for k in [k for k in by_cmd if k[0] == "check-shared" and shared_modules(k[1])
+                      and set(shared_remixes(k[1])) <= set(accepted)]:
+                del by_cmd[k]
     checks = {k: v for k, v in by_cmd.items() if k[0] == "check"}
     halves = [k for k in by_cmd if k[0] in ("check-shared", "check-remix")]
     if len(checks) > 1 or (checks and halves):
@@ -751,10 +780,13 @@ def plan(rows, accept_runs_check=True):
     shared = {k: v for k, v in by_cmd.items() if k[0] == "check-shared"}
     if len(shared) > 1:
         names = sorted({r for _, c in shared for r in shared_remixes(c)})
+        scopes = [shared_modules(c) for _, c in shared]
+        # one unscoped line makes the merged line the whole shared half
+        modules = None if any(m is None for m in scopes) else sorted({k for m in scopes for k in m})
         paths = sorted({p for v in shared.values() for p in v})
         for k in shared:
             del by_cmd[k]
-        by_cmd[cmd_check_shared(names)] = paths
+        by_cmd[cmd_check_shared(names, modules)] = paths
     keyed = sorted(by_cmd.items(), key=lambda kv: (ORDER.index(kv[0][0]), kv[0][1]))
     return [(kind, command, sorted(set(paths))) for (kind, command), paths in keyed]
 
@@ -778,8 +810,19 @@ def sharded(items, jobs):
     their per-remix halves the same way."""
     items = [(k, c + f" JOBS={jobs}", p) if k == "accept" and "REMIXES=" in c and "JOBS=" not in c else (k, c, p)
              for k, c, p in items]
+    # a lone `make check` is its two halves, so its per-remix half splits
+    # over the shards by gate (11 Oct 2026: run whole, one remix took one
+    # shard and left the rest idle)
+    halves = []
+    for k, c, p in items:
+        if k == "check":
+            r = accept_remix(c)
+            halves += [(*cmd_check_shared([r]), p), (*cmd_check_remix(r), p)]
+        else:
+            halves.append((k, c, p))
+    items = halves
     remixes = [c.split("REMIX=")[1] for k, c, _ in items if k == "check-remix"]
-    if len(remixes) < 2:
+    if not remixes:
         return items
     out, done = [], False
     for kind, command, paths in items:
@@ -857,6 +900,8 @@ def main(argv=None):
                          "(the default is quick: see the module docstring)")
     ap.add_argument("--all", action="store_true",
                     help="the floor is every remix instead of the cover (the remixes that between them carry every module)")
+    ap.add_argument("--no-cache", action="store_true",
+                    help="with --run: run every gate job (check_shards' cache of passes, tools/verify/gate_cache.py)")
     ap.add_argument("--stamp-port", action="store_true",
                     help=f"record the port sources' digest at {PORT_STAMP} (make emu-cf, after its build) and exit")
     a = ap.parse_args(argv)
@@ -920,7 +965,17 @@ def main(argv=None):
         t0 = time.monotonic()
         if quick and BACKGROUND:
             cmd = f"{BACKGROUND} {cmd}"      # nice 10: the performance cores, below the desktop
-        r = subprocess.run(cmd, shell=True, cwd=ROOT)
+        env = dict(os.environ)
+        if a.no_cache:
+            env["OCTABAM_GATE_CACHE"] = "0"
+        # A command run in this tree holds one of the machine's gate slots
+        # (tools/verify/slots.py); check_shards and accept take theirs per
+        # job, so holding one around them could leave every slot held by
+        # a parent waiting on its own children.
+        own_slots = "check_shards.py" in command or kind == "accept"
+        with (contextlib.nullcontext(env) if own_slots else slots.slot(f"reach {command}")) as env_slot:
+            env.update({k: v for k, v in env_slot.items() if k == "OCTABAM_SLOT"})
+            r = subprocess.run(cmd, shell=True, cwd=ROOT, env=env)
         results.append((command, "ok" if r.returncode == 0 else f"FAILED ({r.returncode})", time.monotonic() - t0))
         if r.returncode:
             print(f"reach: FAILED ({r.returncode}) {cmd}")

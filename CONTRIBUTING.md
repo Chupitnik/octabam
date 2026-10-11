@@ -214,6 +214,13 @@ STRESS_SOURCE=<a local project> make reach FULL=1 RUN=1 KEEP=1 JOBS=3
 #   JOBS=3: the per-remix lines over three worktrees at a time
 ```
 
+`CACHE=0`: run every gate job; by default a job whose image and inputs
+passed before on this machine is reported `cached` and not run, so the
+run before merging, after a rebase over unrelated work, is mostly cache
+hits ([TESTING.md section 6](docs/contributing/TESTING.md#6-make-reach-which-gates-a-change-reaches)).
+Jobs wait for one of the machine's gate slots (`OCTABAM_SLOTS`, default 3)
+when other sessions are running gates.
+
 Without `STRESS_SOURCE` the accept line cannot run, so the list carries
 the `make check` lines separately and names the accept line as blocked.
 A remix with a DSP module that declares no `dear` makes `make accept`

@@ -37,6 +37,20 @@ Oct 2026 the remixes that carried Octakit, whose project load took ~32 s
 emulated). `--split none` runs every remix whole; `--split a,b` names
 them.
 
+ONE REMIX IS SPLIT TOO (11 Oct 2026). A run of one remix over more than
+one shard runs it as gate jobs: run whole it took one shard and left the
+rest idle.
+
+CACHED (11 Oct 2026). Each job (a remix's whole half, or one gate job)
+builds the remix's image first and looks itself up in
+tools/verify/gate_cache.py: a pass recorded for the same image and the
+same inputs is reported `cached` and not run. Only passes are stored;
+`--no-cache` (or OCTABAM_GATE_CACHE=0) runs everything.
+
+SLOTS (11 Oct 2026). Every job holds one of the machine's gate slots
+(tools/verify/slots.py) while it runs, so this run and every other
+session's share the cores instead of each sizing for an idle machine.
+
 `--by-gate` shards ONE remix's per-remix half by gate instead: every gate
 of `make verify-remix` (plus `make cycles`) is its own job, each shard
 restores the remix's image with `make bus` before its job, and the wall
@@ -58,6 +72,10 @@ import subprocess
 import sys
 import threading
 import time
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import gate_cache  # noqa: E402
+import slots  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SKIP = re.compile(r"^\s*(?:\[SKIP\]|SKIP:)")
@@ -157,18 +175,86 @@ def clean_env():
         env.pop(var, None)
     # every shard builds from this tree's memo (tools/remix/pack.CACHE)
     env.setdefault("OCTABAM_CACHE", str(ROOT / "out/cache"))
+    # the project as the Makefile finds it: a gate job runs its script
+    # directly, outside make, and the set gates SKIP without one
+    project = gate_cache.project_dir()
+    if project and not env.get("OT_PROJECT"):
+        env["OT_PROJECT"] = str(project)
     return env
 
 
-def run_remix(shard, remix, logdir):
+def run_remix(shard, remix, logdir, deps=None):
     log = logdir / f"{remix}.log"
     t0 = time.monotonic()
-    with log.open("w") as f:
-        r = subprocess.run(["make", "check-remix", f"REMIX={remix}"], cwd=shard,
-                           stdout=f, stderr=subprocess.STDOUT, env=clean_env())
+    with slots.slot(f"check-remix {remix}") as env_slot, log.open("w") as f:
+        env = clean_env()
+        env.update({k: v for k, v in env_slot.items() if k == "OCTABAM_SLOT"})
+        argv = ["make", "check-remix", f"REMIX={remix}"]
+        k = cached = None
+        if deps is not None:
+            k, cached = lookup(shard, remix, "check-remix", [argv], remix_scripts(remix), deps, f, env)
+        if cached:
+            return dict(remix=remix, rc=0, seconds=time.monotonic() - t0, skips=cached.get("skips", []),
+                        log=log, cached=cached)
+        r = subprocess.run(argv, cwd=shard, stdout=f, stderr=subprocess.STDOUT, env=env)
     text = log.read_text(errors="replace")
     skips = [l.strip() for l in text.splitlines() if SKIP.match(l)]
-    return dict(remix=remix, rc=r.returncode, seconds=time.monotonic() - t0, skips=skips, log=log)
+    res = dict(remix=remix, rc=r.returncode, seconds=time.monotonic() - t0, skips=skips, log=log)
+    if r.returncode == 0 and k:
+        gate_cache.store(k, dict(remix=remix, job="check-remix", seconds=res["seconds"], skips=skips))
+    return res
+
+
+def make_text():
+    return (ROOT / "Makefile").read_text()
+
+
+def job_scripts(cmds):
+    """The repo scripts a job's commands run: tools/... arguments, and the
+    scripts in the recipe of each `make <target>`."""
+    sys.path.insert(0, str(ROOT / "tools/verify"))
+    from reach import recipe_scripts  # noqa: E402
+    out = set()
+    for cmd in cmds:
+        if cmd and cmd[0] == "make":
+            for t in cmd[1:]:
+                if "=" not in t:
+                    out |= recipe_scripts(make_text(), t)
+            continue
+        for a in cmd:
+            m = re.search(r"(tools/\S+\.py)$", a)
+            if m:
+                out.add(m.group(1))
+    return out
+
+
+def remix_scripts(remix_name):
+    """Every script `make check-remix` runs for the remix: the recipes of
+    bus, cycles and verify-remix, and every gate its modules declare."""
+    sys.path.insert(0, str(ROOT / "tools")); import toolpath  # noqa: E402,F401
+    from remix import registry  # noqa: E402
+    scripts = job_scripts([["make", "bus", "cycles", "verify-remix"]])
+    for m in registry.selected(registry.remix(remix_name)):
+        scripts |= {g.script for g in getattr(m, "gates", ())}
+    return scripts
+
+
+def lookup(shard, remix, job, cmds, scripts, deps, f, env):
+    """Build the remix's image in the shard and look the job up: (key,
+    the cached record or None). The build's output goes to the job's log."""
+    f.write(f"$ make bus REMIX={remix}\n"); f.flush()
+    r = subprocess.run(["make", "bus", f"REMIX={remix}"], cwd=shard, stdout=f, stderr=subprocess.STDOUT, env=env)
+    if r.returncode:
+        return None, None
+    flat = [a for cmd in cmds for a in cmd]
+    k = gate_cache.key(shard, remix, job, flat, scripts, deps, env)
+    hit = gate_cache.lookup(k)
+    if hit:
+        f.write(f"gate_cache: a pass of {remix}:{job} at {hit.get('head', '?')} ({hit.get('when', '?')}, "
+                f"{hit.get('seconds', 0):.0f} s), same image and inputs: not run (key {k[:12]})\n")
+        for skip in hit.get("skips", []):
+            f.write(skip + "\n")
+    return k, hit
 
 
 def remix_jobs(remix_name, shard):
@@ -197,7 +283,10 @@ def remix_jobs(remix_name, shard):
         jobs.append(job(name, [[str(venv), f"{V}/verify_{name}.py", remix_name]] if has_venv
                         else [["echo", f"  [SKIP] {name}: no .venv (make emu-setup)"]], f"{V}/verify_{name}.py"))
     remix = registry.remix(remix_name)
-    for key, g in module_gates.collect(registry.selected(remix), "isolated", True):
+    # once=False: a once-per-run gate runs in the shared half (module_gates
+    # --shared), as `make check-remix`'s --remix-only leaves it out; until
+    # 11 Oct 2026 a split remix ran verify_kits here as well (625-1,172 s)
+    for key, g in module_gates.collect(registry.selected(remix), "isolated", True, once=False):
         # As `make verify-remix` runs them: module_gates.py under $(PY), so a
         # gate without `venv` inherits the driver's interpreter. The script
         # path is relative so it runs in the shard's own tree.
@@ -219,12 +308,15 @@ def remix_jobs(remix_name, shard):
 
 
 def choose_split(remixes, spec, times, jobs):
-    """The remixes to run as gate jobs: named, none, or (auto) those whose
-    last recorded time would set the wall time; with no record, none."""
+    """The remixes to run as gate jobs: named, none, or (auto) a remix run
+    alone, and those whose last recorded time would set the wall time;
+    with no record, none."""
     if spec == "none":
         return set()
     if spec != "auto":
         return {r for r in spec.split(",") if r in remixes}
+    if len(remixes) == 1:
+        return set(remixes)
     known = {r: times[r] for r in remixes if r in times}
     if len(known) == len(remixes):
         floor = max(300.0, sum(known.values()) / jobs)
@@ -245,15 +337,22 @@ def check_recipe(jobs):
                          f"add the job (check_shards.remix_jobs)")
 
 
-def run_job(shard, remix, job, logdir):
-    name, cmds, env_add, _scripts = job
+def run_job(shard, remix, job, logdir, deps=None):
+    name, cmds, env_add, scripts = job
     log = logdir / f"{name.replace(':', '_')}.log"
-    env = clean_env()
-    env.update(env_add)
     t0 = time.monotonic()
     rc = 0
-    with log.open("w") as f:
-        for cmd in [["make", "bus", f"REMIX={remix}"]] + cmds:
+    k = None
+    with slots.slot(f"{remix}:{name}") as env_slot, log.open("w") as f:
+        env = clean_env()
+        env.update(env_add)
+        env.update({x: v for x, v in env_slot.items() if x == "OCTABAM_SLOT"})
+        if deps is not None:
+            k, cached = lookup(shard, remix, name, cmds, job_scripts(cmds) | scripts, deps, f, env)
+            if cached:
+                return dict(remix=name, rc=0, seconds=time.monotonic() - t0, skips=cached.get("skips", []),
+                            log=log, cached=cached)
+        for cmd in ([] if k else [["make", "bus", f"REMIX={remix}"]]) + cmds:
             f.write(f"$ {' '.join(cmd)}\n")
             f.flush()
             r = subprocess.run(cmd, cwd=shard, stdout=f, stderr=subprocess.STDOUT, env=env)
@@ -262,7 +361,16 @@ def run_job(shard, remix, job, logdir):
                 break
     text = log.read_text(errors="replace")
     skips = [l.strip() for l in text.splitlines() if SKIP.match(l)]
-    return dict(remix=name, rc=rc, seconds=time.monotonic() - t0, skips=skips, log=log)
+    res = dict(remix=name, rc=rc, seconds=time.monotonic() - t0, skips=skips, log=log)
+    if rc == 0 and k:
+        gate_cache.store(k, dict(remix=remix, job=name, seconds=res["seconds"], skips=skips))
+    return res
+
+
+def status_of(res):
+    if res["rc"]:
+        return f"FAILED ({res['rc']})"
+    return "cached" if res.get("cached") else "ok"
 
 
 def main(argv=None):
@@ -275,6 +383,8 @@ def main(argv=None):
     ap.add_argument("--rm", action="store_true", help="remove the shards after the run")
     ap.add_argument("--by-gate", action="store_true",
                     help="one remix: its per-remix half as one job per gate over the shards")
+    ap.add_argument("--no-cache", action="store_true",
+                    help="run every job (tools/verify/gate_cache.py; OCTABAM_GATE_CACHE=0 does the same)")
     ap.add_argument("--split", default="auto",
                     help="auto (the default): split the remixes that would set the wall time into gate jobs; "
                          "none; or a comma-separated list")
@@ -293,7 +403,7 @@ def main(argv=None):
     except (OSError, ValueError):
         times = {}
     split = set()
-    if not a.by_gate and len(remixes) > 1 and a.jobs > 1:
+    if not a.by_gate and a.jobs > 1:
         split = choose_split(remixes, a.split, times, a.jobs)
     if a.by_gate:
         work = [("gate", remixes[0], j) for j in gate_jobs]
@@ -323,6 +433,15 @@ def main(argv=None):
           f"({'refreshing kept shards' if all(shard_ok(s) for s in shards) and not a.fresh else 'setup: worktree + submodules + port build each'})", flush=True)
     t_setup = time.monotonic()
     errors = []
+    deps = None
+    if not a.no_cache and gate_cache.enabled():
+        # the tools/ graph once (the shards are this tree's HEAD plus its
+        # diff), and the registry loaded before the worker threads use it
+        sys.path.insert(0, str(ROOT / "tools/verify"))
+        import reach  # noqa: E402
+        from remix import registry  # noqa: E402
+        deps = reach.scan_deps(ROOT)
+        registry.modules()
 
     def setup(i):
         try:
@@ -352,13 +471,13 @@ def main(argv=None):
                 return
             kind, rname, job = item
             if kind == "gate":
-                res = run_job(shards[i], rname, job, ROOT / "out/check_shards" / rname)
+                res = run_job(shards[i], rname, job, ROOT / "out/check_shards" / rname, deps)
                 remix = job[0] if a.by_gate else f"{rname}:{job[0]}"
             else:
                 remix = rname
-                res = run_remix(shards[i], remix, logdir)
+                res = run_remix(shards[i], remix, logdir, deps)
             res["shard"] = i
-            status = "ok" if res["rc"] == 0 else f"FAILED ({res['rc']})"
+            status = status_of(res)
             with lock:
                 results[remix] = res
                 print(f"check_shards: {status:12} {res['seconds']:6.0f} s  {remix:20} shard {i}"
@@ -376,11 +495,14 @@ def main(argv=None):
     # key ("remix" or "remix:gate"), and a split remix's total
     run = {}
     for n, r in results.items():
+        if r.get("cached"):
+            continue            # a cache hit is not the job's duration
         key = f"{remixes[0]}:{n}" if a.by_gate else n
         run[key] = r["seconds"]
     for rname in ({remixes[0]} if a.by_gate else split):
         parts = [s for k, s in run.items() if k.startswith(rname + ":")]
-        if parts:
+        if parts and not any(r.get("cached") for n, r in results.items()
+                             if (f"{remixes[0]}:{n}" if a.by_gate else n).startswith(rname + ":")):
             run[rname] = sum(parts)
     times.update({k: round(v, 1) for k, v in run.items()})
     try:
@@ -391,13 +513,18 @@ def main(argv=None):
           f"{'gate' if a.by_gate else 'remix'} time)")
     for remix in names:
         r = results[remix]
-        status = "ok" if r["rc"] == 0 else f"FAILED ({r['rc']})"
-        print(f"  {status:12} {r['seconds']:6.0f} s  {remix:20} {r['log'].relative_to(ROOT)}")
+        status = status_of(r)
+        print(f"  {status:12} {r['seconds']:6.0f} s  {remix:20} {r['log'].relative_to(ROOT)}"
+              + (f"  (pass at {r['cached'].get('head', '?')}, {r['cached'].get('seconds', 0):.0f} s)" if r.get("cached") else ""))
         for s in r["skips"]:
             print(f"               {s}")
     if a.rm:
         for s in shards:
             remove_shard(s)
+    hits = sum(1 for r in results.values() if r.get("cached"))
+    if hits:
+        print(f"check_shards: {hits} of {len(results)} {'gates' if a.by_gate else 'jobs'} cached "
+              f"(tools/verify/gate_cache.py: the same image and inputs passed before; --no-cache runs them)")
     bad = [r for r in results.values() if r["rc"]]
     unit = "gates" if a.by_gate else ("jobs" if split else "remixes")
     if bad:

@@ -428,7 +428,16 @@ def main():
     ap.add_argument("--no-build", action="store_true", help="reuse out/dsp/_knobs/spec_*.mem")
     ap.add_argument("--report", help="write the table (markdown) here")
     ap.add_argument("--no-garbage", action="store_true", help="skip the garbage-start renders")
+    ap.add_argument("--modules", default="",
+                    help="comma-separated module keys (make check-shared MODULES=...): the census of those "
+                         "the fixture carries; none of them, nothing to run")
     a = ap.parse_args()
+    if a.modules:
+        keys = {k for k in a.modules.split(",") if k}
+        a.only = sorted(keys & set(BUS + STATIONS))
+        if not a.only:
+            print(f"knob census: not reached (none of {', '.join(sorted(keys))} is a DSP module of the fixture)")
+            return 0
     mems = ({0: SCRATCH / "spec_A.mem", 1: SCRATCH / "spec_B.mem"} if a.no_build else build())
     tone_file(SCRATCH / "tone.raw", END + 2 + send_probe.WARMUP_BLOCKS)
     ok = self_test()

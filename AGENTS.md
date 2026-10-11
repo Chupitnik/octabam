@@ -60,14 +60,10 @@ the floor; `docs/contributing/TESTING.md` says what each gate proves and what
 none of them can see.
 
 **Before opening a PR, and again before merging one:** rebase onto
-`origin/main` and run every gate in `CONTRIBUTING.md` "Before you open a
-PR" on the rebased tree (`make reach` lists them from the diff; `RUN=1`
-runs them, quick by default; `FULL=1` only when someone chooses it); list
-each command and its result in the PR body.
-Gates run before the rebase are not a result. PR #396 was written on
-`4b07c52`; #415 and #437 renamed SEND's and BusDelay's knobs after that,
-the merge was textually clean in `pressure.py`, and its stress fixture
-failed on `SEND has no knob 'SEND'`.
+`origin/main`, then `make reach RUN=1 KEEP=1` on the rebased tree
+(`CONTRIBUTING.md` "Before you open a PR" is the rule and the reason);
+list each command and its result in the PR body. Passes whose image and
+inputs did not move are reported `cached`.
 
 **ALWAYS WORK IN A GIT WORKTREE, never in the main checkout.** Several
 sessions share this repository at once; the main checkout's working tree,
