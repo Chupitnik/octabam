@@ -7,6 +7,8 @@ missing project directory.
     python3 tools/verify/verify_kits.py REMIX [--project DIR] [--octakit-project DIR]
                                               [--strand-project DIR]
 
+KITS_JOBS (default 3) is the scenario forks run at once.
+
 The project (OT_PROJECT, ~/.octabam_project) is staged once with no
 kits.work, so its Parts migrate at the load; every panel scenario forks
 from that load (`ot_emu --scenario`). Bank 3 (the project's saved bank on
@@ -155,6 +157,31 @@ def run(cmd, log):
         r = subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=f, stderr=subprocess.STDOUT)
     if r.returncode:
         sys.exit(f"verify_kits: ot_emu exit {r.returncode} -- {log}")
+    return log.read_text(errors="replace")
+
+
+STARTED = {}        # log -> the boot start() launched
+# The MKII scenarios that run longest, longest first (12 Oct 2026, from the
+# order their logs completed at 6 jobs); the rest keep their order after.
+LONGEST = ("unattended", "saveproj", "extplay", "extnoclk", "trackbtn1", "trackbtn", "presses", "a5", "cc", "chain")
+
+
+def start(cmd, log):
+    """run(), in the background: finish(log) waits for it. For the boots
+    that need nothing from the main scenario run (strand, import, noproj):
+    after it they took 133 s of a 545 s gate, strand 106 s on its own
+    (12 Oct 2026)."""
+    f = open(log, "w")
+    f.write(" ".join(map(str, cmd)) + "\n"); f.flush()
+    STARTED[log] = (subprocess.Popen(list(map(str, cmd)), cwd=ROOT, stdout=f, stderr=subprocess.STDOUT), f)
+
+
+def finish(log):
+    p, f = STARTED.pop(log)
+    rc = p.wait()
+    f.close()
+    if rc:
+        sys.exit(f"verify_kits: ot_emu exit {rc} -- {log}")
     return log.read_text(errors="replace")
 
 
@@ -509,11 +536,38 @@ def main():
     mki("mkisave", "midi", "bank", "down", "down", "yes", "yes")
     mki("mkiedit", "midi", "bank", "yes", "bank")
     mki("mkiforeign", "midi", (MENU, 0x400b9b04), "bank", (MENU, sym["CBTAB"]))
-    if scen:
-        run(base + [x for sc in scen for x in ("--scenario", sc)] + ["--scenario-jobs", "3"], OUT / "port.txt")
+    # ---- the boots that need nothing from the main run, started beside it ------
+    s1 = OUT / "power.script"
+    sc = Script(); sc.tap("no"); s1.write_text(sc.text())
+    sd = pathlib.Path(a.strand_project).expanduser()
+    if (not only or "strand" in only) and (sd / "project.work").is_file():
+        c = stage(sd, "STRAND")
+        sc = Script(); sc.tap("no"); sc.tap("play", 9000); sc.tap("stop", 400)
+        sc.hold("func", "rec"); sc.hold("ptn", 1); sc.hold("func", "stop", gap=1000)   # copy, pattern 2, paste
+        (OUT / "strand.script").write_text(sc.text())
+        start([EMU, "--image", image, "--card", c, "--set", "OCTABAM", "--project", "STRAND", "--load-ms", "90000",
+               "--dsp", "--live-script", OUT / "strand.script", "--mem-dump", dumps("strand")], OUT / "strand.txt")
+    ok_dir = pathlib.Path(a.octakit_project).expanduser()
+    v3 = [ok_dir / f"kits3{p}.work" for p in "ab"]
+    if (not only or "import" in only) and all(f.is_file() for f in v3):
+        c = stage(ok_dir, "IMPORT", extra=v3)
+        start([EMU, "--image", image, "--card", c, "--set", "OCTABAM", "--project", "IMPORT", "--load-ms", "90000",
+               "--live-script", s1, "--mem-dump", dumps("import"), "--card-out", OUT / "import.img"], OUT / "import.txt")
+    if not only or "noproj" in only:
+        start([EMU, "--image", image, "--card", card, "--set", "OCTABAM", "--project", "NOPROJ", "--load-ms", "90000",
+               "--live-script", s1, "--mem-dump", dumps("noproj")], OUT / "noproj.txt")
+    # The MKI pass is its own load: beside the MKII scenarios, not after them.
     if mki_scen:
-        run([x for x in base if x != "--mkii"] + [x for sc in mki_scen for x in ("--scenario", sc)]
-            + ["--scenario-jobs", "3"], OUT / "port_mki.txt")
+        start([x for x in base if x != "--mkii"] + [x for sc in mki_scen for x in ("--scenario", sc)]
+              + ["--scenario-jobs", os.environ.get("KITS_JOBS", "3")], OUT / "port_mki.txt")
+    if scen:
+        # the longest scenarios first (seconds of emulated time: unattended
+        # 60 s, saveproj three boots), so the fork queue does not end on one
+        scen.sort(key=lambda e: next((i for i, t in enumerate(LONGEST) if e.startswith(f"{OUT / t}.txt ")),
+                                     len(LONGEST)))
+        run(base + [x for sc in scen for x in ("--scenario", sc)] + ["--scenario-jobs", os.environ.get("KITS_JOBS", "3")], OUT / "port.txt")
+    if mki_scen:
+        finish(OUT / "port_mki.txt")
 
     # ---- reading a run back ---------------------------------------------------
     def st(tag):
@@ -807,9 +861,6 @@ def main():
               f"{img('inundo')[O_ASSIGN + BANK * 16 + 13]})", same)
 
     # ---- the save, a second boot, power cycles --------------------------------
-    s1 = OUT / "power.script"
-    sc = Script(); sc.tap("no"); s1.write_text(sc.text())
-
     def boot(tag, card_, cs1=None):
         cmd = [EMU, "--image", image, "--card", card_, "--set", "OCTABAM", "--project", "KITS", "--load-ms", "90000",
                "--live-script", s1, "--mem-dump", dumps(tag)]
@@ -842,12 +893,8 @@ def main():
                   (im[O_ASSIGN:O_VALID] == w[O_ASSIGN:O_VALID] and im[O_RESID:O_RESID + 64] == w[O_RESID:O_RESID + 64]))
 
     # ---- Em's v3 files ----------------------------------------------------------
-    ok_dir = pathlib.Path(a.octakit_project).expanduser()
-    v3 = [ok_dir / f"kits3{p}.work" for p in "ab"]
     if (not only or "import" in only) and all(f.is_file() for f in v3):
-        c = stage(ok_dir, "IMPORT", extra=v3)
-        run([EMU, "--image", image, "--card", c, "--set", "OCTABAM", "--project", "IMPORT", "--load-ms", "90000",
-             "--live-script", s1, "--mem-dump", dumps("import"), "--card-out", OUT / "import.img"], OUT / "import.txt")
+        finish(OUT / "import.txt")
         clean("import")
         im = img("import")
         ref, asg = v3_reference([f.read_bytes() for f in v3])
@@ -946,20 +993,13 @@ def main():
                       and bk == (1 if tag == "kbad_back" else 0, 0))
 
     # ---- a rejected bank file, a missing project --------------------------------
-    sd = pathlib.Path(a.strand_project).expanduser()
     if (not only or "strand" in only) and (sd / "project.work").is_file():
-        c = stage(sd, "STRAND")
-        sc = Script(); sc.tap("no"); sc.tap("play", 9000); sc.tap("stop", 400)
-        sc.hold("func", "rec"); sc.hold("ptn", 1); sc.hold("func", "stop", gap=1000)   # copy, pattern 2, paste
-        (OUT / "strand.script").write_text(sc.text())
-        run([EMU, "--image", image, "--card", c, "--set", "OCTABAM", "--project", "STRAND", "--load-ms", "90000",
-             "--dsp", "--live-script", OUT / "strand.script", "--mem-dump", dumps("strand")], OUT / "strand.txt")
+        finish(OUT / "strand.txt")
         clean("strand")
     elif not only or "strand" in only:
         print("  [SKIP] strand: no project at --strand-project")
     if not only or "noproj" in only:
-        run([EMU, "--image", image, "--card", card, "--set", "OCTABAM", "--project", "NOPROJ", "--load-ms", "90000",
-             "--live-script", s1, "--mem-dump", dumps("noproj")], OUT / "noproj.txt")
+        finish(OUT / "noproj.txt")
         s = st("noproj")
         log = (OUT / "noproj.txt").read_text(errors="replace")
         check(f"noproj: the load ran, no halt (READY {s['READY']}, IOERR {s['IOERR']})",
