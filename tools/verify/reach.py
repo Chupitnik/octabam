@@ -101,9 +101,12 @@ lines through `check_shards.py`, N worktrees at a time; a lone `make check`
 becomes its shared half and one remix split by gate. Each command run in
 this tree holds a machine gate slot (slots.py); check_shards takes one per
 job and skips a job whose pass is cached (gate_cache.py, `--no-cache`).
+`--run` starts the `check-shared` line and the `check_shards` line together: the
+shards build in their own worktrees and the shared half in this one.
 """
 import argparse
 import ast
+import concurrent.futures as cf
 import contextlib
 import hashlib
 import shutil
@@ -1091,15 +1094,9 @@ def main(argv=None):
     if any(k in PORT_KINDS for k, _, _ in queue) and not any(k == "emu-cf" for k, _, _ in queue) and port_is_stale():
         print("reach: out/emu/ot_emu is missing or older than tools/emu/ot_emu: the port from the store first")
         queue.insert(0, ("emu-get", CMD["emu-get"][1], ["tools/emu/ot_emu"]))
-    while queue:
-        kind, command, _ = queue.pop(0)
+    def run_command(kind, command):
+        """-> (the command as run, its exit code, seconds), or None when blocked."""
         cmd = command.replace("${STRESS_SOURCE}", stress or "").replace("${BASE}", a.base)
-        if kind == "accept" and not stress:
-            print(f"reach: BLOCKED {command}: STRESS_SOURCE is unset")
-            if not a.keep_going:
-                return 2
-            results.append((command, "BLOCKED", 0.0))
-            continue
         print(f"reach: running {cmd}", flush=True)
         t0 = time.monotonic()
         if quick and BACKGROUND:
@@ -1115,12 +1112,42 @@ def main(argv=None):
         with (contextlib.nullcontext(env) if own_slots else slots.slot(f"reach {command}")) as env_slot:
             env.update({k: v for k, v in env_slot.items() if k == "OCTABAM_SLOT"})
             r = subprocess.run(cmd, shell=True, cwd=ROOT, env=env)
-        results.append((command, "ok" if r.returncode == 0 else f"FAILED ({r.returncode})", time.monotonic() - t0))
-        if r.returncode:
-            print(f"reach: FAILED ({r.returncode}) {cmd}")
+        return cmd, r.returncode, time.monotonic() - t0
+
+    def record(command, cmd, rc, seconds):
+        results.append((command, "ok" if rc == 0 else f"FAILED ({rc})", seconds))
+        if rc:
+            print(f"reach: FAILED ({rc}) {cmd}")
             # module_gates and check_shards record their own gates' and jobs'
             # failures; this records the step (selftest, refhash, docs, ...)
-            gate_ledger.record(f"reach:{command}", "", f"exit {r.returncode}")
+            gate_ledger.record(f"reach:{command}", "", f"exit {rc}")
+
+    while queue:
+        kind, command, _ = queue.pop(0)
+        if kind == "accept" and not stress:
+            print(f"reach: BLOCKED {command}: STRESS_SOURCE is unset")
+            if not a.keep_going:
+                return 2
+            results.append((command, "BLOCKED", 0.0))
+            continue
+        # The shared half and the per-remix shards are independent (the
+        # shards work in their own worktrees; build_bus serialises the
+        # builds of a tree): they run together, each holding its slots.
+        beside = next((it for it in queue if it[0] == "check-remix" and "check_shards.py" in it[1]), None) \
+            if kind == "check-shared" else None
+        if beside:
+            queue.remove(beside)
+            with cf.ThreadPoolExecutor(max_workers=2) as ex:
+                futures = [(c, ex.submit(run_command, k, c)) for k, c, _ in ((kind, command, None), beside)]
+                done = [(c, f.result()) for c, f in futures]
+            for c, (cmd, rc, secs) in done:
+                record(c, cmd, rc, secs)
+            if any(rc for _, (_, rc, _) in done) and not a.keep_going:
+                return 1
+            continue
+        cmd, rc, secs = run_command(kind, command)
+        record(command, cmd, rc, secs)
+        if rc:
             if not a.keep_going:
                 return 1
         elif kind == "identity":
