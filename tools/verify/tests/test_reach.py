@@ -355,6 +355,23 @@ class PlanTests(unittest.TestCase):
         cmds = commands(["modules/character/a.asm", "tools/verify/verify_knob_clicks.py"])
         self.assertEqual([c for c in cmds if c.startswith("make check-shared")], [SHARED_ALL])
 
+    def test_an_unscoped_shared_line_stands_for_its_own_remixes_modules(self):
+        # a tool change's floor (miniverb) beside a SEND change on bamsep26:
+        # CHARACTER, which only bamsep26 carries and nothing reached, stays out
+        rows = [("tools/x.py", [reach.cmd_check_shared(["miniverb"])], ""),
+                ("modules/send/b.asm", [reach.cmd_check_shared(["bamsep26"], ["SEND"])], "")]
+        cmds = [c for _, c, _ in reach.plan(rows, keys_of=ctx().keys_of)]
+        self.assertEqual(cmds, ['make check-shared REMIXES="bamsep26 miniverb" MODULES="MINIVERB,SEND"'])
+        # without the remixes' modules the unscoped line wins, as before
+        cmds = [c for _, c, _ in reach.plan(rows)]
+        self.assertEqual(cmds, ['make check-shared REMIXES="bamsep26 miniverb"'])
+
+    def test_a_variant_only_gate_is_a_gate_of_its_module(self):
+        from remix import registry
+        scripts = {g.script for g in reach.variant_gates(registry.modules()["USB AUDIO OUT"])}
+        self.assertIn("tools/verify/verify_usb_post.py", scripts)
+        self.assertIn("tools/verify/verify_usb_align.py", scripts)
+
     def test_remixes_reached(self):
         rows = reach.classify(["modules/character/a.asm", "remixes/miniverb/remix.py"], ctx())
         self.assertEqual(reach.remixes_reached(rows), ["bamsep26", "miniverb", "usb"])
