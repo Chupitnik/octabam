@@ -326,7 +326,8 @@ class PlanTests(unittest.TestCase):
             self.assertFalse(reach.port_is_stale(exe, d / "src"))
             os.utime(exe, (old - 100, old - 100))
             self.assertTrue(reach.port_is_stale(exe, d / "src"))
-            self.assertFalse(reach.port_is_stale(d / "missing", d / "src"))
+            # a missing binary is stale: without it the port gates SKIP
+            self.assertTrue(reach.port_is_stale(d / "missing", d / "src"))
 
     def test_sharded_gives_the_accept_line_jobs(self):
         items = [("accept", 'make accept REMIXES="bamsep26 miniverb" STRESS_SOURCE=${STRESS_SOURCE}', ["p"]),

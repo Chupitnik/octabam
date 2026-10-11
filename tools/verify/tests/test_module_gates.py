@@ -17,6 +17,16 @@ def module(key, *gates):
     return types.SimpleNamespace(key=key, gates=gates)
 
 
+class PortRequired(unittest.TestCase):
+    def test_no_port_binary_is_not_built(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = pathlib.Path(d)
+            self.assertFalse(module_gates.port_built(d))
+            (d / "out/emu").mkdir(parents=True)
+            (d / "out/emu/ot_emu").write_text("bin")
+            self.assertTrue(module_gates.port_built(d))
+
+
 class OnceGates(unittest.TestCase):
     def test_once_needs_remix_arg_and_the_isolated_stage(self):
         Gate("tools/verify/x.py", once=True)
