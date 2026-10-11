@@ -20,6 +20,15 @@ vendored core's commit and working-tree diff (dsp56300 carries
 tools/patches/dsp56300.patch as uncommitted changes), the host
 architecture and the compiler's version. `make emu-cf` still builds in the
 tree, incrementally, for work on the port itself.
+
+The PGO + LTO build (`pgo`, `make emu-pgo`) is kept beside the plain one and
+`install` prefers it. When the store has none for a source state, `install`
+copies the plain build at once and starts the PGO build detached (`pgo-bg`,
+nice 10, one at a time on the machine, nothing waits for it; a failure holds
+off retries for 30 minutes). `OCTABAM_PGO=0` keeps the plain build and starts
+nothing; there is also nothing to train on without a project (OT_PROJECT or
+~/.octabam_project). Measure timings with `OCTABAM_PGO=0`, or the training run
+shares the machine for its 5 minutes.
 """
 import fcntl
 import hashlib
@@ -30,6 +39,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools/verify"))
@@ -168,6 +178,66 @@ def pgo(root=ROOT, say=print):
     return d
 
 
+PGO_RETRY_S = 1800        # after a failed PGO build, the next attempt for that source state
+
+
+def spawn(argv, **kw):
+    """Start a detached child (a function so a test can replace it)."""
+    return subprocess.Popen(argv, **kw)
+
+
+def pgo_background(root=ROOT, say=print):
+    """Start the PGO build for this tree's sources detached, unless the store
+    has it, a build failed within PGO_RETRY_S, OCTABAM_PGO=0, or there is no
+    project to train on. Never waits: the child (`pgo-bg`) takes the
+    machine-wide lock without blocking, so only one runs on the machine and a
+    second `install` just returns. Returns True when a child was started."""
+    if os.environ.get("OCTABAM_PGO") == "0":
+        return False
+    k = key(root)
+    d = pgo_dir(k, root)
+    if (d / "ot_emu").is_file():
+        return False
+    sd = store_dir(root)
+    failed = sd / f"{d.name}.failed"
+    if failed.is_file() and time.time() - failed.stat().st_mtime < PGO_RETRY_S:
+        return False
+    sys.path[:0] = [str(root / "tools/verify")]
+    import gate_cache
+    project = gate_cache.project_dir()
+    if project is None or not project.is_dir():
+        return False
+    sd.mkdir(parents=True, exist_ok=True)
+    log = open(sd / f"pgo-{k[:12]}.log", "a")
+    spawn(["nice", "-n", "10", sys.executable, str(root / "tools/emu/port_store.py"), "pgo-bg"],
+          cwd=root, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    say(f"port_store: starting the PGO build for {k[:12]} in the background (about 5 min at nice 10; later installs take it)")
+    return True
+
+
+def pgo_bg(root=ROOT):
+    """The detached child: one PGO build at a time on the machine. A failure
+    leaves a marker that holds off retries for PGO_RETRY_S."""
+    sd = store_dir(root)
+    sd.mkdir(parents=True, exist_ok=True)
+    with open(sd / "pgo-running.lock", "a+") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            print("port_store: another PGO build is running; not starting this one")
+            return 0
+        k = key(root)
+        d = pgo_dir(k, root)
+        try:
+            pgo(root)
+            print(f"port_store: PGO build for {k[:12]} done: {d}")
+            return 0
+        except BaseException as e:           # SystemExit from pgo(), a vanished worktree, ...
+            (sd / f"{d.name}.failed").write_text(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {e}\n")
+            print(f"port_store: PGO build for {k[:12]} failed: {e}")
+            return 1
+
+
 def install(dest=None, root=ROOT, say=print):
     """The port for this tree's sources into `dest` (out/emu), from the store:
     the PGO build when the store has one (OCTABAM_PGO=0 asks for the plain
@@ -225,10 +295,14 @@ def main(argv=None):
     if cmd == "pgo":
         print(f"port_store: {pgo()}")
         return 0
+    if cmd == "pgo-bg":
+        return pgo_bg()
     if cmd == "install":
         dest, d = install(argv[0] if argv else None)
-        print(f"port_store: {dest}/ot_emu from {d}" + ("" if d.name.count("-pgo-") else
-              "  (the plain build; `python3 tools/emu/port_store.py pgo` builds the PGO one)"))
+        pgo_build = "-pgo-" in d.name
+        print(f"port_store: {dest}/ot_emu from {d}" + ("" if pgo_build else "  (the plain build)"))
+        if not pgo_build:
+            pgo_background()
         return 0
     print(__doc__)
     return 2

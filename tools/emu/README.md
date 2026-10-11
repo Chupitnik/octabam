@@ -541,7 +541,10 @@ that third.
    `make emu-pgo` (or `python3 tools/emu/port_store.py pgo`) builds it once
    per source state (306 s: the instrumented build, three training runs on a
    card staged from the local project, the optimised build) and `install`
-   takes it when the store has one (`OCTABAM_PGO=0` asks for the plain build).
+   takes it when the store has one. When it has none, `install` copies the
+   plain build at once and starts the PGO build detached, at nice 10, one at
+   a time on the machine (`OCTABAM_PGO=0` asks for the plain build and starts
+   nothing).
    Against the plain build of the same source, M3 under load average 5-10,
    user CPU time (wall time moves with the load): the gate command 34.4 s to
    27.5 s over four paired runs (1.25x); `verify_kits` bottleservice 1,702 s to
