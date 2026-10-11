@@ -357,6 +357,17 @@ the machine (`verify_set` on bottleservice, `times.json` of eight
 worktrees, 29 Sep-10 Oct 2026; the Rosetta port accounts for up to 1.75x
 of that before 6 Oct). A `make check` run by hand takes no slot.
 
+**Every failure is recorded.** `module_gates.py` (each module gate),
+`check_shards.py` (each failed remix half or gate job) and `reach.py`
+(each failed step) append one JSON line to
+`<git common dir>/octabam-gate-failures.jsonl`: the time, the commit (and
+whether the tree had uncommitted changes), the worktree, the gate, the
+remix and the first `[FAIL]` line. `python3 tools/verify/gate_ledger.py`
+counts them per gate (`--all` lists every record). The gate cache keeps
+only passes, so until 11 Oct 2026 nothing said which gates ever caught
+anything. A failed module gate inside a remix half appears twice, once
+under its script and once under `check-remix` or its `job:` name.
+
 ## 7. Parallel runs: shards
 
 `tools/verify/check_shards.py` (`make check-remixes REMIXES="a b" JOBS=4`,

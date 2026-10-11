@@ -78,6 +78,7 @@ import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import gate_cache  # noqa: E402
+import gate_ledger  # noqa: E402
 import slots  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -202,6 +203,8 @@ def run_remix(shard, remix, logdir, deps=None):
     text = log.read_text(errors="replace")
     skips = [l.strip() for l in text.splitlines() if SKIP.match(l)]
     res = dict(remix=remix, rc=r.returncode, seconds=time.monotonic() - t0, skips=skips, log=log)
+    if r.returncode:
+        gate_ledger.record("check-remix", remix, gate_ledger.first_fail(text), shard)
     if r.returncode == 0 and k:
         gate_cache.store(k, dict(remix=remix, job="check-remix", seconds=res["seconds"], skips=skips))
     return res
@@ -372,6 +375,8 @@ def run_job(shard, remix, job, logdir, deps=None):
     text = log.read_text(errors="replace")
     skips = [l.strip() for l in text.splitlines() if SKIP.match(l)]
     res = dict(remix=name, rc=rc, seconds=time.monotonic() - t0, skips=skips, log=log)
+    if rc:
+        gate_ledger.record(f"job:{name}", remix, gate_ledger.first_fail(text), shard)
     if rc == 0 and k:
         gate_cache.store(k, dict(remix=remix, job=name, seconds=res["seconds"], skips=skips))
     return res

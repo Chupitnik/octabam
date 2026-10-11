@@ -87,5 +87,13 @@ class Reached(unittest.TestCase):
         self.assertTrue({"REVERB SERVER", "SEND"} <= module_gates.reached({"DELAY SERVER"}, sel))   # the bus
 
 
+class Ledger(unittest.TestCase):
+    def test_first_fail_takes_the_fail_line(self):
+        import gate_ledger
+        self.assertEqual(gate_ledger.first_fail("a\n  [ok] b\n  [FAIL] c: d\n  [FAIL] e\n"), "[FAIL] c: d")
+        self.assertEqual(gate_ledger.first_fail("a\nlast line\n\n"), "last line")
+        self.assertEqual(gate_ledger.first_fail(""), "")
+
+
 if __name__ == "__main__":
     unittest.main()

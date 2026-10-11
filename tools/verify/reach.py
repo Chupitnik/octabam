@@ -120,6 +120,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1])); import too
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools/verify"))
 import slots  # noqa: E402
+import gate_ledger  # noqa: E402
 
 # One command per gate; the order is the order they run in.
 ORDER = ("verify_docs", "selftest", "test-acceptance", "ci-dsp", "ci-emu", "emu-cf", "emu-get", "refhash", "verify-bus", "identity", "check-shared", "check", "check-remix", "accept", "ci")
@@ -1117,6 +1118,9 @@ def main(argv=None):
         results.append((command, "ok" if r.returncode == 0 else f"FAILED ({r.returncode})", time.monotonic() - t0))
         if r.returncode:
             print(f"reach: FAILED ({r.returncode}) {cmd}")
+            # module_gates and check_shards record their own gates' and jobs'
+            # failures; this records the step (selftest, refhash, docs, ...)
+            gate_ledger.record(f"reach:{command}", "", f"exit {r.returncode}")
             if not a.keep_going:
                 return 1
         elif kind == "identity":
