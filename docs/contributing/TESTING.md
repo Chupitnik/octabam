@@ -55,6 +55,8 @@ default remix.
 **The shared half** (`make check-shared REMIXES="a b c"`) does not depend
 on which remix is selected, so a run over several remixes does it once:
 
+Each step runs through `tools/verify/step.py`, which prints one line after the step's output (`step: 14:03:22 +   7.4 s  rc=0  <command>`), so a log of the shared half carries a time per step.
+
 | step | proves |
 |---|---|
 | `tools/remix/selftest.py` | the ledger refuses every collision it claims to (FX2 id, declared conflict, cave, hook and detour span, poke, table and symbol ref, runtime write, kept bytes, grown table, private Y word, FX2 buffer region, DSP data range, DSP hook site), every shipped remix is clean, the placer fills non-contiguous runs in both payloads |
