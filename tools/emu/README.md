@@ -537,10 +537,19 @@ that third.
    `--scenario/--step/--live-script`), a per-gate decision, and for each
    converted gate its verdicts unchanged and the O17c capture comparison on
    its fixture.
-2. **A PGO build in the port store** (`tools/emu/port_store.py`). +28%
-   without the cores, +13% with (M5, 12 Sep). Needs the profile in the store
-   key and a training run; the oracle (`tools/emu/ot_emu/oracle/`, 28 checks
-   against a frozen binary) is bit-exact by construction.
+2. **A PGO build in the port store** (`tools/emu/port_store.py`). Done 12 Oct:
+   `make emu-pgo` (or `python3 tools/emu/port_store.py pgo`) builds it once
+   per source state (306 s: the instrumented build, three training runs on a
+   card staged from the local project, the optimised build) and `install`
+   takes it when the store has one (`OCTABAM_PGO=0` asks for the plain build).
+   Against the plain build of the same source, M3 under load average 5-10,
+   user CPU time (wall time moves with the load): the gate command 34.4 s to
+   27.5 s over four paired runs (1.25x); `verify_kits` bottleservice 1,702 s to
+   1,308 s over two (1.30x; wall 592 s to 509 s), the same 126 checks, 0
+   failures in each. Bit-exact: the gate command's block dump, card after,
+   DSP-write census, memory dumps and command log are byte-identical, and the
+   oracle's 25 checks agree (the render's `cpu` line differs only in its
+   wall-clock figures).
 3. **Re-pin `vendor/dsp56300` to the 9 Oct tip.** Drops the AGU hunk, takes
    the JIT fixes. Needs the 581-line patch rebased and the gates of the 22 Sep
    re-pin (`scripts/refhash.sh check`, `verify-bus`, `verify-twocore`,

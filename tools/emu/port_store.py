@@ -4,6 +4,7 @@
     python3 tools/emu/port_store.py install [DEST]     # out/emu by default
     python3 tools/emu/port_store.py key                # the key, in this tree
     python3 tools/emu/port_store.py tree               # out/emu's CMake tree, built in place if absent
+    python3 tools/emu/port_store.py pgo                # the PGO + LTO build, kept beside the plain one (minutes)
 
 A fresh worktree's first `make reach RUN=1` built the port in the
 worktree (69 s) and again in each new shard (125 s for three, 11 Oct
@@ -106,19 +107,86 @@ def built(k, root=ROOT):
     return d
 
 
-def install(dest=None, root=ROOT):
-    """The port for this tree's sources into `dest` (out/emu), from the store."""
+PGO_SCRIPT = "tools/emu/ot_emu/pgo.sh"
+
+
+def pgo_dir(k, root=ROOT):
+    """Where the PGO build of key `k` lives: the key and the ritual's own
+    bytes, so a change to pgo.sh builds it again."""
+    sh = hashlib.sha256((root / PGO_SCRIPT).read_bytes()).hexdigest()[:10]
+    return store_dir(root) / f"{k}-pgo-{sh}"
+
+
+def training_card(work, root=ROOT):
+    """A card for the PGO training run, staged from the local project (the
+    tone project of usb_sig_project: eight tracks playing, so the cores and
+    the audio path run). Returns (card, set, project)."""
+    sys.path[:0] = [str(root / "tools/verify"), str(root / "tools/harness"), str(root / "tools")]
+    import gate_cache
+    import verify_usb_post
+    project = gate_cache.project_dir()
+    if project is None or not project.is_dir():
+        raise SystemExit("port_store: the PGO training needs a project (OT_PROJECT or ~/.octabam_project)")
+    args = verify_usb_post.stage(project, work)
+    return pathlib.Path(args[args.index("--card") + 1]), args[args.index("--set") + 1], args[args.index("--project") + 1]
+
+
+def pgo(root=ROOT, say=print):
+    """The PGO + LTO build of this tree's sources (tools/emu/ot_emu/pgo.sh:
+    an instrumented build, three training runs, the optimised build), kept in
+    the store beside the plain one. Bit-exact to the plain build by
+    construction and by the oracle; 13% faster with the DSP cores, 28%
+    without (Tim Hastie, M5, 12 Sep). Minutes; run once per source state."""
+    k = key(root)
+    d = pgo_dir(k, root)
+    if (d / "ot_emu").is_file():
+        return d
+    d.parent.mkdir(parents=True, exist_ok=True)
+    with open(d.parent / f"{d.name}.lock", "a+") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if (d / "ot_emu").is_file():
+            return d
+        work = pathlib.Path(tempfile.mkdtemp(prefix=f"{k[:12]}-pgo.", dir=d.parent))
+        card, setname, projname = training_card(work / "card", root)
+        say(f"port_store: PGO build of {k[:12]} (an instrumented build, three training runs, the optimised build)")
+        r = subprocess.run(["bash", str(root / PGO_SCRIPT), "--dest", str(work / "build"), "--gen", str(work / "gen"),
+                            "--prof", str(work / "prof"), "--card", str(card), "--set", setname,
+                            "--project", projname, "--image", str(root / "out/raw/section_3_MAIN_OS.bin")],
+                           cwd=root, capture_output=True, text=True)
+        (work / "pgo.log").write_text(r.stdout + r.stderr)
+        if r.returncode:
+            raise SystemExit(f"port_store: pgo.sh failed ({r.returncode}), log {work / 'pgo.log'}\n{r.stdout[-1200:]}{r.stderr[-1200:]}")
+        staged = work / "bin"
+        staged.mkdir()
+        for f in (work / "build").iterdir():
+            if f.is_file() and os.access(f, os.X_OK) and (f.name == "ot_emu" or f.name.startswith("ot_")):
+                shutil.copy2(f, staged / f.name)
+        shutil.copy2(work / "prof/ot_emu.profdata", staged / "ot_emu.profdata")
+        shutil.copy2(work / "pgo.log", staged / "pgo.log")
+        os.replace(staged, d)
+        shutil.rmtree(work, ignore_errors=True)
+    return d
+
+
+def install(dest=None, root=ROOT, say=print):
+    """The port for this tree's sources into `dest` (out/emu), from the store:
+    the PGO build when the store has one (OCTABAM_PGO=0 asks for the plain
+    one), else the plain build."""
     import reach
     dest = pathlib.Path(dest or root / "out/emu")
     k = key(root)
-    d = built(k, root)
+    d = pgo_dir(k, root)
+    if os.environ.get("OCTABAM_PGO") == "0" or not (d / "ot_emu").is_file():
+        d = built(k, root)
     dest.mkdir(parents=True, exist_ok=True)
     for f in d.iterdir():
+        if not (f.name == "ot_emu" or f.name.startswith("ot_")) or f.suffix == ".profdata":
+            continue
         tmp = dest / f".{f.name}.tmp"
         shutil.copy2(f, tmp)
         os.replace(tmp, dest / f.name)
     reach.stamp_port(root / "tools/emu/ot_emu", dest / pathlib.Path(reach.PORT_STAMP).name)
-    return dest, k
+    return dest, d
 
 
 TREE_FILES = ("CMakeFiles/ot_emu.dir/flags.make", "CMakeFiles/ot_emu.dir/link.txt")
@@ -154,9 +222,13 @@ def main(argv=None):
     if cmd == "tree":
         print(ensure_tree())
         return 0
+    if cmd == "pgo":
+        print(f"port_store: {pgo()}")
+        return 0
     if cmd == "install":
-        dest, k = install(argv[0] if argv else None)
-        print(f"port_store: {dest}/ot_emu from {store_dir() / k}")
+        dest, d = install(argv[0] if argv else None)
+        print(f"port_store: {dest}/ot_emu from {d}" + ("" if d.name.count("-pgo-") else
+              "  (the plain build; `python3 tools/emu/port_store.py pgo` builds the PGO one)"))
         return 0
     print(__doc__)
     return 2
