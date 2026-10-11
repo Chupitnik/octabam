@@ -234,6 +234,9 @@ dear={"DRV": 127, "FOLD": 127, "COMP": 127, "MIX": 127, "WDTH": 127, "SAT": 0},
 
 ## 6. `make reach`: which gates a change reaches
 
+**QUICK skips three `verify_kits` scenarios.** `make reach RUN=1` without `FULL=1` sets `OCTABAM_QUICK=1`; `verify_kits` (also `--quick`) then skips `unattended` (60 s emulated of BCR2000 CCs on a 120 BPM clock), `presses` (250 track presses) and `strand` (the rejected bank file, with the DSP) and prints `FULL only (skipped by --quick): unattended, presses, strand` at the start and the end of its output. `make reach FULL=1`, a direct `python3 tools/verify/verify_kits.py REMIX` and `make check` run them. A green QUICK run is not a pass of those three.
+
+
 **The test remixes are left out** (30 Sep 2026): no remix under
 `remixes/test/` is picked by `make reach` in either tier, as a carrier, the
 floor, the cover or identity. A change to a module that only test remixes
