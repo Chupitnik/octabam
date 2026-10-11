@@ -17,6 +17,9 @@
         .balign 4
         .globl  brain_modedef
 brain_modedef: .long MODEDEF_TABLE
+| LOAD METER's lm_stats (modules/load-meter), 0 without that module (LM_STATS defsym)
+        .globl  brain_lm
+brain_lm: .long LM_STATS
 
         .text
         .globl  brain_on_load, brain_on_bankload

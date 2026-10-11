@@ -15,8 +15,8 @@
 A record that does not parse, or whose kind this tool does not know, is
 shown as its exact bytes in hex and written back unchanged, so `dump` then
 `build` reproduces any valid file byte for byte when no value was edited.
-STEM is `card` in the card's BRAIN directory and `octabam` in a project
-(the default).
+STEM is `card` in the card's BRAIN directory and `brain` in a project folder
+(the default): <set>/<project>/brain.work and brain.strd.
 """
 import json
 import pathlib
@@ -193,7 +193,7 @@ def main(argv):
         print(f"wrote {argv[3]} ({len(data)} bytes)")
         return 0
     d = pathlib.Path(argv[2])
-    stem = argv[3] if len(argv) > 3 else "octabam"
+    stem = argv[3] if len(argv) > 3 else "brain"
     files = [d / f"{stem}.work", d / f"{stem}.strd"]
     action, f, write = brainfile.pair(*(p.read_bytes() if p.exists() else None for p in files))
     for p in files:

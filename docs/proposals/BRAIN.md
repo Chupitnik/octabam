@@ -534,6 +534,7 @@ with a name editor, copy, paste and clear (✅ on the unit, image A6).
 | 4 | the stock provider: MIDI track target, instrument templates with knob names, incoming CC map, controller presets; audio track pages; project-level stock settings | yes | yes |
 | from 2, in parallel | DSP run-time delivery: probe, route, first DSP setting | yes | yes |
 | REMIX SWITCH | sanderlegit's OS SWITCH (PR #542), renamed, carried by every remix with BRAIN: the `.RMX` images in `/BRAIN/REMIXES/` in BRAIN's REMIXES sub-list, rebuilt at each MAIN MENU opening (PR #542's power-on picker left out). Built 8 Oct 2026 (`verify_remixswitch` under the port; a switch on an MKII as image B2) | yes | yes |
+| MIDI monitor, LOAD view | built 11 Oct 2026 (port): TOOLS > MIDI MONITOR and TOOLS > LOAD, live dialogs; LOAD METER measures the frame interrupt | yes | yes |
 | after REMIX SWITCH | a MIDI monitor in the BRAIN category: the last incoming messages decoded, each marked with what the firmware did (which handler, or dropped and at which test); a detour on the MIDI byte parser and dispatch (`docs/firmware/MIDI.md` appendix B) into a ring, rows rebuilt and redrawn on a timer (the row mechanism REMIX SWITCH's list needs) | yes | yes |
 
 Phase 0 is implemented (6 Oct 2026): the declarations in
@@ -579,7 +580,7 @@ Phase 2, SETTINGS (10 Oct 2026): `tools/remix/brain.py` `live_table` and
 Option or Number setting that is not pinned and not `Apply.BUILD`, a global
 `brain_v_<store>_<key>` in the BRAIN unit; a module without BRAIN reads the
 same macro as a constant). `modules/brain/manifest.py` generates
-`brain_set[]` (40 bytes a setting) and `brain_values[]`. At each load
+`brain_set[]` (44 bytes a setting) and `brain_values[]`. At each load
 `brain.c` reads kind-1 records from `card.work`: a value out of its bounds
 or of another type is skipped and counted, a second record for a store is
 skipped (section 7.7), unknown keys are kept on write. PROJ, BRAIN, SETTINGS
@@ -594,6 +595,16 @@ file gives (1,1); the panel (PROJ, DOWN x4, RIGHT, YES, YES) writes
 {1:0, 2:1, 99:1}. Not built: `Apply.CALLBACK` has no callback field (it
 acts as `LIVE`); Blob and Trigger settings have no row; the list has a heading row
 per module, BRAIN's own included. On the unit: not yet.
+
+Phase 2, project pair (11 Oct 2026): `brain.work` / `brain.strd` in the
+project's folder (file kinds 2, 3), written at SAVE PROJECT in the engine
+task (PROJECT-scope settings records, the kind-4 project record, then the
+copy to `brain.strd`; unknown records kept) and read at each load by the
+pair rule; the project record is compared with the image and counted (same,
+moved, layout, gone); TOOLS > PROJECT CHECK shows it. `brain_set[]` entries
+carry the setting's scope. No module declares a PROJECT setting yet. ✅
+under the port (`verify_brain`). The CS1 block is not built. On the unit:
+not yet.
 
 MODE DEFAULTS and RIG HOSTS keep working without the brain. KITS keeps
 AUTOSAVE and KEEP LEVELS in its own header.
