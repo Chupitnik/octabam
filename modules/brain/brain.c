@@ -1171,10 +1171,13 @@ void brain_post_settings(void)
 enum { T_SAVE, T_DELETE, T_RENAME, T_COPY };
 static int write_template(int del, u32 t, u32 kind, u32 e, u32 i);
 static int write_names(void);
+static int write_pset(int clear);
 
 void brain_job(void)
 {
-	if (job_args & 0x800000)
+	if (job_args & 0x3000000)
+		brain_save_counts[S_SAVE_ERR] = (u32)write_pset(!!(job_args & 0x2000000));
+	else if (job_args & 0x800000)
 		brain_save_counts[S_SAVE_ERR] = (u32)write_names();
 	else if (job_args & 0x600000)
 		brain_save_counts[S_SAVE_ERR] = (u32)write_template(job_args & 0x200000 ? T_RENAME : T_COPY, 0, 0,
@@ -1198,7 +1201,7 @@ void brain_job(void)
 #define POPUP     ((void (*)(const char *, u32, const char *const *, u32, u32))0x4006d57c)
 #define CUR_TRACK (*(volatile u8 *)0x80000000)
 #define MIDI_MODE (*(volatile u32 *)0x80000012)	/* nonzero: MIDI tracks (a long; the MIDI key stores 1) */
-#define PAGE_KIND (*(volatile u32 *)0x460d1684)	/* 3 = FX1, 4 = FX2 */
+#define PAGE_KIND (*(volatile u32 *)0x460d1684)	/* 0 SRC, 1 LFO, 2 AMP, 3 FX1, 4 FX2 */
 
 static const char *msg[2];
 static char line1[16];
@@ -1438,7 +1441,7 @@ void brain_open_defaults(u32 unused)
 {
 	(void)unused;
 	brain_from = 1;
-	show(brain_def_rows, 3, 1);
+	show(brain_def_rows, 5, 1);
 }
 
 void brain_open_remixes(u32 unused)
@@ -1571,16 +1574,17 @@ void brain_open_settings(u32 unused)
 /* ---- templates: lists, apply, save and delete (BRAIN.md sections 5.2, 9) ---- */
 
 /* A template's target is one view: track t's FX1 or FX2 page (an effect of
- * brain_fx[], entry e < MAX_FX), its AMP or LFO page, or a whole MIDI track
- * (the stock targets, entry ST_BASE + kind - V_AMP). */
-enum { V_FX1, V_FX2, V_AMP, V_LFO, V_MIDI };
+ * brain_fx[], entry e < MAX_FX), its AMP or LFO page, a whole MIDI track
+ * (the stock targets, entry ST_BASE + kind - V_AMP), or its SRC page, one
+ * target per machine type (entry ST_BASE + 3 + machine). */
+enum { V_FX1, V_FX2, V_AMP, V_LFO, V_MIDI, V_SRC };
 #define ST_BASE  0x40
 #define NSLOT    72
 #define SKIP     0xfe		/* flat[]: a slot with no parameter */
 #define NOFLAT   0xff		/* flat[]: a slot the page-1 writer does not reach */
 
 struct view {
-	u32 kind, t, e, n;
+	u32 kind, t, e, n, machine;
 	u16 key[NSLOT];			/* 0: the slot is not stored */
 	u32 at[NSLOT];			/* Part offset from DBPTR + part * PART_LEN */
 	u8 lo[NSLOT], hi[NSLOT];
@@ -1592,11 +1596,19 @@ struct st_ent {
 	const char *id;
 	u32 id_len, layout;
 };
-static const struct st_ent st_ent[3] = {
+#define ST_N     8
+static const struct st_ent st_ent[ST_N] = {
 	{ "stock.amp", 9, 0x414d5031 },		/* "AMP1" */
 	{ "stock.lfo", 9, 0x4c464f31 },		/* "LFO1" */
 	{ "stock.midi", 10, 0x4d494431 },	/* "MID1" */
+	/* the SRC page by machine type (PARAM_PAGES.md section 3, entries 0-4) */
+	{ "stock.static", 12, 0x53544131 },	/* "STA1" */
+	{ "stock.flex", 10, 0x464c5831 },	/* "FLX1" */
+	{ "stock.thru", 10, 0x54485231 },	/* "THR1" */
+	{ "stock.neighbor", 14, 0x4e425231 },	/* "NBR1" */
+	{ "stock.pickup", 12, 0x50434b31 },	/* "PCK1" */
 };
+#define D_PLAYBACK 0x400d2fe4			/* PLAYBACK entry 0; entry m at + m * 0x192 */
 
 /* The stock page descriptors (PARAM_PAGES.md section 3), entry start E:
  * minimum per slot at E + 0xa2, count at E + 0xd2, enable nibbles at
@@ -1683,6 +1695,18 @@ static int view_fill(struct view *v, u32 kind, u32 t)
 		}
 		return 1;
 	}
+	if (kind == V_SRC) {
+		/* the machine byte, then its six page-1 and six page-2 bytes */
+		u32 m = (DBPTR + (CUR_PART & 3) * PART_LEN)[0x8eda2 + t];
+		if (m > 4)
+			return 0;
+		v->machine = m;
+		v->e = ST_BASE + 3 + m;
+		for (u32 s = 0; s < 12; s++)
+			slot(v, 1 + s, (s < 6 ? 0x8edaa : 0x8ef5a - 6) + t * 30 + m * 6 + s, s < 6 ? s : NOFLAT,
+			     D_PLAYBACK + m * 0x192, s);
+		return 1;
+	}
 	v->e = ST_BASE + kind - V_AMP;
 	if (kind == V_AMP)
 		for (u32 s = 0; s < 12; s++)
@@ -1710,10 +1734,10 @@ static int view_here(struct view *v)
 	u32 kind = PAGE_KIND;
 	if (MIDI_MODE)
 		return view_fill(v, V_MIDI, CUR_TRACK);
-	if (kind >= 1 && kind <= 4)
-		return view_fill(v, kind == 1 ? V_LFO : kind == 2 ? V_AMP : kind - 3, CUR_TRACK);
-	msg[0] = "OPEN AN LFO, AMP";
-	msg[1] = "OR FX PAGE";
+	if (kind <= 4)
+		return view_fill(v, kind == 0 ? V_SRC : kind == 1 ? V_LFO : kind == 2 ? V_AMP : kind - 3, CUR_TRACK);
+	msg[0] = "OPEN A TRACK PAGE";
+	msg[1] = "";
 	return 0;
 }
 
@@ -1791,7 +1815,8 @@ static void apply_view(const struct view *v, const u8 *vals)
 			*(volatile u8 *)(LIVEM + t * 0x44 + (at - 0x8f162 - t * 32 < 32 ? at - 0x8f162 - t * 32
 							  : 0x20 + at - 0x8f262 - t * 36)) = c[i];
 		else
-			*(volatile u8 *)(LIVEB + t * 72 + 0x26 + at - 0x8f072 - t * 30) = c[i];
+			*(volatile u8 *)(LIVEB + t * 72 + (v->kind == V_SRC ? 0x20 + at - 0x8ef5a - t * 30 - v->machine * 6
+								       : 0x26 + at - 0x8f072 - t * 30)) = c[i];
 	}
 	DBPTR[0x95048] |= (u8)(1 << part);
 	*(volatile u8 *)0x100b145e |= (u8)(1 << part);
@@ -1865,7 +1890,7 @@ static int write_template(int del, u32 t, u32 kind, u32 e, u32 i)
 				return 5;
 		}
 	} else if (!del) {
-		if (kind > V_MIDI || t > 7 || !view_fill(v, kind, t))
+		if (kind > V_SRC || t > 7 || !view_fill(v, kind, t))
 			return 1;
 		e = v->e;
 	}
@@ -2094,8 +2119,8 @@ void brain_tpl_save(u32 unused)
 		return;
 	}
 	brain_post_template(0x80000 | tpl_view.t | (tpl_view.kind << 8));
-	static const char *const kname[5] = { "FX1 TRACK ", "FX2 TRACK ", "AMP TRACK ", "LFO TRACK ",
-					      "MIDI TRACK " };
+	static const char *const kname[6] = { "FX1 TRACK ", "FX2 TRACK ", "AMP TRACK ", "LFO TRACK ",
+					      "MIDI TRACK ", "SRC TRACK " };
 	int k = 0;
 	for (const char *c = kname[tpl_view.kind]; *c; c++)
 		line1[k++] = *c;
@@ -2147,7 +2172,7 @@ void brain_open_templates(u32 unused)
 	u32 n = 1, first = 0;
 	for (u32 i = 0; i <= TROWS; i++)
 		trow_ref[i] = 0xffff;
-	for (u32 e = 0; e < ST_BASE + 3 && n < TROWS; e++) {
+	for (u32 e = 0; e < ST_BASE + ST_N && n < TROWS; e++) {
 		if (e >= brain_fx_n && e < ST_BASE)
 			continue;
 		u32 ki = img_count(e), kc = 0;
@@ -2384,6 +2409,132 @@ static int write_names(void)
 		kept++;
 	}
 	return write_store(pw, 2, at, kept) < 0 ? 4 : 0;
+}
+
+/* ---- project settings for new projects (BRAIN.md section 3) -------------- */
+
+/* The stock PROJECT menu's bytes (docs/firmware/STORAGE.md section 5:
+ * bytes from 0x80000000, each mirrored in CS1 at 0x100b1460 + the same
+ * offset), TEMPOx24 left out: SAVE PROJ SETUP stores them as a card-layer
+ * default of store stock.project (keys 1 + offset, raw bytes); CREATE
+ * EMPTY PROJECT applies it right after the empty project's RAM is set up
+ * (0x400909d8; the detour at 0x40085176, hooks.s brain_on_newproj), so the
+ * new project.work is written with them. */
+#define PS_STORE   "stock.project"
+#define PS_LAYOUT  0x50524a31u			/* "PRJ1" */
+#define PS_RAM     0x80000000u
+#define PS_CS1     0x100b1460u
+static int ps_byte(u32 off)
+{
+	return off == 0x24 || (off >= 0x28 && off <= 0x37) || (off >= 0x3f && off <= 0x54)
+	       || (off >= 0x56 && off <= 0x6a);
+}
+
+/* NP_RUNS: new projects seen; NP_VALUES: bytes the last one took */
+enum { NP_RUNS, NP_VALUES, NP_N };
+u32 brain_np_counts[NP_N] DATA;
+
+/* engine task: SAVE PROJ SETUP (clear 0) or CLEAR PROJ SETUP (clear 1) */
+static int write_pset(int clear)
+{
+	int n = current_store();
+	if (n < 0)
+		return 2;
+	u32 at = HDR, kept = 0;
+	for (u32 r = 0, i = HDR; n && r < be16(buf + 10); r++, i += be32(buf + i + 16)) {
+		const u8 *p = buf + i;
+		u32 size = be32(p + 16);
+		if (p[0] == K_DEFAULT && same_id(p + REC_HDR, p[1], PS_STORE, 13))
+			continue;
+		if (at + size > BUF_LEN)
+			return 3;
+		for (u32 b = 0; b < size; b++)
+			out[at + b] = p[b];
+		at += size;
+		kept++;
+	}
+	if (!clear) {
+		u32 nv = 0;
+		for (u32 off = 0; off < 0x70; off++)
+			nv += ps_byte(off);
+		u32 plen = 8 + 8 * nv, size = REC_HDR + align4(13) + plen;
+		if (at + size > BUF_LEN)
+			return 3;
+		u8 *r = out + at;
+		for (u32 b = 0; b < size; b++)
+			r[b] = 0;
+		r[0] = K_DEFAULT;
+		r[1] = 13;
+		put16(r + 2, 1);
+		put32(r + 8, plen);
+		put32(r + 16, size);
+		for (u32 b = 0; b < 13; b++)
+			r[REC_HDR + b] = (u8)PS_STORE[b];
+		u8 *pay = r + REC_HDR + align4(13);
+		put16(pay + 2, NO_MODE);
+		put32(pay + 4, PS_LAYOUT);
+		u8 *w = pay + 8;
+		for (u32 off = 0; off < 0x70; off++)
+			if (ps_byte(off)) {
+				put16(w, 1 + off);
+				w[2] = T_BYTE;
+				w[3] = 1;
+				w[4] = *(volatile u8 *)(PS_RAM + off);
+				w += 8;
+			}
+		put32(r + 12, crc32(pay, plen));
+		at += size;
+		kept++;
+	}
+	return write_card(at, kept) < 0 ? 4 : 0;
+}
+
+/* engine task, inside CREATE EMPTY PROJECT: the card's stock.project
+ * default onto the settings bytes and their CS1 mirrors */
+void brain_new_project(void)
+{
+	u32 n;
+	brain_np_counts[NP_RUNS]++;
+	brain_np_counts[NP_VALUES] = 0;
+	int st = pair_load("/BRAIN/card.work", "/BRAIN/card.strd", &n);
+	if (st != 1 && st != 2)
+		return;
+	u32 count = be16(buf + 10);
+	for (u32 r = 0, at = HDR; r < count; r++, at += be32(buf + at + 16)) {
+		const u8 *p = buf + at;
+		const u8 *pay = p + REC_HDR + align4(p[1]);
+		u32 plen = be32(p + 8);
+		if (p[0] != K_DEFAULT || !same_id(p + REC_HDR, p[1], PS_STORE, 13) || plen < 8
+		    || crc32(pay, plen) != be32(p + 12) || be32(pay + 4) != PS_LAYOUT)
+			continue;
+		for (u32 v = 8; v + 4 <= plen && pay[v + 3] != 0xff; v += 4 + align4(pay[v + 3])) {
+			u32 key = be16(pay + v);
+			if (pay[v + 2] != T_BYTE || pay[v + 3] != 1 || key < 1 || !ps_byte(key - 1))
+				continue;
+			*(volatile u8 *)(PS_RAM + key - 1) = pay[v + 4];
+			*(volatile u8 *)(PS_CS1 + key - 1) = pay[v + 4];
+			brain_np_counts[NP_VALUES]++;
+		}
+		return;
+	}
+}
+
+void brain_menu_psave(u32 unused)
+{
+	(void)unused;
+	brain_post_template(0x1000000);
+	msg[0] = "PROJECT SETTINGS";
+	msg[1] = "SAVED FOR NEW PROJ";
+	POPUP("DEFAULTS", 2, msg, 0, 0);
+}
+
+void brain_menu_pclear(u32 unused)
+{
+	(void)unused;
+	brain_post_template(0x2000000);
+	msg[0] = "PROJECT SETTINGS";
+	msg[1] = "CLEARED";
+	POPUP("DEFAULTS", 2, msg, 0, 0);
 }
 
 /* ---- live popups: TOOLS > MIDI MONITOR and TOOLS > LOAD ------------------- */

@@ -856,6 +856,72 @@ def main():
     check(f"cc map: with FX1 CC = 80 in the project, CC 82 sets T1's FX1 page-2 slot 8 and CC 70 does not "
           f"(slot 8 = {p2[2]:#x}, want 0x21)", p2[2] == 0x21)
 
+    # ---- templates on the SRC page: the target of T1's machine type ---------
+    # The machine byte (Part +0x8eda2 + t) names the target (stock.static,
+    # .flex, .thru, .neighbor, .pickup); its slots and ranges are the
+    # PLAYBACK descriptor's for that machine (brain.stock_slots). SAVE on
+    # T1's SRC page, then LOAD of a seeded TPL 99 (each value + 1 inside its
+    # count), as for AMP above.
+    _, _, (mach_b,) = ui_run("src_machine", [(0x32, 400)], dumps=((part_at + 0x8eda2, 1),))
+    mname = brain.MACHINES[mach_b[0]] if mach_b[0] < len(brain.MACHINES) else None
+    if mname is None or not brain.stock_slots(mname, rd_stock):
+        check(f"templates: T1's machine type {mach_b[0]} has SRC slots to test", False)
+    else:
+        sid, slay = brain.STOCK_TARGETS[mname]
+        slots = brain.stock_slots(mname, rd_stock)
+        regions = ((0x8edaa + 6 * mach_b[0], 6), (0x8ef5a + 6 * mach_b[0], 6))
+        page, mw, _, part = tpl_run("tpl_src_save", (0x20, 0x20, 0x31, 0x31), None, part_at, (0x32, 0x10, 0x22),
+                                    0x22, regions)
+        trecs = [r for r in brainfile.parse(mw).records if r.kind == brainfile.TEMPLATE_REC] if mw else []
+        got = {v.key: v.data[0] for v in trecs[0].values()} if len(trecs) == 1 else {}
+        want = {k: part[k - 1] for k, _n, _l, _c in slots}
+        check(f"templates: SAVE TEMPLATE on T1's SRC page ({mname}) writes one {sid} record of its "
+              f"{len(want)} Part bytes  {got == want}", len(trecs) == 1 and trecs[0].store_id == sid and got == want)
+        seedv = {k: lo + (part[k - 1] - lo + 1) % c if c > 1 else part[k - 1] for k, _n, lo, c in slots}
+        vals = b"".join(brainfile.Value(k, brainfile.BYTE, bytes([v])).encode() for k, v in seedv.items())
+        seed = brainfile.File(brainfile.CARD_WORK, [brainfile.Record(brainfile.TEMPLATE_REC, sid,
+            payload=brainfile.prefix_bytes(brainfile.TEMPLATE_REC, layout=slay, name="TPL 99") + vals)]).encode()
+        _, _, _, lp = tpl_run("tpl_src_load", (0x20, 0x20, 0x20, 0x31, 0x31), seed, part_at, (0x32, 0x10, 0x22),
+                              0x22, regions)
+        bad = [k for k, v in seedv.items() if lp[k - 1] != v]
+        check(f"templates: LOAD TEMPLATE of a seeded {sid} TPL 99 writes T1's SRC bytes in the current Part "
+              f"({sum(seedv[k] != part[k - 1] for k in seedv)} differ from before, wrong keys {bad})",
+              not bad and any(seedv[k] != part[k - 1] for k in seedv))
+
+    # ---- project settings for new projects (stock.project) ------------------
+    # Run 1: BRAIN > DEFAULTS > SAVE PROJ SETUP writes a card default of the
+    # settings bytes (docs/firmware/STORAGE.md section 5) equal to RAM.
+    # Run 2: card.work seeded with LOAD_24BIT_FLEX (0x51) = 1 and
+    # MIDI_AUTO_CHANNEL (0x47) = 5; PROJECT > CHANGE > <CREATE EMPTY
+    # PROJECT>, its name confirmed: the new project.work carries both (a
+    # new project's own values are 0 and 10, measured under the port).
+    ps_keys = [1 + o for o in range(0x70) if o == 0x24 or 0x28 <= o <= 0x37 or 0x3f <= o <= 0x54
+               or 0x56 <= o <= 0x6a]
+    keys = [(0x32, 400), (0x1c, 1200)] + [(0x20, 400)] * 4 + [(0x21, 800), (0x20, 400), (0x31, 800),
+                                                               (0x20, 400), (0x20, 400), (0x31, 2500)]
+    files, _, (ram,) = ui_run("pset_save", keys, dumps=((0x80000000, 0x70),))
+    work_ = card_file(files, "BRAIN/CARD.WORK")
+    prec = [r for r in brainfile.parse(work_).records
+            if r.kind == brainfile.DEFAULT and r.store_id == "stock.project"] if work_ else []
+    got = {v.key: v.data[0] for v in prec[0].values()} if len(prec) == 1 else {}
+    check(f"project settings: SAVE PROJ SETUP writes one stock.project default of the {len(ps_keys)} settings "
+          f"bytes, equal to RAM  ({len(got)} values)", got == {k: ram[k - 1] for k in ps_keys})
+    pseed = OUT / "pset_seed.work"
+    pseed.write_bytes(brainfile.File(brainfile.CARD_WORK, [brainfile.Record(brainfile.DEFAULT, "stock.project",
+        payload=brainfile.prefix_bytes(brainfile.DEFAULT, layout=0x50524a31)
+        + brainfile.Value(1 + 0x51, brainfile.BYTE, b"\x01").encode()
+        + brainfile.Value(1 + 0x47, brainfile.BYTE, b"\x05").encode())]).encode())
+    keys = [(0x32, 400), (0x1c, 1000), (0x31, 1000), (0x31, 1000), (0x33, 600), (0x31, 1400), (0x31, 13000)]
+    files, _, _ = ui_run("pset_new", keys, roots=((pseed, "BRAIN/card.work"),))
+    newp = next((v for k, v in files.items() if k.upper().endswith("PROJECT.WORK") and a.name not in k.upper()), None)
+    sett = {}
+    if newp:
+        t_ = newp.decode("latin1")
+        sett = dict(l.split("=", 1) for l in t_[t_.find("[SETTINGS]"):t_.find("[/SETTINGS]")].splitlines() if "=" in l)
+    got = {k: sett.get(k) for k in ("LOAD_24BIT_FLEX", "MIDI_AUTO_CHANNEL")}
+    check(f"project settings: CREATE EMPTY PROJECT applies the card's stock.project default to the new "
+          f"project.work  {got}", got == {"LOAD_24BIT_FLEX": "1", "MIDI_AUTO_CHANNEL": "5"})
+
     # ---- live popups: TOOLS > MIDI MONITOR, TOOLS > LOAD, FUNC + LEVEL push --
     # With the frame timer (--frame) so LOAD METER publishes; each run dumps
     # the stock dialog's copies of its three lines (0x460e5d28, 31 apart),

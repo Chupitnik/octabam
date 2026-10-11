@@ -197,3 +197,17 @@ brain_klabel_hook:
         lea     %sp@(12),%sp
         move.l  %a1,%sp@-
         jmp     0x4004e480
+
+| ---- CREATE EMPTY PROJECT ---------------------------------------------------
+| Detour at 0x40085176 (`jsr 0x40096f24`), right after the empty project's
+| RAM is set up (0x400909d8) in the new-project job: brain_new_project puts
+| the card's project settings on the settings bytes, then the displaced call
+| runs with the return address the site gave.
+        .globl  brain_on_newproj
+brain_on_newproj:
+        lea     %sp@(-16),%sp
+        movem.l %d0-%d1/%a0-%a1,%sp@
+        jsr     brain_new_project
+        movem.l %sp@,%d0-%d1/%a0-%a1
+        lea     %sp@(16),%sp
+        jmp     0x40096f24
