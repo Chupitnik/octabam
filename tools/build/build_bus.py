@@ -127,6 +127,14 @@ REMIX = remix_registry.remix(os.environ.get("REMIX"))
 # Every module, the selected ones bound to the remix's build-time settings
 # (schema.Module.bind): the build reads a module's code from here only.
 _BOUND = remix_registry.bound(REMIX)
+for _v in ("NOTEMPO", "TEMPOCAVE"):
+    if os.environ.get(_v):
+        sys.exit(f"{_v} is TEMPO SYNC's CAVE setting since 11 Oct 2026: "
+                 f"REMIX=test/bus-notempo or test/bus-tempo-replay, or "
+                 f"settings={{('octabam.tempo-sync', 'CAVE'): Pin('OFF' | 'REPLAY')}} in a remix")
+# TEMPO SYNC's CAVE diagnostic (ON when the remix does not carry it)
+TEMPO_CAVE_MODE = _BOUND["TEMPO SYNC"].build_values.get("CAVE", "ON") \
+    if "TEMPO SYNC" in REMIX.modules else "ON"
 
 
 def remix_modules():
@@ -716,9 +724,9 @@ def main():
         img[i], img[i + 1], img[i + 2] = v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff
 
     # ==== 1. ColdFire menu tables (task 11) =================================
-    if os.environ.get("TEMPOCAVE") == "replay":
+    if TEMPO_CAVE_MODE == "REPLAY":
         FULLNAME["DELAY SERVER"] = b"BusDlyRPL" + BUILD_TAG
-    elif os.environ.get("NOTEMPO") == "1":
+    elif TEMPO_CAVE_MODE == "OFF":
         FULLNAME["DELAY SERVER"] = b"BusDlyNOC" + BUILD_TAG
     # ---- the descriptor clones: ROM, or DRAM in a remix with DRAM units --
     # With a DRAM runtime the clones are built at a STAGING address past the
@@ -974,9 +982,8 @@ def main():
     # This is only the installer, and it is generic: a module contributing
     # caves needs no change here.
     #
-    # No cave is installed if NOTEMPO=1, and none if the remix carries no
-    # module that has any -- in both cases the DSP side reads zeros and SYNC
-    # is a no-op by design.
+    # No cave is installed if the remix carries no module that has any.
+    # TEMPO SYNC's CAVE setting chooses its own (its manifest's variant).
     import shutil, tempfile
     _sym = {}                       # cave/unit label -> {symbol: address}
     _exports = {}                   # GLOBAL symbols of every unit linked so
@@ -1030,8 +1037,7 @@ def main():
     _caves = [c for c in _caves
               if not (c.registers_formatter is not None
                       and c.registers_formatter.module in BLANKED)]
-    _replay = os.environ.get("TEMPOCAVE") == "replay"
-    _plan = []
+    _plan = [(_c, _c.pinned) for _c in _caves]
     # ---- overrides (schema.Override): a bridge stands in at a shared site --
     # Collected before anything is written: which detours to skip.
     _ovr_detours: set[tuple[int, str]] = set()          # (site, module key)
@@ -1042,23 +1048,6 @@ def main():
                          f"remix does not carry -- nothing to bridge; drop {_k}")
             _ovr_detours.add((_o.site, _o.module))
 
-    for _c in _caves:
-        _b = _c.pinned
-        if _replay and _c.hook_addr is not None:
-            # Replaying displaced bytes at the cave's address only works for
-            # position-independent stock. cfprobe displaces a pc-relative
-            # jsr, which replayed from the cave would land in hyperspace
-            # inside the audio interrupt -- refuse rather than build that.
-            if _c.hook_stock[:2] in (b"\x4e\xba", b"\x4e\xbb") \
-                    or _c.hook_stock[:1] == b"\x61":
-                sys.exit(f"{_c.label}: TEMPOCAVE=replay cannot replay "
-                         f"pc-relative stock ({_c.hook_stock.hex()})")
-            _b = _c.hook_stock + bytes.fromhex("4e75")
-            print(f"  {_c.label}: REPLAY-ONLY diagnostic (TEMPOCAVE=replay)")
-        _plan.append((_c, _b))
-    if os.environ.get("NOTEMPO") == "1":
-        print("  tempo cave OFF (NOTEMPO=1) -- SYNC reads zeros")
-        _plan = []
     _cave_top = cave_end            # caves start past the descriptor clones
     _last_placed = "the descriptor clones"      # what ends at _cave_top
     _ovf_top = OVERFLOW_RUN
@@ -1193,7 +1182,7 @@ def main():
         # path and is left exactly alone. Without a toolchain the reference
         # is written, as it always was.
         _legacy_emit = _c.emit is not None and len(_b) > 0
-        if _c.source and not _replay and _toolchain and not _legacy_emit:
+        if _c.source and _toolchain and not _legacy_emit:
             # A bridge may redefine one of this cave's defsyms (CC_NEXT):
             # the linked bytes then differ from the ratified form by exactly
             # that address, so the oracle is set aside for it and said so.
@@ -1248,7 +1237,7 @@ def main():
                 sys.exit(f"{_c.label} not free")
             _b = _lb
             _sym[_c.label] = _lsyms
-        elif _c.source and not _replay and not _legacy_emit and not _b:
+        elif _c.source and not _legacy_emit and not _b:
             sys.exit(f"{_c.label}: its source is the only truth and there is no "
                      f"m68k-elf toolchain -- run `make setup`")
         img[_c.cave_addr - BASE:_c.cave_addr - BASE + len(_b)] = _b
@@ -1467,11 +1456,10 @@ def main():
         _exports.update(_psyms)
         # DRAM label formatters (Linked.registers_formatter), as the cave
         # registration above: skipped for a module not cloned or BLANKED,
-        # and under NOTEMPO=1 with the caves.
+        # (CAVE OFF drops TEMPO SYNC's unit itself).
         for _m, _u in _dram:
             _reg = _u.registers_formatter
-            if (_reg is None or _reg.module not in clone_addr or _reg.module in BLANKED
-                    or os.environ.get("NOTEMPO") == "1"):
+            if _reg is None or _reg.module not in clone_addr or _reg.module in BLANKED:
                 continue
             _fa = _psyms[_reg.symbol] + _reg.offset
             wr32(clone_addr[_reg.module] + 0x0ca + _reg.slot * 4, _fa)
