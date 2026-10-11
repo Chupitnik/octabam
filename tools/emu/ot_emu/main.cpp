@@ -2428,6 +2428,15 @@ int main(int _argc, char** _argv)
 						txSeen = sz;
 					}
 				};
+				// "<ms> wait ADDR HEXBYTES eq|ne|chg CAP_MS": at <ms> (plus the shift so far) run until
+				// the bytes at ADDR are (eq), are not (ne) HEXBYTES, or differ from what they were
+				// when the wait began (chg; HEXBYTES only gives the length), at most CAP_MS more; the
+				// lines after it keep their times as if the wait had taken its whole cap, so a wait
+				// that ends early pulls them forward by what it saved (shiftMs). A wait that
+				// reaches its cap prints "WAIT TIMEOUT" and the script goes on.
+				double shiftMs = 0;
+				size_t timeouts = 0;
+				const auto msFrames = [](double _ms) { return static_cast<uint64_t>(_ms / 1000.0 * ot::g_sampleHz / ot::g_framePeriod); };
 				while(std::getline(in, line) && !live.quit)
 				{
 					std::istringstream is(line);
@@ -2436,7 +2445,55 @@ int main(int _argc, char** _argv)
 						continue;
 					std::string rest;
 					std::getline(is, rest);
-					const auto at = f0 + static_cast<uint64_t>(ms / 1000.0 * ot::g_sampleHz / ot::g_framePeriod);
+					ms += shiftMs;
+					const auto at = f0 + msFrames(ms);
+					if(rest.compare(0, 6, " wait ") == 0)
+					{
+						std::istringstream ws(rest.substr(6));
+						std::string addrS, hex, op; double cap = 0;
+						ws >> addrS >> hex >> op >> cap;
+						const auto addr = static_cast<uint32_t>(std::strtoul(addrS.c_str(), nullptr, 0));
+						std::vector<uint8_t> want;
+						for(size_t i = 0; i + 1 < hex.size(); i += 2)
+							want.push_back(static_cast<uint8_t>(std::strtoul(hex.substr(i, 2).c_str(), nullptr, 16)));
+						const bool wantEq = op == "eq";		// ne and chg wait for the bytes to differ
+						if(op == "chg")			// the bytes differ from what they were when the wait began
+							for(size_t i = 0; i < want.size(); ++i)
+								want[i] = m.read8(addr + static_cast<uint32_t>(i));
+						const auto holds = [&]
+						{
+							bool eq = true;
+							for(size_t i = 0; i < want.size(); ++i)
+								eq = eq && m.read8(addr + static_cast<uint32_t>(i)) == want[i];
+							return eq == wantEq;
+						};
+						if(rtos.runUntil(ms * 5 + 60000.0, [&] { txMark(); return rtos.frameCount() >= at; }, ot::Rtos::Changes::OnEvent) != ot::Rtos::Stop::Gate)
+						{
+							std::printf("live script: stopped before %.0f ms -- %s\n", ms, rtos.why().c_str());
+							early = true;
+							break;
+						}
+						const auto end = rtos.frameCount() + msFrames(cap);
+						if(rtos.runUntil((ms + cap) * 5 + 60000.0, [&] { txMark(); return holds() || rtos.frameCount() >= end; }, ot::Rtos::Changes::OnEvent) != ot::Rtos::Stop::Gate)
+						{
+							std::printf("live script: stopped in a wait at %.0f ms -- %s\n", ms, rtos.why().c_str());
+							early = true;
+							break;
+						}
+						const double waited = static_cast<double>(rtos.frameCount() - at) * ot::g_framePeriod / ot::g_sampleHz * 1000.0;
+						if(holds())
+						{
+							std::printf("live script: wait %s %s %s met after %.0f ms (cap %.0f)\n", addrS.c_str(), hex.c_str(), op.c_str(), waited, cap);
+							shiftMs -= cap - waited;
+						}
+						else
+						{
+							std::printf("live script: WAIT TIMEOUT %s %s %s after %.0f ms\n", addrS.c_str(), hex.c_str(), op.c_str(), cap);
+							++timeouts;
+						}
+						++n;
+						continue;
+					}
 					if(rtos.runUntil(ms * 5 + 60000.0, [&] { txMark(); return rtos.frameCount() >= at; }, ot::Rtos::Changes::OnEvent) != ot::Rtos::Stop::Gate)
 					{
 						std::printf("live script: stopped before %.0f ms -- %s\n", ms, rtos.why().c_str());
@@ -2446,6 +2503,8 @@ int main(int _argc, char** _argv)
 					liveLine(rest);
 					++n;
 				}
+				if(timeouts)
+					std::printf("live script: WAIT TIMEOUT x%zu\n", timeouts);
 				std::printf("live script: %zu line(s) from %s over %llu frames, ended %s -- %s\n", n, liveScript.c_str(),
 					static_cast<unsigned long long>(rtos.frameCount() - f0), early ? "early" : (live.quit ? "on quit" : "at the end"),
 					rtos.why().c_str());

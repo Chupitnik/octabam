@@ -155,6 +155,9 @@ STATE = ("READY KDIRTY NOWRITE PENDING ISR NOSLOT INVALID IOERR BADFILE "
 K = dict(no=0x32, yes=0x31, play=0x28, stop=0x27, ptn=0x2e, func=0x2d, part=0x1d,
          up=0x33, down=0x20, right=0x21, mixer=0x30, rec=0x29)
 BANK = 2                                  # bank 3: the project's own
+ENG_PART = 0x80001829                     # the engine's current Part: changes when a pattern switch lands
+TEMPO24 = 0x80001814, 0x80000020          # BPM x 24 and its shadow (long); the setter's clamp is 720..7200
+FAST = [(a + i, v) for a in TEMPO24 for i, v in enumerate((0, 0, 5760 >> 8, 5760 & 255))]   # 240 BPM
 NEWKNOB = (5, 11)                         # knob A turns on patterns 2 and 3 of the panel-made project
 MKI = dict(midi=0x35, bank=0x2f, recab=0x2b)   # held with FUNC on the MKI panel
 MENU = 0x460e5e28                         # the stock list: callbacks, labels, object, &selection
@@ -238,6 +241,14 @@ class Script:
 
     def wait(self, ms):
         self.send("enc 6 0", ms)
+
+    def until(self, addr, nbytes, op="chg", cap=20000):
+        """Wait for the event instead of a time (ot_emu's `wait` line): the bytes at
+        `addr` differ from what they were when the wait began (chg), or are
+        (eq) / are not (ne) the hex `nbytes`; at most `cap` ms. A cap reached
+        is a FAIL (clean()). The lines after it follow the event."""
+        arg = "00" * nbytes if op == "chg" else nbytes
+        self.lines.append(f"{self.t:.0f} wait {addr:#x} {arg} {op} {cap}"); self.t += cap
 
     def clock(self, start, end, bpm=120):
         """MIDI clock (F8, 24 per beat) from start to end ms, beside the
@@ -364,12 +375,17 @@ def main():
     def pb(ptn):
         return b3 + ptn * PSTRIDE + PBYTE
 
+    SAVE_MARGIN = int(os.environ.get("KITS_SAVE_MARGIN", "15000"))
     scen, mki_scen, scripts = [], [], {}
+    NOPLAY = set(filter(None, os.environ.get("KITS_NOPLAY", "").split(",")))     # negative test: these scenarios never press PLAY
 
-    def add(tag, script=None, pokes=(), extra=(), more_dumps="", mki=False):
+    def add(tag, script=None, pokes=(), extra=(), more_dumps="", mki=False, fast=False):
         if only and tag not in only:
             return
         args = []
+        pokes = list(pokes) + (FAST if fast else [])
+        if tag in NOPLAY and script is not None:        # the negative test: no transport, no switch
+            script.lines = [l for l in script.lines if "key 0x28 " not in l]
         if pokes:
             args += ["--poke", ";".join(f"{x:#x}={v:#x}" for x, v in pokes)]
         if script is not None:
@@ -378,12 +394,12 @@ def main():
         (mki_scen if mki else scen).append(f"{OUT / (tag + '.txt')} " + " ".join(map(str, args)))
         scripts[tag] = script
 
-    def playing_switch(s, ptn, wait=17000):
-        s.tap("no"); s.tap("play", 2000); s.hold("ptn", ptn); s.wait(wait)
+    def playing_switch(s, ptn):
+        s.tap("no"); s.tap("play", 2000); s.hold("ptn", ptn); s.until(ENG_PART, 1)
 
     s = Script(); s.tap("no"); add("base", s, extra=["--card-out", OUT / "base.img"])
-    s = Script(); playing_switch(s, 1); add("free", s, [(pa(1), 0)])
-    s = Script(); playing_switch(s, 1); add("repoint", s, [(pa(1), 0), (pb(1), 0)])
+    s = Script(); playing_switch(s, 1); add("free", s, [(pa(1), 0)], fast=True)
+    s = Script(); playing_switch(s, 1); add("repoint", s, [(pa(1), 0), (pb(1), 0)], fast=True)
     s = Script(); s.tap("no"); s.hold("ptn", 1); s.wait(1500); add("stopped", s, [(pa(1), 0), (pb(1), 0)])
     (OUT / "progchg.midi").write_text("200 c0 21\n")
     add("progchg", None, [(pa(1), 0), (pb(1), 0)],
@@ -398,10 +414,13 @@ def main():
     # on a pattern switch); switched 3, 4, 3, 4 while playing.
     s = Script(); s.tap("no"); s.tap("play", 2000)
     for p_ in (2, 3, 2, 3):
-        s.hold("ptn", p_); s.wait(17000)
-    add("swback", s, [(pa(2), 2), (pa(3), 3), (pb(2), 0), (pb(3), 0)])
+        s.hold("ptn", p_); s.until(ENG_PART, 1)
+    add("swback", s, [(pa(2), 2), (pa(3), 3), (pb(2), 0), (pb(3), 0)], fast=True)
     cpokes = [(pa(1), 0), (pa(2), 1), (pa(3), 4), (pb(1), 0), (pb(2), 0), (pb(3), 0)]
-    s = Script(); chain(s, lambda s: s.wait(48000)); add("chain", s, cpokes)
+    def chain_cycle(s):                      # patterns 2, 3, 4 each land: three changes of the engine's Part
+        for _ in range(3):
+            s.until(ENG_PART, 1)
+    s = Script(); chain(s, chain_cycle); add("chain", s, cpokes, fast=True)
 
     def sweep(s):
         s.wait(11500)
@@ -533,7 +552,8 @@ def main():
     def loadkit(s):
         s.tap("no"); s.tap("part", 800); s.tap("up", 200); s.tap("up", 200); s.tap("yes", 1500)
     s = Script(); loadkit(s)
-    s.tap(0x1c, 1000); s.tap("right", 700); s.tap("down", 500); s.tap("yes", 1100); s.tap("yes", 30000)  # PROJ: SAVE PROJECT
+    s.tap(0x1c, 1000); s.tap("right", 700); s.tap("down", 500); s.tap("yes", 1100); s.tap("yes", 400)  # PROJ: SAVE PROJECT
+    s.until(KS + 4, "00000000", "eq", 60000); s.wait(SAVE_MARGIN)       # kits.work written (KDIRTY clear), then the rest of the save
     add("saveproj", s, extra=["--card-out", OUT / "saved.img"],
         more_dumps=f";{CS1:#x},{CS1_LEN:#x}={OUT / 'cs1_saved.bin'}")
     s = Script(); loadkit(s); s.wait(2000)
@@ -556,7 +576,7 @@ def main():
     newb = f";{BLOB:#x},{BSTRIDE:#x}={OUT / 'NAME_b1.bin'}"
     s = Script(); newproj(s); s.tap("play", 2000)
     for p_ in (1, 2):
-        s.hold("ptn", p_); s.wait(17000)
+        s.hold("ptn", p_); s.until(ENG_PART, 1)
     add("newproj", s, more_dumps=newb.replace("NAME", "newproj"))
     s = Script(); newproj(s)
     s.tap(0x1c, 1000); s.tap("right", 700); s.tap("down", 500); s.tap("yes", 1100); s.tap("yes", 30000)  # SAVE PROJECT
@@ -636,7 +656,8 @@ def main():
 
     def clean(tag, extra_ok=()):
         log = (OUT / f"{tag}.txt").read_text(errors="replace")
-        halted = any(w in log for w in ("stopped before", "FAULT", "ILLEGAL", "EXCEPTION", "DID NOT RETURN"))
+        halted = any(w in log for w in ("stopped before", "stopped in a wait", "FAULT", "ILLEGAL", "EXCEPTION", "DID NOT RETURN",
+                                        "WAIT TIMEOUT"))
         s = st(tag)
         bad = {k: s[k] for k in ("NOSLOT", "INVALID", "IOERR", "BADFILE") if s[k] and k not in extra_ok}
         check(f"{tag}: no halt, READY {s['READY']}, counters {bad or 'zero'} (ISR {s['ISR']}, "
@@ -971,7 +992,7 @@ def main():
                if len(v) != size or v[:4] != b"FORM" or int.from_bytes(v[-2:], "big") != sum(v[0x10:-2]) & 0xffff]
         check(f"newsave: SAVE PROJECT of '{name}' wrote {len(banks)} bank files, each {size} B, FORM, its checksum "
               f"holding ({bad})", len(banks) == 32 and not bad)
-        sc = Script(); sc.tap("no"); sc.tap("play", 2000); sc.hold("ptn", 1); sc.wait(17000)
+        sc = Script(); sc.tap("no"); sc.tap("play", 2000); sc.hold("ptn", 1); sc.until(ENG_PART, 1)
         (OUT / "newboot.script").write_text(sc.text())
         run([EMU, "--image", image, "--card", OUT / "newsave.img", "--set", "OCTABAM", "--project", name,
              "--load-ms", "90000", "--mkii", "--live-script", OUT / "newboot.script", "--card-out", OUT / "newboot.img",
