@@ -259,13 +259,13 @@ than the binary.
 
 | changed | reaches |
 |---|---|
-| `modules/<name>/` | `make check` and `make accept` for every remix that carries the module |
+| `modules/<name>/` | the shared half scoped to the module (`MODULES=<key>`: its own shared module gates and its knob census, plus the registry steps), the per-remix half and `make accept` for every remix that carries the module |
 | `modules/<name>/README.md`, or a manifest edit to display fields only (`doc`, `proof`, `proof_note`, `author`, `author_url`, `category`, docstrings) | `verify_docs` |
 | `remixes/<name>/remix.py` (or `remixes/test/...`) | `make check` and `make accept` for that remix; an edit to `doc`, `proof`, `proof_note` or a docstring only, or a README alone, reaches `verify_docs`; a removed remix the selftest and `verify_docs` |
 | the build (`build_bus.py`, `cycle_count.py`, `dsp/`) or anything it imports | `scripts/refhash.sh check`, `make identity`, `make test-acceptance`, `make check-shared` for the cover |
 | a gate of the shared half | `make check-shared` for the cover |
 | a gate of the per-remix half | `make check-remix` for the cover |
-| a manifest gate | its owners' remixes |
+| a manifest gate | `remix_arg=False` or `once=True`: the shared half scoped to its owners; otherwise the per-remix half of its owners' remixes |
 | the acceptance runner, the stress generator, `pressure.py` | `make test-acceptance`, the cover, `make accept` on the cover |
 | `tools/harness/dsp_host/`, `tools/patches/`, `scripts/setup.sh`, `scripts/vendor.sh` | `make ci-dsp`, then the cover (rebuild the toolchain first) |
 | `tools/emu/ot_emu/` | `make ci-emu`, `make emu-cf`, the cover's per-remix half |
@@ -294,10 +294,52 @@ With `STRESS_SOURCE=<a local project>` the accept lines run and replace the
 check lines for the same remixes. Without it, accept is listed as blocked
 and the check lines stay.
 
+**Scoped shared half** (11 Oct 2026). `make check-shared MODULES="A,B"`
+runs the selftest, slots, replaces, docs, the remixer and `label_fmt` as
+always (about 45 s together, measured under load 10-36), and the knob
+census and the shared module gates for those modules only: the census
+says "not reached" when none of them is a DSP module of its fixture. The
+whole shared half for bottleservice runs nine module gates (twocore,
+onebus, spectrum, character, charkey, modulation, ccmap, ccfeedback,
+kits) and the 90 s census; a KITS change needs one of them. Two scoped
+lines merge into one with the union of their modules; an unscoped line
+makes the merged line the whole half.
+
+**One remix splits too.** With `JOBS` above 1 (QUICK's default is 2), a
+change that reaches one remix runs its shared half and then its per-remix
+half through `check_shards.py` split by gate, instead of a serial
+`make check` in this tree.
+
+**Cached passes** (11 Oct 2026, `tools/verify/gate_cache.py`). Every job
+`check_shards.py` runs (a remix's whole half, or one gate job) builds the
+remix's image and looks itself up by a key over the image, the job's
+scripts and everything they reach in the tools/ graph, the Makefile, the
+remix's and its modules' tracked files, the port's sources, `dsp_asm` and
+`dsp_host` by content, the project (each file's path, size and mtime),
+the `.venv` interpreter, `BUILD` and `OT_BANK`. A hit is reported `cached`
+with the commit and time of the pass, replays the pass's `[SKIP]` lines
+and is not run. Passes are stored in `<git common dir>/octabam-gate-cache/`
+(failures are not), so a pass in one worktree is a hit in every other on
+the machine. After a rebase onto a
+main that did not move a remix's image or a gate's inputs, the second run
+before merging is cache hits. `CACHE=0` (`--no-cache`) runs every job. The
+key cannot see a file a gate reads through a path built at run time, or
+anything outside the repository other than the toolchain and the project.
+The shared half and `make accept` are not cached.
+
+**Gate slots** (11 Oct 2026, `tools/verify/slots.py`). Each `check_shards`
+job and each command `reach` runs in its own tree holds one of the
+machine's slots (`OCTABAM_SLOTS`, default 3) while it runs; the rest wait
+and print who holds the slots. `python3 tools/verify/slots.py` lists the
+holders. The same gate measured 35.7 s to 395 s across runs that shared
+the machine (`verify_set` on bottleservice, `times.json` of eight
+worktrees, 29 Sep-10 Oct 2026; the Rosetta port accounts for up to 1.75x
+of that before 6 Oct). A `make check` run by hand takes no slot.
+
 ## 7. Parallel runs: shards
 
 `tools/verify/check_shards.py` (`make check-remixes REMIXES="a b" JOBS=4`,
-and what `make reach JOBS=4` uses) runs each remix's per-remix half in its
+and what `make reach` uses) runs each remix's per-remix half in its
 own worktree under `out/shards/<i>`: a detached checkout of HEAD with this
 tree's uncommitted diff applied, `vendor/` and `.venv/` symlinked, the
 stock slice copied in, submodules initialised, its own port built. Shards
@@ -309,9 +351,11 @@ recreates, `--rm` removes). Remixes are handed out from one queue. Logs:
 runs as its gate jobs in the same queue as the other remixes' whole
 halves, and the queue runs longest first. check_shards records every job's
 duration in `out/check_shards/times.json` after each run; `--split auto`
-(the default) splits a remix whose last time exceeds both 300 s and the
-run's total over the shard count, and with no record the remixes carrying
-OCTAKIT. `--split none` or `--split a,b` overrides. Measured on the cover
+(the default) splits a remix run alone, and a remix whose last time
+exceeds both 300 s and the run's total over the shard count. A split
+remix's gate jobs leave out the `once=True` module gates, as `make
+check-remix` does: the shared half runs them (until 11 Oct 2026 a split
+bottleservice ran `verify_kits` twice, 625-1,172 s each). `--split none` or `--split a,b` overrides. Measured on the cover
 with three shards (29 Sep 2026): 681 s whole, 574 s split, for 1,621 s of
 work (the floor for three shards is 540 s). The image-stage module gates
 then became their own job (`verify_set.py --stage-only` stages the image and

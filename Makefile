@@ -226,6 +226,10 @@ verify: verify-shared verify-remix ## The remix-independent gates, then the sele
 # that build their own image (remix_arg=False) do not depend on the remix,
 # and 25 checks used to repeat them 25 times (27 Sep 2026, ~3 h serially).
 REMIXES ?= $(REMIX)
+# MODULES: comma-separated module keys. Set, the shared half runs only
+# those modules' module gates and knob census (`make reach` sets it for a
+# module change: the other modules' shared gates are what they were).
+MODULES ?=
 .PHONY: verify-shared
 verify-shared: ## The gates that do not depend on the remix: ledger selftest, slots, replaces, docs, the remixer draws, label_fmt, knob census, remix-independent module gates (REMIXES="a b")
 	@test -n "$(REMIXES)" || { echo "REMIXES is unset: make $@ REMIXES=\"<name> ...\"   (make modules lists them)"; exit 2; }
@@ -238,11 +242,11 @@ verify-shared: ## The gates that do not depend on the remix: ledger selftest, sl
 	@# The knob click census: every continuous knob of the rig fixture's DSP
 	@# modules moved mid-render, plus the garbage-start gate. Builds its own
 	@# fixture (registry.fixture); remix-independent.
-	$(PY) tools/verify/verify_knob_clicks.py
+	$(PY) tools/verify/verify_knob_clicks.py $(if $(MODULES),--modules "$(MODULES)",)
 	@# Isolated module gates that take no remix: each renders its module on
 	@# a scratch image it builds itself, or checks an author's oracle. Run
 	@# once for the union of the modules across REMIXES.
-	BUILD=$(BUILD) $(PY) tools/verify/module_gates.py --shared $(REMIXES)
+	BUILD=$(BUILD) $(PY) tools/verify/module_gates.py --shared $(REMIXES) $(if $(MODULES),--modules "$(MODULES)",)
 
 .PHONY: verify-remix
 verify-remix: ## The selected remix's own gates: dirty state, init regs, DRAM boot, labels, its module gates, menu, the set under the port, USB
@@ -340,7 +344,7 @@ burn-image: burn ## Repack the RIG BURN build into a card-flashable .bin (BUILD=
 .PHONY: check-remixes
 check-remixes: ## The per-remix half for REMIXES="a b c", JOBS=4 worktrees at a time (out/shards/<i>, each its own port build; logs in out/check_shards/)
 	@test -n "$(REMIXES)" || { echo "REMIXES is unset: make $@ REMIXES=\"<name> ...\"   (make modules lists them)"; exit 2; }
-	BUILD=$(BUILD) $(PY) tools/verify/check_shards.py --jobs $(or $(JOBS),4) $(REMIXES)
+	BUILD=$(BUILD) $(PY) tools/verify/check_shards.py --jobs $(or $(JOBS),4) $(if $(filter 0,$(CACHE)),--no-cache,) $(REMIXES)
 
 .PHONY: check-remix-gates
 check-remix-gates: ## One remix's per-remix half, one gate per job over JOBS=4 worktrees (the wall is the longest gate, not the list; OT_PROJECT as for check-remix)
@@ -389,7 +393,7 @@ identity: ## Which remixes' images this branch moved: every remix built from BAS
 	python3 tools/verify/image_identity.py --base $(BASE)
 .PHONY: reach
 reach: ## The gates this branch's changes reach (the diff against BASE=origin/main), QUICK by default (the carrying remixes, no identity or accept, 2 shards, nice 10); FULL=1 every gate at full speed; TESTS=1 includes remixes/test/; RUN=1 runs them, KEEP=1 every one then a table, JOBS=n the per-remix work over n worktrees
-	$(PY) tools/verify/reach.py --base $(BASE) $(if $(FULL),--full,) $(if $(TESTS),--tests,) $(if $(RUN),--run,) $(if $(KEEP),--keep-going,) $(if $(JOBS),--jobs $(JOBS),) $(REACHARGS)
+	$(PY) tools/verify/reach.py --base $(BASE) $(if $(FULL),--full,) $(if $(TESTS),--tests,) $(if $(RUN),--run,) $(if $(KEEP),--keep-going,) $(if $(JOBS),--jobs $(JOBS),) $(if $(filter 0,$(CACHE)),--no-cache,) $(REACHARGS)
 
 .PHONY: modules
 modules: ## List the module index and the available remixes
