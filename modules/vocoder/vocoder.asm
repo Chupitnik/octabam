@@ -7,7 +7,7 @@
 ; state in this instance's r7 block. No bus, no buffers, no shared window.
 ; Uses r3, r4, r5 (m3, m4, m5 linear); r1 is left alone. One allocator slot
 ; (stock DELAY's mechanism): 20 words of Y for GEND's analysis coefficients.
-; Runs on FX2 of tracks 2, 3, 6 and 7 only (r7 0x6500 or 0x6800): at most two
+; Runs on FX2 of tracks 2, 4, 6 and 8 only (r7 0x6500 or 0x6b00): at most two
 ; per DSP core, which the MKII carries; a dry pass on every other slot, T1 and T5
 ; included (a core's position 0: see proc).
 ;
@@ -50,7 +50,8 @@
 ;               +4 +5 the envelope (high, low)  +6 +7 c section 1   +8 +9 c section 2
 ;             $7f WHSP's generator   $80 $81 P_s (high, low)
 ;             $15 0 before the first call; 1 the last call did the per-call work, 2 it skipped it
-;             $10 the Y slot's base (by position: 0x4000 or 0x8000)
+;             $10 the Y slot: the allocator base + 256 (position 1 Y:0x8100; position 3
+;                 Y:0x34100 on core 0, 0x3c100 on core 1, in the shared window)
 ;             $82 GEND, smoothed: the word last written to the Y slot   $83 the P_s inc was
 ;             last made for (both -1 after init: the first call computes)
 ;             $03 WHSP   $0e CONS   $0f DRY: smoothed per call (0 after init)
@@ -86,7 +87,7 @@ norep_vc_01:
         rts
 
 proc:
-; ---- TWO PER CORE, BUILT IN: FX2 positions 1 and 2 only --------------------------
+; ---- TWO PER CORE, BUILT IN: FX2 positions 1 and 3 only --------------------------
 ; Three VOCODERs on one DSP core overran Ignorato's MKII (a glitch, then a stall
 ; until a reboot; two ran safely), so it runs at two positions per core and is an
 ; exact dry pass everywhere else. Not position 0 (T1, T5). Measured: on Ignorato's
@@ -96,15 +97,18 @@ proc:
 ; before T1's FX2 output is copied over it (docs/contributing/FAILURE_MODES.md,
 ; "Junk on main R ... T1 with BusDelay"; that was main R, 16-24 samples). T5 is
 ; excluded by analogy, unmeasured.
-; So it runs at r7 = 0x6500 and 0x6800 (T2, T3 on core 1; T6, T7 on core 0). r7 per
-; slot measured under the port: modules/send/README.md, "An FX1 slot is not a client".
+; So it runs at r7 = 0x6500 and 0x6b00 (T2, T4 on core 1; T6, T8 on core 0): the even
+; tracks, so a NEIGHBOR machine there hands it the odd track's audio before it. Position
+; 2 (T3, T7) is now dry, though VOCODER ran clean there on the unit (5 Oct 2026); position
+; 3 is checked in the emulator only. r7 per slot measured under the port: modules/send/README.md, "An FX1 slot is not
+; a client".
         move    r7,a
         move    #>$6500,x0
         cmp     x0,a
         beq     vc_run
-        move    #>$6800,x0
+        move    #>$6b00,x0
         cmp     x0,a
-        bne     vc_end                  ; not T2/T3/T6/T7's FX2: dry, nothing written
+        bne     vc_end                  ; not T2/T4/T6/T8's FX2: dry, nothing written
 vc_run:
 ; ---- per block: the knobs ---------------------------------------------------------
         move    #>$ffffff,m5

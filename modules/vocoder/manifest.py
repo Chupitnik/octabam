@@ -42,8 +42,8 @@ MODULE = Module(
     key="VOCODER",
     kind=Kind.DSP_EFFECT,
     category=Category.TRACK, author="Ignorato", author_url="https://github.com/Ignorato",
-    proof=Proof.RENDER, proof_note="0.2 in dsp_host and under the ColdFire port (verify_vocoder, make check), 10 Oct 2026; not flashed. The 0.2 code before the de-zipper was heard on Ignorato's MKII (OCTABAM20, 5 Oct 2026, T2 T3, by ear); 0.1 ran on OCTABAM12",
-    doc="Ten-band vocoder after the Roland VP-330: the track's voice, a built-in carrier at NOTE or input B. FX2 of tracks 2, 3, 6 and 7 only.",
+    proof=Proof.RENDER, proof_note="0.2 at T2 T4 T6 T8 in dsp_host and under the ColdFire port (verify_vocoder, make check), 11 Oct 2026; not flashed, T4 and T8 not heard. The 0.2 code before the de-zipper was heard on Ignorato's MKII at T2 T3 (OCTABAM20, 5 Oct 2026, by ear); 0.1 ran on OCTABAM12",
+    doc="Ten-band vocoder after the Roland VP-330: the track's voice, a built-in carrier at NOTE or input B. FX2 of tracks 2, 4, 6 and 8 only.",
     menu=MenuEntry(
         fx2_id=0x1a,
         donor_desc=0x400d58b8,        # DARK REV
@@ -81,11 +81,11 @@ MODULE = Module(
         r7_latch_slot=None,
         gate_label=None,
     ),
-    harness=Harness(layout_char="X", is_server=False, render_r7=5),   # runs at 0x6500/0x6800 only
+    harness=Harness(layout_char="X", is_server=False, render_r7=5),   # runs at 0x6500/0x6b00 only
     # One allocator slot, as stock DELAY: GEND writes 20 words of analysis coefficients
-    # there, 256 words in from the base init reads. It runs only at FX2 positions 1 and 2:
-    # Y:0x8000 on either core, and position 2's buffer in the shared window (0x30000 on
-    # core 0, 0x38000 on core 1), which this claim reserves.
+    # there, 256 words in from the base init reads. It runs only at FX2 positions 1 and 3:
+    # Y:0x8000 on either core, and position 3's buffer in the shared window (0x34000 on
+    # core 0, 0x3c000 on core 1), in the core's half this claim reserves.
     claims=Claims(stock_instance_buffer=True, buffer_words=20),
     gates=(Gate("tools/verify/verify_vocoder.py", remix_arg=False),),
     dear={"NOTE": 60, "BEND": 127, "GEND": 127, "WHSP": 127, "CONS": 127, "DRY": 127, "MODE": 1, "GLDE": 4},

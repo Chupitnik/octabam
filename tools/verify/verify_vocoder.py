@@ -24,8 +24,9 @@ Gates:
                    reference (its pitch, GEND, noise and de-zipper arithmetic bit-exact), each
                    jump's first 20 ms too (down: a negative multiplier, the mpysu trap); BEND -64 and +63 land on C2 and +11.8 semitones
   guard         -> dsp_host -guard: no write over a loaded module
-  two per core  -> runs at r7 0x6500 and 0x6800 (FX2 of T2 T3 T6 T7) and is an exact dry
-                   pass at every other FX2 and FX1 state block
+  two per core  -> runs at r7 0x6500 and 0x6b00 (FX2 of T2 T4 T6 T8) and is an exact dry
+                   pass at every other FX2 and FX1 state block; position 3's output is
+                   position 1's bit for bit
   every knob    -> renders at both ends without dsp_host dying
 
     python3 tools/verify/verify_vocoder.py
@@ -93,7 +94,7 @@ ALLOC = R7_ALLOC                  # r7 (0x6000 + 0x100 n) -> its base-table entr
 
 def render(L, R, r7=5, plocks=(), guard=False, frames=None, **kw):
     """L, R: float arrays. Returns (L, R) floats from the module. r7 = dsp_host's state block,
-    0x6000 + 0x100 r7: 5 (0x6500) is a core's second FX2 slot, VOCODER's home; it runs at 5 and 8
+    0x6000 + 0x100 r7: 5 (0x6500) is a core's second FX2 slot, VOCODER's home; it runs at 5 and 11
     only (the built-in two-per-core limit, off a core's first track). plocks: (call, {knob: value}) pairs, applied from
     that call on, through dsp_host's -paramfile (a p-lock, or a fader move one call at a time)."""
     fr = frames or FRAMES
@@ -259,7 +260,7 @@ a, _ = render(noise[:22050], noise[:22050], NOTE=99)
 b, _ = render(noise[:22050], noise[:22050], NOTE=60)
 check("a NOTE byte past C6 plays C6", np.array_equal(a, b))
 
-# ---- two per core, built in: runs at r7 0x6200 and 0x6500 only, dry elsewhere -------------------
+# ---- two per core, built in: runs at r7 0x6500 and 0x6b00 only, dry elsewhere -------------------
 # Three on a core overran the MKII. The FX2 blocks are 0x6200 + 0x300 pos and the FX1 blocks
 # 0x6100 + 0x300 pos (measured under the port, modules/send/README.md); dsp_host's -r7 n is
 # 0x6000 + 0x100 n. A dry pass writes nothing, so its output is its input bit for bit.
@@ -268,18 +269,23 @@ runs, dry = [], []
 for r7 in (5, 8, 2, 11, 1, 4, 7, 10):
     L, R = render(src, src, r7=r7, CONS=127, DRY=0)
     (dry if np.array_equal(L, q23f(src)) and np.array_equal(R, q23f(src)) else runs).append(r7)
-check("runs at FX2 positions 1 and 2 only (r7 0x6500, 0x6800): T2 T3 T6 T7",
-      runs == [5, 8], f"(runs at {[hex(0x6000 + 0x100 * r) for r in runs]})")
-check("an exact dry pass at FX2 positions 0 and 3 (T1 T4 T5 T8) and every FX1 slot",
-      dry == [2, 11, 1, 4, 7, 10], f"(dry at {[hex(0x6000 + 0x100 * r) for r in dry]})")
+check("runs at FX2 positions 1 and 3 only (r7 0x6500, 0x6b00): T2 T4 T6 T8",
+      runs == [5, 11], f"(runs at {[hex(0x6000 + 0x100 * r) for r in runs]})")
+check("an exact dry pass at FX2 positions 0 and 2 (T1 T3 T5 T7) and every FX1 slot",
+      dry == [8, 2, 1, 4, 7, 10], f"(dry at {[hex(0x6000 + 0x100 * r) for r in dry]})")
+# position 3 keeps GEND's coefficients in another Y slot (the shared window); the law is the same
+a1 = render(v[:22050], v[:22050], GEND=0, WHSP=64, BEND=100)
+a3 = render(v[:22050], v[:22050], r7=11, GEND=0, WHSP=64, BEND=100)
+check("position 3 (r7 0x6b00) renders position 1's output bit for bit (GEND off the centre)",
+      np.array_equal(a1[0], a3[0]) and np.array_equal(a1[1], a3[1]))
 
 # ---- its writes: the state block and its 20-word Y slot, nothing over a loaded module ----------
 render(v[:22050], v[:22050], guard=True, GEND=0, WHSP=127, BEND=127)
 g5 = render.guard_out
-render(v[:22050], v[:22050], r7=8, guard=True, GEND=0, WHSP=127, BEND=127)     # position 2: its slot in the shared window
+render(v[:22050], v[:22050], r7=11, guard=True, GEND=0, WHSP=127, BEND=127)    # position 3: its slot in the shared window
 render.guard_out = g5 + render.guard_out
 g = render.guard_out
-check("no write over a loaded module, at position 1 and at position 2 (its Y slot in the shared window)", g.count("guard clean") == 2,
+check("no write over a loaded module, at position 1 and at position 3 (its Y slot in the shared window)", g.count("guard clean") == 2,
       next((ln.strip() for ln in reversed(g.splitlines()) if "guard" in ln), ""))
 
 # ---- 1-sample calls (T1's first piece of every frame): the per-call work skips them when the
