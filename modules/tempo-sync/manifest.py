@@ -32,7 +32,8 @@ The CAVE build setting selects diagnostics (remixes/test/bus-notempo and
 bus-tempo-replay; NOTEMPO=1 and TEMPOCAVE=replay in the environment until
 11 Oct 2026, and those acted on every module's caves):
   ON      the publish cave and the formatter (the default).
-  OFF     neither: the DSP reads no note and TIME draws in milliseconds.
+  OFF     no publish cave, and the formatter linked but not registered: the
+          DSP reads no note and TIME draws in milliseconds.
   REPLAY  a cave that only replays the displaced instructions, isolating the
           hook from the store; the formatter stays.
 BusDelay's panel name says which diagnostic is running (BusDlyNOC,
@@ -64,6 +65,11 @@ TIME_FMT_BYTES = bytes.fromhex("4fefffec48d7043c202f001c45fa011a2200e18906810000
 STORE_ID = "octabam.tempo-sync"
 CAVE_MODES = ("ON", "OFF", "REPLAY")
 
+TIME_FMT = Linked("time_fmt", "modules/tempo-sync/time_fmt.s", dram=True,
+                  reference=(0x400d7800, hashlib.sha256(TIME_FMT_BYTES).hexdigest()),
+                  registers_formatter=FormatterReg(module="DELAY SERVER", slot=11,
+                                                   symbol="time_fmt"))
+
 TEMPO_CAVE = CavePatch(
     label="tempo cave",
     cave_addr=None,          # floats: 0x400d7000 behind three clones
@@ -79,7 +85,9 @@ def _variant(values):
     """CAVE -> the caves and units the build installs."""
     mode = values["CAVE"]
     if mode == "OFF":
-        return {"cf_patches": (), "linked": ()}
+        # the formatter stays linked, unregistered, so the image's layout
+        # (a DRAM runtime with the clones in it) is the ON build's
+        return {"cf_patches": (), "linked": (dataclasses.replace(TIME_FMT, registers_formatter=None),)}
     if mode == "REPLAY":
         # the displaced instructions and rts; TEMPO_HOOK_STOCK holds no
         # pc-relative instruction, so it replays at any address
@@ -104,14 +112,11 @@ MODULE = Module(
     # slot 11 since 26 Sep 2026 (slot 1 from the one-aux re-slot, 7 Sep
     # 2026; at slot 0 the division labels drew on SEND, seen on the unit,
     # 15 Sep 2026).
-    linked=(Linked("time_fmt", "modules/tempo-sync/time_fmt.s", dram=True,
-                   reference=(0x400d7800, hashlib.sha256(TIME_FMT_BYTES).hexdigest()),
-                   registers_formatter=FormatterReg(module="DELAY SERVER", slot=11,
-                                                    symbol="time_fmt")),),
+    linked=(TIME_FMT,),
     store=Store(STORE_ID),
     settings=(Setting(1, "CAVE", Option(*CAVE_MODES), default="ON", apply=Apply.BUILD,
-                      doc="ON: the publish cave and TIME's formatter; OFF: neither "
-                          "(diagnostic); REPLAY: a cave that only replays the hooked "
+                      doc="ON: the publish cave and TIME's formatter; OFF: no cave and "
+                          "the formatter unregistered (diagnostic); REPLAY: a cave that only replays the hooked "
                           "instructions (diagnostic)"),),
     variant=_variant,
 )
