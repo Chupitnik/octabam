@@ -31,7 +31,6 @@ import dataclasses, hashlib, json, os, pathlib, re, subprocess, sys
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1])); import toolpath  # noqa: E402,F401  (every tools/ dir on sys.path)
 from dsp_modmap import BASE, IMG, PAYLOADS, modules  # noqa: E402
 from remix import registry as remix_registry  # noqa: E402
-from remix.registry import modules as remix_modules  # noqa: E402
 from remix.schema import (DEFAULT_HARVEST, NO_FALLBACK, BusRole,  # noqa: E402
                           Linked, YBase, enable_words)
 from remix.state import fx1_hazard  # noqa: E402
@@ -125,6 +124,15 @@ NONE_ID = 0x00                  # a fresh part's FX2 id -- aliased to SEND below
 # itself against (scripts/refhash.sh); there is no default. A module with no menu entry (a ColdFire patch) takes no chooser row,
 # so ORDER is the menu modules alone, in the remix's declared order.
 REMIX = remix_registry.remix(os.environ.get("REMIX"))
+# Every module, the selected ones bound to the remix's build-time settings
+# (schema.Module.bind): the build reads a module's code from here only.
+_BOUND = remix_registry.bound(REMIX)
+
+
+def remix_modules():
+    return _BOUND
+
+
 ORDER = [k for k in REMIX.modules
          if remix_modules()[k].menu is not None]
 # A HIDDEN module (schema.Remix.hidden) is placed, dispatched and cloned but
@@ -514,6 +522,28 @@ _LISTLINE = re.compile(r"^([0-9a-f]{6}): (\S+)(?:\s+(.*?))?\s*; "
                        r"[0-9a-f]{6}(?: [0-9a-f]{6})?$")
 _RT_NUM = re.compile(r"(-?)(\$[0-9a-f]+|[0-9]+)")
 _RT_LABEL = re.compile(r"^[a-z][a-z0-9]*_[a-z0-9_]+$")
+# The decoder prints peripheral registers and status bits by the names the
+# vendored emulator gives them (hdi08.h, esai.h, peripherals.h); the source
+# writes the number. Each name here is the value in those headers. A name
+# not in the table still fails the comparison, so a new peripheral use is
+# added here deliberately.
+_RT_SYMS = {
+    "m_hcr": "$ffffc2", "m_hsr": "$ffffc3", "m_hpcr": "$ffffc4", "m_hbar": "$ffffc5",
+    "m_horx": "$ffffc6", "m_hotx": "$ffffc7", "m_hddr": "$ffffc8", "m_hdr": "$ffffc9",
+    "hsr_hrdf": "0", "hsr_htde": "1", "hsr_hcp": "2", "hsr_hf0": "3", "hsr_hf1": "4", "hsr_dma": "7",
+    "hpcr_hen": "6",
+    "hcr_hrie": "0", "hcr_htie": "1", "hcr_hcie": "2", "hcr_hf2": "3", "hcr_hf3": "4",
+    "m_dcr0": "$ffffec", "m_dcr1": "$ffffe8", "m_dcr2": "$ffffe4",
+    "m_dcr3": "$ffffe0", "m_dcr4": "$ffffdc", "m_dcr5": "$ffffd8",
+    "m_tcr": "$ffffb5", "m_rcr": "$ffffb7", "m_tcr_1": "$ffff95", "m_rcr_1": "$ffff97",
+}
+_RT_SYM = re.compile(r"\b(" + "|".join(sorted(_RT_SYMS, key=len, reverse=True)) + r")\b")
+
+# The placeholder a pinned section's bridge jump carries until the build
+# knows where the second piece went (schema.DspSection.pins). A 12-bit
+# short-jump target, because that one-word form is the only jmp dsp_asm
+# encodes.
+PIN_BRIDGE = "$fab"
 
 # `mpy` that dsp_asm encodes as `mpysu` is the one mismatch the shipping
 # code carries on purpose: the second operand is non-negative at every site
@@ -548,6 +578,7 @@ def _rt_fields(ops):
     fields, every field lower case with no size marks and its numbers hex."""
     def field(f):
         f = f.lower().replace("<", "").replace(">", "")
+        f = _RT_SYM.sub(lambda m: _RT_SYMS[m.group(1)], f)
         return _RT_NUM.sub(
             lambda m: m.group(1) + format(int(m.group(2)[1:], 16)
                                           if m.group(2)[0] == "$"
@@ -567,6 +598,11 @@ def _roundtrip(list_out, blob, org, label):
     src = _listing(list_out)
     if not src:
         return
+    if org < 0:
+        # a pinned section's second piece is assembled so that IT lands at
+        # its pin, which puts the words before it below P:0; they are never
+        # placed (build_bus's pinned path), so the check starts at P:0
+        blob, org = blob[-org * 3:], 0
     tmp = _SCRATCH / "roundtrip.bin"
     tmp.write_bytes(blob)
     r = subprocess.run([str(DISASM), "-in", str(tmp), "-pc", f"{org:x}", "-le"],
@@ -719,6 +755,9 @@ def main():
                      f"-- the field is 13 bytes NUL-terminated, so 12 is the "
                      f"maximum")
 
+    from remix import brain as _brain
+    for _line in _brain.report(REMIX, remix_registry.modules()):
+        print(_line)
     clone_addr = {}
     print("=== ColdFire: three cloned descriptors (task 11) ===")
     for i, name in enumerate(CLONED_ORDER):
@@ -1035,8 +1074,12 @@ def main():
     # the caves, which is why no cave could reach one.
     _all_units = [(remix_modules()[_k], _u) for _k in REMIX.modules
                   for _u in getattr(remix_modules()[_k], "linked", ())]
-    _units = [(m, u) for m, u in _all_units if not u.dram]      # ROM-placed
+    _units = [(m, u) for m, u in _all_units if not u.dram and not u.loader]  # ROM-placed
     _dram = [(m, u) for m, u in _all_units if u.dram]           # platform runtime (1e)
+    _early = [(m, u) for m, u in _all_units if u.loader]        # in the loader itself (1e)
+    if _early and not _dram:
+        sys.exit(f"{', '.join(m.key for m, _ in _early)}: a loader unit needs the platform "
+                 f"(a DRAM unit in the remix); there is none")
     if _all_units and not _toolchain:
         sys.exit("linked units need m68k-elf-as/ld/objcopy/nm -- run `make setup` "
                  "(Homebrew: brew install m68k-elf-gcc)")
@@ -1394,8 +1437,11 @@ def main():
         _pappend, _psyms, _boot, _pnames = platform_build.build(
             [(_m.key, _u) for _m, _u in _dram], [], pathlib.Path("out/platform"),
             reserve=_reserve, defsyms=_pdefs, unit_defs=_unit_defs,
-            includes={_u.label: _u.include(_sel) for _m, _u in _dram if _u.include is not None},
-            regions=_regions)
+            includes={_u.label: _u.include(_sel) for _m, _u in _dram + _early if _u.include is not None},
+            regions=_regions, early=[_u for _m, _u in _early])
+        for _m, _u in _early:
+            _sym[_u.label] = _psyms
+            print(f"  {_m.key}: {_u.label} in the loader at 0x{_psyms.get(_u.label, 0):08x}")
         for _m, _u in _dram:
             _sym[_u.label] = _psyms          # detours name units; one table serves all
             _uref = _u.reference_for(_sel)
@@ -2296,7 +2342,13 @@ mkgo:""",
             # Nothing harvested is the honest default for a stock chooser --
             # every word belongs to a stock effect that is using it -- but a
             # module of ours has to go somewhere.
-            _need = [m for m in _SEL if m.dsp is not None] + [_MODS[k] for k in HOOKED]
+            # A FULLY PINNED section needs no region at all: its words come
+            # out of stock's dead interrupt vectors (schema.DspSection.pins),
+            # which is what lets an image that keeps every stock effect carry
+            # REMIX SWITCH. Only sections that still want region words count.
+            _need = [m for m in ([m for m in _SEL if m.dsp is not None]
+                                 + [_MODS[k] for k in HOOKED])
+                     if not m.dsp.pins]
             if _need:
                 sys.exit(f"payload {tag}: nothing is harvested, so there is "
                          f"nowhere to place "
@@ -2944,6 +2996,80 @@ hostquit:
                       f"  id 0x{NEW_IDS[name]:02x}  Y base 0x38000  "
                       f"(DEV: OUT OF REGION, code lives in the .mem dump)")
                 continue
+            # ---- FULLY PINNED: the dead interrupt vectors ----------------
+            # A section whose pieces are all pinned (schema.DspSection.pins)
+            # takes no words from the harvested region at all -- which is
+            # what lets a remix that harvests NOTHING carry one. Stock leaves
+            # runs of vector slots as `jmp *`, a self-jump that would freeze
+            # the core if that interrupt ever fired, so they are dead words;
+            # tools/verify/verify_dspvectors.py proves nothing arms one, on
+            # every build, and is the licence for this.
+            #
+            # The runs are not long enough for a section whole, so the source
+            # carries ONE cut (`pin_split_label`) with a one-word short jump
+            # in front of it that the build points at the second piece. Each
+            # piece is ASSEMBLED at its own address and never moved: a `do`
+            # loop's end address is absolute.
+            _sec = remix_modules()[name].dsp
+            _pins = _sec.pins if _sec is not None else ()
+            if _pins:
+                _w0, _s0 = assemble_syms(src, _pins[0], label=name)
+                _split = len(_w0)
+                if len(_pins) > 1:
+                    if _sec.pin_split_label not in _s0:
+                        sys.exit(f"payload {tag}: {name} is pinned in {len(_pins)} pieces "
+                                 f"but its source defines no label "
+                                 f"{_sec.pin_split_label!r} to cut at")
+                    _split = _s0[_sec.pin_split_label] - _pins[0]
+                _cuts = [(_pins[0], 0, _split)] + \
+                        ([(_pins[1], _split, len(_w0))] if len(_pins) > 1 else [])
+                # every word this would take must still be the stock self-jump
+                # pattern it was audited as (an even word is `jmp *`, the odd
+                # one zero) -- the same assertion DspHook makes at its site
+                for _at, _lo, _hi in _cuts:
+                    for _k in range(_hi - _lo):
+                        _a, _got = _at + _k, rdw_p_at(_at + _k)
+                        if _got != ((0x0C0000 | _a) if _a % 2 == 0 else 0):
+                            sys.exit(f"payload {tag}: {name} would write P:0x{_a:05x}, which "
+                                     f"holds {_got:06x}, not the stock self-jump it was "
+                                     f"audited as; refusing")
+                _pinsym = {}
+                for _n, (_at, _lo, _hi) in enumerate(_cuts):
+                    # assembled so that THIS piece lands where it is pinned;
+                    # the bridge's placeholder becomes the next piece's address
+                    _s2 = src.replace(PIN_BRIDGE, f"${_pins[1]:x}") if len(_pins) > 1 else src
+                    if len(_pins) > 1 and src.count(PIN_BRIDGE) != 1:
+                        sys.exit(f"payload {tag}: {name} is cut in two, so its source must "
+                                 f"carry the bridge `jmp {PIN_BRIDGE}` exactly once; "
+                                 f"found {src.count(PIN_BRIDGE)}")
+                    _w, _syms = assemble_syms(_s2, _at - _lo, label=name)
+                    if len(_w) != len(_w0):
+                        sys.exit(f"payload {tag}: {name} assembles to {len(_w)} words at "
+                                 f"P:0x{_at - _lo:05x} and {len(_w0)} at P:0x{_pins[0]:05x} "
+                                 f"-- the encoding is not origin-invariant, so it cannot "
+                                 f"be pinned")
+                    for _k in range(_hi - _lo):
+                        wrw_p_at(_at + _k, _w[_lo + _k])
+                    if _n == 0:
+                        _pinsym = _syms
+                    print(f"  {'PINNED':13} P:0x{_at:05x}..0x{_at + _hi - _lo:05x} "
+                          f"({_hi - _lo:4d} words)  {name}"
+                          f"{', piece ' + str(_n + 1) if len(_cuts) > 1 else ''}"
+                          f", in stock's dead vectors (verify_dspvectors)")
+                for _h in (_sec.hooks or ()):
+                    _hs = _h.site_on(tag)
+                    _got = (rdw_p_at(_hs), rdw_p_at(_hs + 1))
+                    if _got != tuple(_h.stock):
+                        sys.exit(f"payload {tag}: {name}'s hook site P:0x{_hs:05x} holds "
+                                 f"{_got[0]:06x} {_got[1]:06x}, not stock "
+                                 f"{_h.stock[0]:06x} {_h.stock[1]:06x}; refusing")
+                    wrw_p_at(_hs, 0x0BF080)
+                    wrw_p_at(_hs + 1, _pinsym[_h.label])
+                    print(f"  {'HOOK':13} P:0x{_hs:05x} -> {name} {_h.label} "
+                          f"P:0x{_pinsym[_h.label]:05x}  {_h.note}")
+                continue
+
+
             # ---- pick a RUN that fits, lowest address first --------------
             # A module is one code stream, so it goes wholly inside one run.
             # First-fit in address order: with a single run this is exactly
@@ -3356,8 +3482,8 @@ hostquit:
         _pappend, _psyms2, _boot, _pnames = platform_build.build(
             [(_m.key, _u) for _m, _u in _dram], [], pathlib.Path("out/platform"),
             reserve=_reserve, defsyms=_pdefs, unit_defs=_unit_defs,
-            includes={_u.label: _u.include(_sel) for _m, _u in _dram if _u.include is not None},
-            regions=_regions, patch=_rt_patch)
+            includes={_u.label: _u.include(_sel) for _m, _u in _dram + _early if _u.include is not None},
+            regions=_regions, patch=_rt_patch, early=[_u for _m, _u in _early])
         if _psyms2 != _psyms:
             sys.exit("descriptor clones: the platform runtime linked differently the second time")
         _appends[_platform_at] = (
@@ -3392,9 +3518,9 @@ hostquit:
         _pappend, _psyms2, _boot, _pnames = platform_build.build(
             [(_m.key, _u) for _m, _u in _dram], [], pathlib.Path("out/platform"),
             reserve=_reserve, defsyms=_pdefs, preboot=_pres, unit_defs=_unit_defs,
-            includes={_u.label: _u.include(_sel) for _m, _u in _dram if _u.include is not None},
+            includes={_u.label: _u.include(_sel) for _m, _u in _dram + _early if _u.include is not None},
             regions=_regions,       # the same regions as the first link, or its symbols differ
-            patch=_rt_patch)
+            patch=_rt_patch, early=[_u for _m, _u in _early])
         if _psyms2 != _psyms or _platform_at is None:
             sys.exit("analog bd: the platform runtime linked differently the second time")
         _appends[_platform_at] = (
