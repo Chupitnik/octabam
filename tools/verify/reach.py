@@ -1108,8 +1108,6 @@ def main(argv=None):
         path = ROOT / "out/overlap" / kind
         (ROOT / "out/overlap").mkdir(parents=True, exist_ok=True)
         check_shards.make_shard(path, ROOT / f"out/overlap/{kind}.setup.log")
-        if (ROOT / "out/refhash").is_dir():           # the baseline refhash check compares to
-            shutil.copytree(ROOT / "out/refhash", path / "out/refhash", dirs_exist_ok=True)
         return path
 
     def run_command(kind, command, cwd=None):
