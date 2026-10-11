@@ -34,6 +34,8 @@ import subprocess
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1])); import toolpath  # noqa: E402,F401
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import gate_ledger  # noqa: E402
 from remix import registry  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -178,6 +180,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     env = dict(os.environ)
     env.setdefault("BUILD", "0")
+    env.setdefault("PYTHONUNBUFFERED", "1")      # each gate's lines as it prints them, through the tee below
     if a.shared:
         names = a.remix or ([os.environ["REMIX"]] if os.environ.get("REMIX") else [])
         remixes = [registry.remix(n) for n in names] or [registry.remix(None)]
@@ -229,10 +232,17 @@ def main(argv=None):
             print(f"  [FAIL] {g.script}: no such file (the manifest names a gate the tree does not carry)")
             fails.append(g.script)
             continue
-        r = subprocess.run(cmd, cwd=ROOT, env=env)
-        if r.returncode:
-            print(f"  [FAIL] {g.script} exit {r.returncode}")
+        p = subprocess.Popen(cmd, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                             text=True, errors="replace")
+        out = []
+        for line in p.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            out.append(line)
+        if p.wait():
+            print(f"  [FAIL] {g.script} exit {p.returncode}")
             fails.append(g.script)
+            gate_ledger.record(g.script, remix_name, gate_ledger.first_fail("".join(out)))
     if a.list:
         return 0
     print(f"\nmodule gates ({label}): {len(gates)} run, {len(fails)} failed"
