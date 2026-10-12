@@ -78,16 +78,16 @@ counted as bad and changes nothing. CF METER's page-lane route (an FX2
 insert printing values as audio) was the alternative; it takes a track and
 a slot, which this meter must not.
 
-**The screen** (BRAIN > OTOP, two pages; YES switches). Page 0: a bar per
-processor, `CF` the frame interrupt's share now with its peak since open as
-a mark, `DSP0` and `DSP1` each core's busy over its frame now with the peak
-mark, then `WORST FRAME` (the longest single run of the frame interrupt as a
-share of the 362.8 µs frame, `OVER` at 100%) and `AUDIO DROPS` (the ESAI
-underrun and overrun frames since open). `-` = no sample yet, `?` = only bad
-records since the last refresh. Page 1, `OTOP FX`: the cost of each effect
-call (below), sorted. While the screen is closed nothing draws and the DSPs
-and the host port carry the same traffic as with it open (`verify_loadmeter`
-closed); the scrub runs every frame either way.
+**The screen** (BRAIN > OTOP), one list scrolled by UP and DOWN. First a bar
+per processor: `CF` the frame interrupt's share now with its peak since open
+as a mark, `DSP0` and `DSP1` each core's busy over its frame now with the
+peak mark; then `WORST FRAME` (the longest single run of the frame interrupt
+as a share of the 362.8 µs frame, `OVER` at 100%) and `DROPS` (the ESAI
+underrun and overrun frames since open); then the cost of each effect call
+(below), sorted. `-` = no sample yet, `?` = only bad records since the last
+refresh. While the screen is closed nothing draws and the DSPs and the host
+port carry the same traffic as with it open (`verify_loadmeter` closed); the
+scrub runs every frame either way.
 
 **OTOP, the cost of each effect call.** Four more DSP hooks on the stock
 dispatcher (`docs/firmware/DSP.md` section 5: one routine per payload, FX1
@@ -106,7 +106,7 @@ sampled about every 6 ms. The figure is elapsed time on the chip's own timer
 (CLK/2, 2 cycles a count), so cycles a sample = counts ÷ 8; a row's percent
 is its share of the core's frame. Slot 0..7 are payload A's (tracks 5-8: FX1,
 FX2 of the first position, then the next), 8..15 payload B's (tracks 1-4).
-`STOCK A` and `STOCK B` are each core's mean busy time beyond its effects:
+`SYSTEM A` and `SYSTEM B` are each core's mean busy time beyond its effects:
 the stock mixer, AMP and everything else. The stamps read and write only
 registers that are dead at the hook sites (`a` and `b` and `r2`, `r3`; the
 start hook saves `a` through the displaced store) and no modifier register;

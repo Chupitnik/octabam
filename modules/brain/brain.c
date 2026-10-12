@@ -2751,11 +2751,11 @@ static void load_update(void)
  * of position 0, 1, 2, 3), the last, summed, counted and largest cost in timer-0
  * counts (CLK/2: 2 cycles; a frame is 16 samples, so cycles a sample = counts / 8).
  * Core 0 is payload A (tracks 5-8), core 1 payload B (tracks 1-4). The rows are
- * sorted by cost, a STOCK row per core is what its busy time holds beyond them. */
+ * sorted by cost, a SYSTEM row per core is what its busy time holds beyond them. */
 extern volatile u32 *const brain_lmo;		/* lm_ot: 16 x {last, sum, count, max}, then the reset flag; 0 without LOAD METER */
 #define FX1_LIVE 0x80000ec4			/* the live FX1 id of each track; FX2's are 8 on */
 #define FRAME_US 363			/* the frame interrupt's period, 1 / 2,756 Hz = 362.8 us */
-#define OT_ROWS  18			/* effect rows: 16 slots and two STOCK rows */
+#define OT_ROWS  18			/* effect rows: 16 slots and two SYSTEM rows */
 
 static char ot_sum[32];			/* the summary line */
 static char ot_pct[3][8];			/* the bars' percent text */
@@ -2774,11 +2774,19 @@ static const char *fx_name(u32 fx, u32 id)
 	return d ? (const char *)d + 9 : "NONE";
 }
 
+/* "996 22%": cycles a sample and the share of the core's frame; under 10% with a tenth ("49 0.6%") */
 static void ot_val_text(char *o, u32 counts, u32 period)
 {
 	u32 n = put_dec(o, counts / 8, 0);			/* cycles a sample */
 	n += put_s(o + n, " ");
-	n += put_dec(o + n, period ? counts * 100 / period : 0, 0);
+	u32 tenths = period ? counts * 1000 / period : 0;
+	if (tenths < 100) {
+		n += put_dec(o + n, tenths / 10, 0);
+		o[n++] = '.';
+		n += put_dec(o + n, tenths % 10, 0);
+	} else {
+		n += put_dec(o + n, tenths / 10, 0);
+	}
 	o[n++] = '%';
 	o[n] = 0;
 }
@@ -2857,7 +2865,7 @@ static void build_otop(void)
 		char *l = ot_lab[k];
 		u32 c = sl & 16 ? sl & 1 : sl >> 3;
 		if (sl >= 16) {
-			put_s(l, c ? "STOCK B" : "STOCK A");
+			put_s(l, c ? "SYSTEM B" : "SYSTEM A");
 		} else {
 			u32 pos = (sl & 7) >> 1, fx = sl & 1, track = (c ? 0 : 4) + pos;
 			u32 m = put_s(l, "T");
