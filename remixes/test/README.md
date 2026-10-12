@@ -5,7 +5,7 @@ Each carries one module, or one combination, for that module's gates: `make chec
 | remix | contains | proof |
 |---|---|---|
 | [`batch-bugfixes`](batch-bugfixes/README.md) | stock effects with BATCH_BUGFIXES: the MIDI Plays-Free trig, empty-pattern LED and Part-change carryover fixes. | `make check` |
-| [`brain`](brain/README.md) | bottleservice + BRAIN: card-wide knob defaults, SAVE AS DEFAULT in the BRAIN menu. | port-gated: `verify_brain` under the port, 6 Oct 2026; not on hardware |
+| [`brain`](brain/README.md) | bottleservice + BRAIN: card-wide knob defaults, SAVE FX DEFAULT in the BRAIN menu. | port-gated: `verify_brain` under the port, 6 Oct 2026; not on hardware |
 | [`bus`](bus/README.md) | The plain two-server image: BusVerb + BusDelay + send bus + tempo sync. | on hardware: under earlier names |
 | [`bus-notempo`](bus-notempo/README.md) | bus with TEMPO SYNC's CAVE pinned OFF (diagnostic). | port-gated |
 | [`bus-tempo-replay`](bus-tempo-replay/README.md) | bus with TEMPO SYNC's CAVE pinned REPLAY (diagnostic). | port-gated |

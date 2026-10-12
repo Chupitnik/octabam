@@ -423,8 +423,7 @@ def main():
               and precs[0].store_id == "octabam.brain")
         old_unknown = unknown.encode()
         check("project: the unknown record kind is kept byte for byte",
-              any(r.kind == 9 and r.encode() == old_unknown for r in pf.records)
-              and len([r for r in pf.records if r.kind != brainfile.SETTINGS]) == 2)
+              any(r.kind == 9 and r.encode() == old_unknown for r in pf.records) and len(pf.records) == 2)
         check("project: the stale project record is gone", all(e.fx_id != 0x7e for r in precs for e in r.entries()))
         check("project: brain.strd is brain.work with the .strd kind",
               ps_[:8] == pw_[:8] and ps_[8] == brainfile.PROJECT_STRD and ps_[9:] == pw_[9:]
@@ -841,21 +840,6 @@ def main():
     names_ = {v.key: v.data for r in trec for v in r.values() if v.type == brainfile.NAME}
     check(f"knob names: SAVE TEMPLATE on the MIDI track carries the name as a Name value keyed 129  {names_}",
           names_ == {129: b"0\0\0\0\0\0"})
-
-    # ---- CC MAP's block CCs per project (octabam.cc-map, Scope.PROJECT) ------
-    # The project's brain.work sets FX1 CC = 80. On T1's channel CC 82 then
-    # CC 70 (each FX1 page-2 slot 8 under the old and the new base): the
-    # slot takes CC 82's value, and CC 70 now goes to stock.
-    cset = brainfile.Record(brainfile.SETTINGS, "octabam.cc-map",
-                            payload=brainfile.Value(2, brainfile.NUMBER, (80).to_bytes(2, "big")).encode())
-    cfile = OUT / "ccmap_seed.work"
-    cfile.write_bytes(brainfile.File(brainfile.PROJECT_WORK, [cset]).encode())
-    files, text, (dbp, pidx, p2) = ui_run(
-        "ccmap_live", [(0x32, 400), "midi B0 52 21", "midi B0 46 22", (0x32, 1500)],
-        roots=((cfile, f"{a.set_name}/{a.name}/brain.work"),),
-        dumps=((0x46c82456, 4), (0x80000003, 1), (part_at + 0x8f07e, 6)))
-    check(f"cc map: with FX1 CC = 80 in the project, CC 82 sets T1's FX1 page-2 slot 8 and CC 70 does not "
-          f"(slot 8 = {p2[2]:#x}, want 0x21)", p2[2] == 0x21)
 
     # ---- templates on the SRC page: the target of T1's machine type ---------
     # The machine byte (Part +0x8eda2 + t) names the target (stock.static,

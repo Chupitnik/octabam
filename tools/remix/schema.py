@@ -1220,8 +1220,6 @@ class Linked:
         if self.reference is None:
             return None
         ref = self.reference(modules) if callable(self.reference) else self.reference
-        if ref is None:                  # a callable may decline for this selection
-            return None
         return reference_shape(self.label, ref)
 
 

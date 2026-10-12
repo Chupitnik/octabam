@@ -4,7 +4,6 @@ sent to the unit over SysEx (each line acknowledged) or written for BC Manager.
 
     python3 tools/hw/bcr2000.py ping                                  # `$rev R1` handshake, prints the ack
     python3 tools/hw/bcr2000.py bcl  [--preset rig|t1..t8|all] [--out FILE]
-                                     [--remix NAME] [--project DIR]
     python3 tools/hw/bcr2000.py send [--preset rig|t1..t8|all] [--store N]
                                      [--port BCR2000] [--channels 1,2,3,4,5,6,7,8]
 
@@ -29,10 +28,7 @@ Without `--store` the preset lands in the BCR's edit buffer only.
 CC numbers: page 1 is stock (docs/firmware/MIDI.md: PLAYBACK 16-21, AMP 22-27,
 LFO 28-33, FX1 34-39, FX2 40-45, LEVEL 46, AMP VOL 25, crossfader 48, MUTE 49,
 SOLO 50, on the track's trig channel); page 2 is CC MAP (modules/cc-map: FX2
-62-67, FX1 68-73 by default). CC MAP's block CCs are per-project settings
-(octabam.cc-map FX2 CC / FX1 CC): `--remix NAME` takes the remix's layer and
-`--project DIR` the project's brain.work (or brain.strd) over it, the
-layers the unit applies at that project's load. Select ranges and defaults come from the manifests; MODE
+62-67, FX1 68-73). Select ranges and defaults come from the manifests; MODE
 over CC re-defaults the knobs around it (MODE DEFAULTS). Delay TONE (CC 42
 on T1) reaches the DSP only while T1's FX2 page is on screen (MIDI.md
 "Hardware findings"). MUTE/SOLO are sent as 127/0 toggles; the value the OT
@@ -81,36 +77,6 @@ ERRORS = {0: "ok", 1: "unknown token", 2: "data without token", 3: "argument mis
 
 def _mods():
     return registry.modules()
-
-
-def page2(remix=None, project=None):
-    """CC MAP's two block CCs: the manifest's defaults, the remix's layer,
-    then the project's brain.work (brain.strd when the .work does not
-    parse) -- docs/proposals/BRAIN.md section 6."""
-    from remix import brain, brainfile
-    cc = registry.modules()["CC MAP"]
-    val = {s.key: s.default for s in cc.settings}
-    if remix:
-        r = registry.remix(remix)
-        for res, _s in brain.resolve(r, {k: registry.modules()[k] for k in r.modules}):
-            if res.store_id == "octabam.cc-map":
-                val[res.key] = res.value
-    if project:
-        for name in ("brain.work", "brain.strd"):
-            f = pathlib.Path(project) / name
-            if not f.is_file():
-                continue
-            try:
-                recs = brainfile.parse(f.read_bytes()).records
-            except ValueError:
-                continue
-            for rec in recs:
-                if rec.kind == brainfile.SETTINGS and rec.store_id == "octabam.cc-map" and rec.applicable():
-                    for v in rec.values():
-                        if v.key in val and v.type == brainfile.NUMBER and len(v.data) == 2:
-                            val[v.key] = int.from_bytes(v.data, "big", signed=True)
-            break
-    return {"FX2": val[1], "FX1": val[2]}
 
 
 def slot_cc(page, slot):
@@ -286,10 +252,7 @@ def main():
     ap.add_argument("--channels", default="1,2,3,4,5,6,7,8", help="MIDI channel of tracks 1..8")
     ap.add_argument("--out", help="bcl: write here instead of stdout")
     ap.add_argument("--timeout", type=float, default=1.0)
-    ap.add_argument("--remix", help="CC MAP's block CCs: this remix's settings layer")
-    ap.add_argument("--project", help="CC MAP's block CCs: this project folder's brain.work over the remix's")
     a = ap.parse_args()
-    PAGE2.update(page2(a.remix, a.project))
     channels = [int(c) for c in a.channels.split(",")]
     if len(channels) != 8 or not all(1 <= c <= 16 for c in channels):
         sys.exit("--channels: eight values 1..16")
