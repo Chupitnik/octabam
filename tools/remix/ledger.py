@@ -327,19 +327,29 @@ def check(selected) -> list[str]:
                               f"0x{max(ostart, pa):08x} -- both rewrite the same bytes")
                 pokes.append(span)
 
-    # ---- the audio page arena ---------------------------------------------
-    # The one thing to refuse here is a reservation that leaves the unit
-    # too little for samples and recorders. The platform's pages count
-    # whenever DRAM units exist.
+    # ---- the audio page arena (MEMORY, modules/memory) ---------------------
+    # The build sizes the platform's reserve from the linked runtime; what
+    # is declared is checked here: the DramRegions and the fixed claims
+    # (schema.ArenaReserve) must leave the unit its floor of pages, two
+    # fixed claims may not overlap, and a fixed claim needs the platform
+    # (a DRAM unit in the remix) to own a reserve at all.
     from remix import arena
-    reservations = []
-    if any(u.dram for m in selected for u in getattr(m, "linked", ())):
-        reservations.append(("octabam platform", "bottom", arena.PLATFORM_PAGES))
-    if reservations:
-        try:
-            arena.layout(reservations)
-        except SystemExit as e:
-            problems.append(str(e))
+    has_dram = any(u.dram for m in selected for u in getattr(m, "linked", ()))
+    fixed = [(m.name, r) for m in selected for r in getattr(m, "arena_reserves", ())]
+    for i, (oa, ra) in enumerate(fixed):
+        if not has_dram:
+            problems.append(f"{oa}: ArenaReserve {ra.label} needs the platform's arena reserve, "
+                            f"and this remix carries no DRAM unit")
+        for ob, rb in fixed[i + 1:]:
+            if ra.at < rb.end and rb.at < ra.end:
+                clash("arena reserve", f"{oa} ({ra.label})", f"{ob} ({rb.label})",
+                      f"0x{max(ra.at, rb.at):08x} -- both use the same arena bytes")
+    claimed = sum(r.size + r.align for m in selected for r in getattr(m, "dram_regions", ()))
+    reach = max([arena.BASE] + [r.end for _o, r in fixed]) - arena.BASE
+    if has_dram and claimed + reach > arena.MAX_RESERVE:
+        problems.append(f"arena: the declared DRAM regions ({claimed:,} B) and fixed claims "
+                        f"(to +{reach:,} B) exceed the {arena.MAX_RESERVE:,} B the platform may "
+                        f"reserve ({arena.MIN_PAGES_LEFT:,} pages stay for samples and recorders)")
 
     # ---- every fixed-address span against every other module's -------------
     # The passes above compare emit pokes with everything,

@@ -1274,6 +1274,8 @@ int main(int _argc, char** _argv)
 	int bankOverride = -1;		// with --sequencer: switch to this bank (default: the file's saved bank)
 	std::string m6cGolden;		// the M6c facts as JSON (oracle.sh byte-compares them)
 	std::string watchMem;		// ADDR,LEN -- log every write into that range (route A's own flag)
+	std::string foreignWrites;	// ADDR,LEN,FILE -- writes into that range from a PC outside --stock-code (MEMORY's gate)
+	std::string stockCode;		// LO-HI[;LO-HI...] -- stock's own code, for --foreign-writes
 	std::string watchRead;		// ADDR,LEN -- log the first 64 data READS of that range, with the reading PC
 	std::string watchPc;		// comma-separated addresses -- log registers there (route A's own flag)
 	bool namesEarly = false;	// write the SET/PROJECT names BEFORE the mount -- see O7b
@@ -1368,6 +1370,8 @@ int main(int _argc, char** _argv)
 		else if(a == "--bank" && i + 1 < _argc)		bankOverride = std::atoi(_argv[++i]);
 		else if(a == "--m6c-golden" && i + 1 < _argc)	m6cGolden = _argv[++i];
 		else if(a == "--watch-mem" && i + 1 < _argc)	watchMem = _argv[++i];
+		else if(a == "--foreign-writes" && i + 1 < _argc)	foreignWrites = _argv[++i];
+		else if(a == "--stock-code" && i + 1 < _argc)	stockCode = _argv[++i];
 		else if(a == "--watch-read" && i + 1 < _argc)	watchRead = _argv[++i];
 		else if(a == "--watch-pc" && i + 1 < _argc)	watchPc = _argv[++i];
 		else if(a == "--names-early")			namesEarly = true;
@@ -1442,6 +1446,7 @@ int main(int _argc, char** _argv)
 			"              [--no-post]                                       no LOAD PROJECT post: the firmware's own power-up load\n"
 			"              [--boot-load]                                     --names-early --no-post: the names before the mount, the firmware's own load\n"
 			"              [--preload ADDR=FILE[;...]]                       a file's bytes into memory before the boot (a staged OS image, NOR's 0x3ffc)\n"
+			"              [--foreign-writes ADDR,LEN,FILE --stock-code LO-HI[;...]]  writes into the range from a PC outside stock's code, to FILE (verify_reserve_writes)\n"
 			"              [--cs1-in FILE]                                   CS1 (0x10000000) from FILE before the boot: a power cycle with an earlier --mem-dump 0x10000000,0x100000\n"
 			"              [--scenario \"LOG ARGS...\"]... [--scenario-jobs N]  load once, fork one child per scenario (stdout to LOG, ARGS its post-load options)\n");
 			return false;
@@ -1900,6 +1905,28 @@ int main(int _argc, char** _argv)
 				rtos.watchMem(wa, wl);
 				std::printf("watch-mem  : %#x..%#x\n", wa, wa + wl - 1);
 			}
+		}
+		std::string foreignFile;
+		if(!foreignWrites.empty())
+		{
+			// ADDR,LEN,FILE and --stock-code LO-HI;LO-HI...: every write into the
+			// range from a PC outside stock's code goes to FILE at the end.
+			const auto c1 = foreignWrites.find(','), c2 = foreignWrites.find(',', c1 + 1);
+			const auto fa = static_cast<uint32_t>(std::strtoul(foreignWrites.c_str(), nullptr, 0));
+			const auto fl = static_cast<uint32_t>(std::strtoul(foreignWrites.c_str() + c1 + 1, nullptr, 0));
+			foreignFile = foreignWrites.substr(c2 + 1);
+			std::vector<std::pair<uint32_t, uint32_t>> stock;
+			size_t q = 0;
+			while(q < stockCode.size())
+			{
+				auto e = stockCode.find(';', q); if(e == std::string::npos) e = stockCode.size();
+				const auto one = stockCode.substr(q, e - q); q = e + 1;
+				const auto dash = one.find('-');
+				stock.emplace_back(static_cast<uint32_t>(std::strtoul(one.c_str(), nullptr, 0)),
+					static_cast<uint32_t>(std::strtoul(one.c_str() + dash + 1, nullptr, 0)));
+			}
+			rtos.watchForeign(fa, fl, stock);
+			std::printf("foreign    : %#x..%#x, %zu stock code range(s)\n", fa, fa + fl - 1, stock.size());
 		}
 		const auto rs = rtos.run(runMs);
 		static const char* const g_rtosNames[] = {"GATE", "TIME", "FAULT", "ILLEGAL"};
@@ -2938,6 +2965,20 @@ int main(int _argc, char** _argv)
 					w.sample, w.addr, w.val, w.size, w.pc, ot::taskName(w.tcb), static_cast<unsigned long long>(w.instr));
 		}
 
+		if(!foreignFile.empty())
+		{
+			std::ofstream o(foreignFile);
+			o << "count " << rtos.foreignCount() << "\n";
+			for(const auto& w : rtos.foreignWrites())
+			{
+				char line[160];
+				std::snprintf(line, sizeof line, "%.1f pc=%#x addr=%#x val=%#x size=%u task=%s\n",
+					w.sample, w.pc, w.addr, w.val, w.size, ot::taskName(w.tcb));
+				o << line;
+			}
+			std::printf("foreign    : %llu write(s) -> %s\n",
+				static_cast<unsigned long long>(rtos.foreignCount()), foreignFile.c_str());
+		}
 		if(!serialOut.empty())
 		{
 			for(const auto& [suffix, tx] : {std::make_pair("a", &rtos.serialTxA()),
