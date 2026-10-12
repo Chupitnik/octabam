@@ -1196,16 +1196,17 @@ def main(argv=None):
             while queue and (queue[0][0] in OVERLAP or is_shards(queue[0])):
                 group.append(queue.pop(0)[:2])
         if len(group) > 1:
+            # the scratch trees are made inside each step's own thread (a
+            # worktree, its submodules and a port boot take about a minute
+            # the first time: made first they delayed every step)
             tasks, in_root = [], False
             for k, c in group:
-                tree = None
-                if k in BUILDS:
-                    if in_root:
-                        tree = overlap_tree(k)
-                    in_root = True
-                tasks.append((k, c, tree))
+                scratch = k in BUILDS and in_root
+                in_root = in_root or k in BUILDS
+                tasks.append((k, c, scratch))
             with cf.ThreadPoolExecutor(max_workers=len(tasks)) as ex:
-                futures = [(c, ex.submit(run_command, k, c, t)) for k, c, t in tasks]
+                futures = [(c, ex.submit(lambda k=k, c=c, sc=sc: run_command(k, c, overlap_tree(k) if sc else None)))
+                           for k, c, sc in tasks]
                 done = [(c, f.result()) for c, f in futures]
             for c, (cmd, rc, secs) in done:
                 record(c, cmd, rc, secs)
