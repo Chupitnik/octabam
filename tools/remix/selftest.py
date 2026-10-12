@@ -898,7 +898,6 @@ def main():
              "euclid": ("SPATIALIZER", "FLANGER", "CHORUS", "COMB FILTER"),
              "rig": _rig,
              "character-txtr": _rig,   # octabam-bus with the TXTR station
-             "brain": _rig,   # the rig with BRAIN (a ColdFire module)
              "octabam-bus": _rig,
              # every stock effect but COMPRESSOR, which SIDECHAIN_COMPRESSOR runs (stock_dsp)
              "octabam-inserts": tuple(_k for _k in _rig if _k != "COMPRESSOR")}
