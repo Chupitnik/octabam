@@ -258,6 +258,10 @@ by Maxolydian, whose reverse engineering of the OS format, memory map and
 parameter tables made any of this reachable; the upstream history is in
 this repository's log.
 
+BRAIN's LOAD view (`modules/load-meter`) follows the LOAD view design for the
+Machinedrum by Hamish Renton ([hmsr](https://github.com/hmsr)): the bounded
+reads, the `-` and `?` states, the refresh counter and the zero-cost close.
+
 `vendor/` pulls in [dsp56300](https://github.com/dsp56300/dsp56300),
 [mc68k](https://github.com/joelanders/mc68k-md-mm) and
 [elektron-firmware-tool](https://github.com/mischa85/elektron-firmware-tool).
