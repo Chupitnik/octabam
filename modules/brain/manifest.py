@@ -148,6 +148,8 @@ def settings_inc(mods):
 
 
 ROOT_ROWS, ROOT_DESC, ROOT_COUNT_AT = 0x400cc698, 0x400cbd8c, 0x400cbd8c
+STATE_TABLE = 0x400cbdac               # 16 entries x {enter, exit, draw, key, encoder}
+SCREENS = 6                            # BRAIN's states 16..21 (brain.c SC_N)
 ICON_MASK = 0x400cbfc4                   # the stock categories' shared second plane
 # BRAIN's icon: 19 columns x 8 rows; the plane is one long per column,
 # the column's pixels in its high byte, bit 0 the top row (stock's icons)
@@ -180,61 +182,47 @@ def menu_inc():
             "        .balign 4",
             "        .globl  brain_list",
             # shipped at the top level; brain.c's show() repoints it
-            "brain_list: .long 5, 0, 0, 0, 7, 5, brain_top_rows",
+            "brain_list: .long 7, 0, 0, 0, 7, 7, brain_top_rows",
             "        .globl  brain_top_rows, brain_def_rows, brain_tool_rows, brain_rmx_rows, brain_rmx_n, brain_set_rows",
            "        .globl  brain_tpl_rows",
-            # the root rows in alphabetical order, no arrows: LEFT inside a
-            # sub-list goes back to this list (brain_on_left)
+            # the root rows, alphabetical, no arrows; each opens one of BRAIN's
+            # screens (menu states, brain.c) except IMAGE CHECK, a popup
             "brain_top_rows:",
             "        .long   brain_lbl_defaults, 0, brain_open_defaults, 0, 0, 0",
+            "        .long   brain_lbl_pcheck, 0, brain_menu_pcheck, 0, 0, 0",
+            "        .long   brain_lbl_load, 0, brain_open_load, 0, 0, 0",
+            "        .long   brain_lbl_midi, 0, brain_open_midi, 0, 0, 0",
             "        .long   brain_lbl_remixes, 0, brain_open_remixes, 0, 0, 0",
             "        .long   brain_lbl_settings, 0, brain_open_settings, 0, 0, 0",
             "        .long   brain_lbl_templates, 0, brain_open_templates, 0, 0, 0",
-            "        .long   brain_lbl_tools, 0, brain_open_tools, 0, 0, 0",
-            # DEFAULTS in two sections, a heading row (no action) over each
-            "brain_def_rows:",
-            "        .long   brain_lbl_hfx, 0, 0, 0, 0, 0",
-            "        .long   brain_lbl_clear, 0, brain_menu_clear, 0, 0, 0",
-            "        .long   brain_lbl_save, 0, brain_menu_save, 0, 0, 0",
-            "        .long   brain_lbl_hnew, 0, 0, 0, 0, 0",
-            "        .long   brain_lbl_pclear, 0, brain_menu_pclear, 0, 0, 0",
-            "        .long   brain_lbl_psave, 0, brain_menu_psave, 0, 0, 0",
-            "brain_tool_rows:",
-            "        .long   brain_lbl_pcheck, 0, brain_menu_pcheck, 0, 0, 0",
-            "        .long   brain_lbl_load, 0, brain_menu_load, 0, 0, 0",
-            "        .long   brain_lbl_midimon, 0, brain_menu_midimon, 0, 0, 0",
-            "        .long   brain_lbl_log, 0, brain_menu_log, 0, 0, 0",
             # REMIXES: REMIX SWITCH's rows (modules/remix-switch/switch.s):
             # up to NMAX (32) images and four text rows
+            "        .globl  brain_rmx_rows, brain_rmx_n",
             "brain_rmx_rows:",
             "        .space  36 * 0x18",
             "brain_rmx_n: .long 0",
-            # SETTINGS: brain.c's rows (a heading per module and each
-            # setting: up to 48 settings and their headings)
-            # TEMPLATES: brain.c's rows (headings and templates, up to 160:
-            # brain.c TROWS)
-            "brain_tpl_rows:",
-            "        .space  160 * 0x18",
-            "brain_set_rows:",
-            "        .space  97 * 0x18",
+            # the menu-state table (stock: 16 entries of {enter, exit, draw,
+            # key, encoder}, 0x400cbdac) copied with BRAIN's screens appended
+            # as states 16..; the six references to it repointed (SymbolRefs)
+            "        .globl  brain_stab, brain_stab_draw, brain_stab_key, brain_stab_enc",
+            ]
+    stab = struct.unpack(">80I", img[STATE_TABLE - 0x40000400:STATE_TABLE - 0x40000400 + 16 * 20])
+    out.append("brain_stab:")
+    for i in range(16):
+        out.append("        .long   " + ", ".join(f"0x{w:08x}" for w in stab[i * 5:i * 5 + 5]))
+    for _ in range(SCREENS):
+        out.append("        .long   brain_scr_enter, brain_scr_exit, brain_scr_draw, brain_scr_key, brain_scr_enc")
+    out += ["        .set    brain_stab_draw, brain_stab + 8", "        .set    brain_stab_key, brain_stab + 12",
+            "        .set    brain_stab_enc, brain_stab + 16",
+            "        .globl  brain_icon",
             'brain_lbl_root: .asciz "BRAIN"',
-            'brain_lbl_settings: .asciz "SETTINGS"',
             'brain_lbl_defaults: .asciz "DEFAULTS"',
-            'brain_lbl_templates: .asciz "TEMPLATES"',
-            'brain_lbl_remixes: .asciz "REMIXES"',
-            'brain_lbl_tools: .asciz "TOOLS"',
-            # a heading is the module-heading form: \027 (the separator dot)
-            # round the text, PANE_W - 1 characters
-            'brain_lbl_hfx: .asciz "\\027FX DEFAULTS\\027\\027\\027"',
-            'brain_lbl_hnew: .asciz "\\027NEW PROJECT\\027\\027\\027"',
-            'brain_lbl_save: .asciz "SAVE FX DEFAULT"',
-            'brain_lbl_clear: .asciz "CLR FX DEFAULT"',
-            'brain_lbl_psave: .asciz "SAVE NEW PROJ"',
-            'brain_lbl_pclear: .asciz "CLR NEW PROJ"',
-            'brain_lbl_log: .asciz "WRITE DEBUG LOG"',
-            'brain_lbl_midimon: .asciz "MIDI MONITOR"',
+            'brain_lbl_pcheck: .asciz "IMAGE CHECK"',
             'brain_lbl_load: .asciz "LOAD"',
-            'brain_lbl_pcheck: .asciz "IMAGE CHECK"']
+            'brain_lbl_midi: .asciz "MIDI"',
+            'brain_lbl_remixes: .asciz "REMIXES"',
+            'brain_lbl_settings: .asciz "SETTINGS"',
+            'brain_lbl_templates: .asciz "TEMPLATES"']
     return "\n".join(out)
 
 
@@ -277,7 +265,17 @@ MODULE = Module(
     ) if not (_NOLOAD and d.site in (0x40085342, 0x40084d4a))),
     # the BRAIN root category: the root list's rows pointer to brain_root_rows
     # and its count 4 -> 5 (two modules growing the root are refused by the ledger)
-    symbol_refs=(SymbolRef(FUNC_LAYER_KEYS, FUNC_KEYS, "brain", "brain_func_keys",
+    symbol_refs=(
+                 # the menu-state table moved to DRAM with BRAIN's screens appended
+                 # (the six references, as modules/busscreen did: three `lea`
+                 # of the table and `addal` of the draw, key and encoder members)
+                 SymbolRef(0x40064bd4, STATE_TABLE, "brain", "brain_stab", "menu state table: enter member (opener)"),
+                 SymbolRef(0x40064e36, STATE_TABLE, "brain", "brain_stab", "menu state table: enter member (id path)"),
+                 SymbolRef(0x400650e8, STATE_TABLE, "brain", "brain_stab", "menu state table: exit member (NO)"),
+                 SymbolRef(0x40064e04, STATE_TABLE + 8, "brain", "brain_stab_draw", "menu state table: draw member"),
+                 SymbolRef(0x4006511c, STATE_TABLE + 12, "brain", "brain_stab_key", "menu state table: key member"),
+                 SymbolRef(0x40065086, STATE_TABLE + 16, "brain", "brain_stab_enc", "menu state table: encoder member"),
+                 SymbolRef(FUNC_LAYER_KEYS, FUNC_KEYS, "brain", "brain_func_keys",
                            "the MKII FUNC layer's keys: stock's records + LEVEL push, the LOAD view"),
                  SymbolRef(PAGE_LAYER_KEYS, PAGE_KEYS, "brain", "brain_page_keys",
                            "the page-held key layer's keys: stock's five records + FUNC, the page shortcut"),

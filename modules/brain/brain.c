@@ -974,7 +974,7 @@ int brain_save_default(u32 t, u32 fx)
 	return write_default(t, fx, 0);
 }
 
-/* CLR FX DEFAULT: the effect's default record (no mode) leaves card.work and
+/* CLEAR FX DEFAULT: the effect's default record (no mode) leaves card.work and
  * the descriptor goes back to the image's values. */
 int brain_clear_default(u32 t, u32 fx)
 {
@@ -1147,7 +1147,7 @@ void brain_post_store(void)
 	Q_SEND(ENGINE_Q, job_msg);
 }
 
-/* From any task: CLR FX DEFAULT for track t's FX1 (0) or FX2 (1). */
+/* From any task: CLEAR FX DEFAULT for track t's FX1 (0) or FX2 (1). */
 void brain_post_clear(u32 t, u32 fx)
 {
 	job_args = (t & 7) | (fx ? 0x100 : 0) | 0x200;
@@ -1253,7 +1253,7 @@ void brain_menu_clear(u32 unused)
 		brain_post_clear(CUR_TRACK & 7, (u32)fx);
 		msg[1] = "DEFAULT CLEARED";
 	}
-	POPUP("CLR FX DEFAULT", 2, msg, 0, 0);
+	POPUP("CLEAR FX DEFAULT", 2, msg, 0, 0);
 }
 
 /* TOOLS > IMAGE CHECK: what the last load found when it compared the
@@ -1386,7 +1386,7 @@ static int log_is_off(void)
 	if (brain_v_octabam_brain_1)
 		return 0;
 	msg[0] = "MIDI LOG IS OFF";
-	msg[1] = "(SETTINGS)";
+	msg[1] = "SWITCH IT ON";
 	POPUP("MIDI LOG", 2, msg, 0, 0);
 	return 1;
 }
@@ -1402,183 +1402,46 @@ void brain_menu_log(u32 unused)
 	POPUP("DEBUG LOG", 2, msg, 0, 0);
 }
 
-/* ---- the pane's sub-lists ------------------------------------------------ */
+/* ---- BRAIN's root pane and its screens ------------------------------------ */
 
-/* The stock menu engine is two levels deep: LEFT always focuses the root,
- * and YES on a list row runs its action (0x40064e64; docs/firmware/
- * MAINMENU.md section 4). So BRAIN's top rows each
- * point brain_list at another row array, and the redraw that follows every
- * key (0x40064d7c) shows it. LEFT inside a sub-list goes back to the top
- * (brain_on_left); MAIN MENU's opening (REMIX SWITCH's osw_menu) resets to
- * the top too. */
+/* BRAIN's pane in MAIN MENU is one list; each row opens one of BRAIN's
+ * screens, or (IMAGE CHECK) a popup. A screen is a state of the menu-state
+ * table (0x400cbdac), which is copied to DRAM with the screens appended as
+ * states 16.. (manifest.py): a full window like the stock MIDI SYNC, drawn
+ * by brain_scr_draw, keys to brain_scr_key. NO inside a screen goes back to
+ * the menu, as in the stock ones. docs/firmware/MAINMENU.md sections 3, 4
+ * and 9a (modules/busscreen, in history, added a 17th state the same way). */
 
 struct mrow { const char *label; void *window; void (*action)(u32); u32 getter; void *child; u32 id; };
 struct mlist { u32 count, scroll, cursor, sel, visible, count2; struct mrow *rows; };
 
 extern struct mlist brain_list;
-extern struct mrow brain_top_rows[], brain_def_rows[], brain_tool_rows[], brain_rmx_rows[],
-	brain_set_rows[];
+extern struct mrow brain_top_rows[], brain_rmx_rows[];
 void brain_post_settings(void);
-extern u32 brain_rmx_n;			/* REMIXES' rows, the back row included (switch.s) */
+extern u32 brain_rmx_n;			/* REMIXES' rows (switch.s) */
 
-static u32 brain_from DATA;		/* the top row the open sub-list came from */
-
-static void show(struct mrow *rows, u32 n, u32 at)
-{
-	brain_list.rows = rows;
-	brain_list.count = brain_list.count2 = n;
-	brain_list.scroll = at >= brain_list.visible ? at - brain_list.visible + 1 : 0;
-	brain_list.cursor = at - brain_list.scroll;
-	brain_list.sel = at;
-}
-
-#define TOP_N   5				/* DEFAULTS, REMIXES, SETTINGS, TEMPLATES, TOOLS */
+#define TOP_N   7				/* DEFAULTS, IMAGE CHECK, LOAD, MIDI, REMIXES, SETTINGS, TEMPLATES */
 #define PANE_W  15				/* characters the list pane shows */
 #define NOOP    ((void (*)(u32))0x400648f8)	/* stock's shared row action, `rts` */
 
+enum { SC_DEF, SC_LOAD, SC_MIDI, SC_RMX, SC_SET, SC_TPL, SC_N };
+static void sc_open(u32 sc);
+static void sc_rebuild(void);
+
+/* BRAIN's pane at its top row (REMIX SWITCH's osw_menu calls this when MAIN MENU opens) */
 void brain_menu_top(void)
 {
-	show(brain_top_rows, TOP_N, 0);
+	brain_list.rows = brain_top_rows;
+	brain_list.count = brain_list.count2 = TOP_N;
+	brain_list.scroll = brain_list.cursor = brain_list.sel = 0;
 }
 
-void brain_menu_back(u32 unused)
-{
-	(void)unused;
-	show(brain_top_rows, TOP_N, brain_from);
-}
-
-void brain_open_defaults(u32 unused)
-{
-	(void)unused;
-	brain_from = 0;
-	show(brain_def_rows, 6, 1);
-}
-
-void brain_open_remixes(u32 unused)
-{
-	(void)unused;
-	brain_from = 1;
-	show(brain_rmx_rows, brain_rmx_n, 0);
-}
-
-void brain_open_tools(u32 unused)
-{
-	(void)unused;
-	brain_from = 4;
-	show(brain_tool_rows, 4, 0);
-}
-
-/* SETTINGS: per module a heading (its key, no action)
- * and its settings, each label "NAME" with the value at the pane's right
- * edge. YES steps the value (Binary and Option wrap; a Number by its step,
- * from max back to min) and has the engine task write card.work. */
-
-static char set_lbl[MAX_SET][PANE_W + 1];
-static u8 set_row_ent[MAX_SET * 2 + 2];		/* row -> entry, 0xff: not a setting */
-static char set_none[] = "NO SETTINGS";
-
-static void put_row(struct mrow *r, const char *label, void (*action)(u32))
-{
-	r->label = label;
-	r->window = 0;
-	r->action = action;
-	r->getter = 0;
-	r->child = 0;
-	r->id = 0;
-}
-
-static u32 slen(const char *s)
-{
-	u32 n = 0;
-	while (s[n])
-		n++;
-	return n;
-}
-
-static void set_label(u32 i)
-{
-	const struct set_ent *e = &brain_set[i];
-	char val[12];
-	const char *vs = val;
-	int v = brain_values[i];
-	if (e->type == 1)
-		vs = v ? "ON" : "OFF";
-	else if (e->type == 2)
-		vs = (u32)v < e->nlabels ? e->labels[v] : "?";
-	else {
-		u32 k = 0, a = (u32)(v < 0 ? -v : v);
-		char tmp[8];
-		do
-			tmp[k++] = (char)('0' + a % 10);
-		while ((a /= 10) && k < 7);
-		u32 o = 0;
-		if (v < 0)
-			val[o++] = '-';
-		while (k)
-			val[o++] = tmp[--k];
-		val[o] = 0;
-	}
-	u32 vl = slen(vs), nl = slen(e->name);
-	if (vl > PANE_W - 2)
-		vl = PANE_W - 2;
-	if (nl > PANE_W - 1 - vl)
-		nl = PANE_W - 1 - vl;
-	char *o = set_lbl[i];
-	u32 k = 0;
-	for (; k < nl; k++)
-		o[k] = e->name[k];
-	for (; k < PANE_W - vl; k++)
-		o[k] = ' ';
-	for (u32 j = 0; j < vl; j++)
-		o[k++] = vs[j];
-	o[k] = 0;
-}
-
-void brain_set_row(u32 unused)
-{
-	(void)unused;
-	u32 r = brain_list.sel;
-	if (r >= sizeof set_row_ent || set_row_ent[r] == 0xff)
-		return;
-	u32 i = set_row_ent[r];
-	const struct set_ent *e = &brain_set[i];
-	int v = brain_values[i] + (e->type == 3 ? e->step : 1);
-	if (v > e->max)
-		v = e->min;
-	brain_values[i] = v;
-	set_label(i);
-	brain_post_settings();
-}
-
-void brain_open_settings(u32 unused)
-{
-	(void)unused;
-	struct mrow *row = brain_set_rows;
-	u32 n = 0, first = 0;
-	const char *group = 0;
-	for (u32 i = 0; i < sizeof set_row_ent; i++)
-		set_row_ent[i] = 0xff;
-	for (u32 i = 0; i < brain_set_n && i < MAX_SET; i++) {
-		const struct set_ent *e = &brain_set[i];
-		if (e->group != group) {
-			group = e->group;
-			put_row(row++, group, 0);
-			n++;
-		}
-		set_label(i);
-		put_row(row++, set_lbl[i], brain_set_row);
-		set_row_ent[n] = (u8)i;
-		if (!first)
-			first = n;
-		n++;
-	}
-	if (!n) {
-		put_row(row, set_none, NOOP);
-		n = 1;
-	}
-	brain_from = 2;
-	show(brain_set_rows, n, first);
-}
+void brain_open_defaults(u32 unused) { (void)unused; sc_open(SC_DEF); }
+void brain_open_load(u32 unused) { (void)unused; sc_open(SC_LOAD); }
+void brain_open_midi(u32 unused) { (void)unused; sc_open(SC_MIDI); }
+void brain_open_remixes(u32 unused) { (void)unused; sc_open(SC_RMX); }
+void brain_open_settings(u32 unused) { (void)unused; sc_open(SC_SET); }
+void brain_open_templates(u32 unused) { (void)unused; sc_open(SC_TPL); }
 
 /* ---- templates: lists, apply, save and delete (BRAIN.md sections 5.2, 9) ---- */
 
@@ -1987,7 +1850,7 @@ void brain_tpl_delete(u32 unused);
 
 static u32 pop_sel;
 void brain_kn_list(u32 unused);
-static const char *const page_lbl[6] = { "SAVE FX DEFAULT", "CLR FX DEFAULT", "SAVE TEMPLATE",
+static const char *const page_lbl[6] = { "SAVE FX DEFAULT", "CLEAR FX DEFAULT", "SAVE TEMPLATE",
 					 "LOAD TEMPLATE", "DELETE TEMPLATE", "NAME KNOB" };
 static void (*const page_fn[6])(u32) = { brain_menu_save, brain_menu_clear, brain_tpl_save,
 					 brain_tpl_load, brain_tpl_delete, brain_kn_list };
@@ -2080,7 +1943,6 @@ void brain_tpl_delete(u32 unused)
 
 static char tname[16];
 static u32 save_kind, save_t;		/* the view the name editor was opened over */
-static int from_pane;			/* SAVE TEMPLATE came from BRAIN > TEMPLATES */
 
 /* "TPL nn" with the lowest nn no card template of entry e carries, into
  * tname */
@@ -2108,8 +1970,6 @@ static void default_name(u32 e)
 	tname[5] = (char)('0' + num % 10);
 }
 
-void brain_menu_back(u32 unused);
-
 /* the name editor's answer: the engine task saves the page under the name */
 static void tpl_named(u32 confirmed)
 {
@@ -2132,9 +1992,7 @@ static void tpl_named(u32 confirmed)
 	msg[0] = line1;
 	msg[1] = "TEMPLATE SAVED";
 	POPUP("SAVE TEMPLATE", 2, msg, 0, 0);
-	if (from_pane)
-		brain_menu_back(0);
-	from_pane = 0;
+	sc_rebuild();
 }
 
 void brain_tpl_save(u32 unused)
@@ -2150,22 +2008,15 @@ void brain_tpl_save(u32 unused)
 	NAMEED(TPL_NAME, "TEMPLATE NAME", tname, 1, tpl_named);
 }
 
-/* ---- BRAIN > TEMPLATES ----------------------------------------------------- */
+/* ---- the TEMPLATES screen's actions ----------------------------------------- */
 
-/* SAVE TEMPLATE (the page in view, asking for a name), then a section per
- * target with card templates, the sections and the names alphabetical.
- * The section heading is the effect's name or the stock page's. YES on a
- * template opens the stock list popup: LOAD (onto the page in view, when
- * it is that target's), RENAME (the name editor) and DELETE. Each posts an
- * engine job and returns the pane to the top, so no row built from the old
- * file is acted on. */
+/* Rows: SAVE TEMPLATE (the page in view, asking for a name), then a section
+ * per target with card templates (the effect's name or the stock page's),
+ * sections and names alphabetical. YES on a template opens the stock list
+ * popup: LOAD (onto the page in view, when it is that target's), RENAME (the
+ * name editor) and DELETE. Each posts an engine job and rebuilds the rows. */
 
-#define TROWS    160				/* brain_tpl_rows (manifest.py) */
-
-extern struct mrow brain_tpl_rows[];
-static char trow_lbl[TROWS][PANE_W + 1];
-static u16 trow_ref[TROWS + 1];			/* row -> e << 8 | i; 0xffff none */
-static u32 trow_ref_sel;
+static u32 trow_ref_sel;			/* e << 8 | i of the template the popup is about */
 
 static const char *const st_name[ST_N] = { "AMP", "LFO", "MIDI TRACK", "SRC STATIC", "SRC FLEX",
 					   "SRC THRU", "SRC NEIGHBOR", "SRC PICKUP" };
@@ -2198,18 +2049,6 @@ static int name_lt(const u8 *a, const u8 *b)
 	return 0;
 }
 
-/* a section heading: the separator dot round the name, PANE_W characters */
-static void heading_label(char *o, const char *name)
-{
-	u32 k = 0;
-	o[k++] = '\027';
-	for (; name[k - 1] && k < PANE_W - 1; k++)
-		o[k] = name[k - 1];
-	for (; k < PANE_W; k++)
-		o[k] = '\027';
-	o[k] = 0;
-}
-
 static void trow_name(char *o, const u8 *rec)
 {
 	const u8 *nm = tname_of(rec);
@@ -2219,70 +2058,13 @@ static void trow_name(char *o, const u8 *rec)
 	o[k] = 0;
 }
 
-void brain_tpl_row(u32 unused);
-void brain_tpl_pane_save(u32 unused)
-{
-	(void)unused;
-	from_pane = 1;
-	brain_tpl_save(0);
-}
-
-void brain_open_templates(u32 unused)
-{
-	(void)unused;
-	u32 n = 0, first = 0;
-	for (u32 i = 0; i <= TROWS; i++)
-		trow_ref[i] = 0xffff;
-	put_row(brain_tpl_rows + n++, "SAVE TEMPLATE", brain_tpl_pane_save);
-	first = 0;
-	u8 done[ST_BASE + ST_N];
-	for (u32 e = 0; e < sizeof done; e++)
-		done[e] = 0;
-	for (;;) {
-		/* the next section: the alphabetically first target not yet listed */
-		u32 pick = 0xffff;
-		for (u32 e = 0; e < ST_BASE + ST_N; e++) {
-			if (done[e] || (e >= brain_fx_n && e < ST_BASE) || !card_nth(e, 0))
-				continue;
-			if (pick == 0xffff || str_lt(ent_name(e), ent_name(pick)))
-				pick = e;
-		}
-		if (pick == 0xffff || n + 2 > TROWS)
-			break;
-		done[pick] = 1;
-		heading_label(trow_lbl[n], ent_name(pick));
-		put_row(brain_tpl_rows + n, trow_lbl[n], 0);
-		n++;
-		u8 used[TPL_MAX];
-		u32 kc = 0;
-		while (kc < TPL_MAX && card_nth(pick, kc))
-			used[kc++] = 0;
-		for (u32 r = 0; r < kc && n < TROWS; r++) {
-			u32 best = 0xffff;
-			for (u32 j = 0; j < kc; j++)
-				if (!used[j] && (best == 0xffff || name_lt(tname_of(card_nth(pick, j)),
-									   tname_of(card_nth(pick, best)))))
-					best = j;
-			used[best] = 1;
-			trow_name(trow_lbl[n], card_nth(pick, best));
-			trow_ref[n] = (u16)(pick << 8 | best);
-			put_row(brain_tpl_rows + n, trow_lbl[n], brain_tpl_row);
-			if (!first)
-				first = n;
-			n++;
-		}
-	}
-	brain_from = 3;
-	show(brain_tpl_rows, n, first);
-}
-
 static void tpl_job(u32 args, const char *done)
 {
 	brain_post_template(args);
 	msg[0] = tname;
 	msg[1] = done;
 	POPUP("TEMPLATES", 2, msg, 0, 0);
-	brain_menu_back(0);
+	sc_rebuild();
 }
 
 static void tpl_renamed(u32 confirmed)
@@ -2337,26 +2119,21 @@ static void trow_load(u32 unused)
 	msg[0] = tname;
 	msg[1] = "LOADED";
 	POPUP("LOAD TEMPLATE", 2, msg, 0, 0);
-	brain_menu_back(0);
 }
 
 static const char *const trow_lbls[3] = { "LOAD", "RENAME", "DELETE" };
 static void (*const trow_fn[3])(u32) = { trow_load, trow_rename, trow_delete };
 
-void brain_tpl_row(u32 unused)
+/* a template row's action: arg = e << 8 | i */
+static void tpl_item(u32 ref)
 {
-	(void)unused;
-	u32 r = brain_list.sel;
-	if (r > TROWS || trow_ref[r] == 0xffff)
-		return;
-	trow_ref_sel = trow_ref[r];
-	const u8 *rec = card_nth(trow_ref_sel >> 8, trow_ref_sel & 0xff);
+	trow_ref_sel = ref;
+	const u8 *rec = card_nth(ref >> 8, ref & 0xff);
 	if (!rec)
 		return;
 	for (u32 k = 0; k < sizeof tname; k++)
 		tname[k] = 0;
-	for (u32 k = 0; k < TPL_NAME && tname_of(rec)[k]; k++)
-		tname[k] = (char)tname_of(rec)[k];
+	trow_name(tname, rec);
 	pop_sel = 0;
 	LISTPOP(3, 0, &pop_sel, trow_lbls, (void *)trow_fn);
 }
@@ -2515,7 +2292,7 @@ static int ps_byte(u32 off)
 enum { NP_RUNS, NP_VALUES, NP_N };
 u32 brain_np_counts[NP_N] DATA;
 
-/* engine task: SAVE NEW PROJ (clear 0) or CLR NEW PROJ (clear 1) */
+/* engine task: SAVE NEW PROJECT (clear 0) or CLEAR NEW PROJECT (clear 1) */
 static int write_pset(int clear)
 {
 	int n = current_store();
@@ -2618,147 +2395,6 @@ void brain_menu_pclear(u32 unused)
 	POPUP("DEFAULTS", 2, msg, 0, 0);
 }
 
-/* ---- live popups: TOOLS > MIDI MONITOR and TOOLS > LOAD ------------------- */
-
-/* The stock dialog (0x4006d57c) with three lines, redrawn every half
- * second by a soft timer (0x40031a0c, the sys task's ~120 Hz tick): the
- * tick writes the dialog's copies of its lines (0x460e5d28, 31 bytes
- * apart) and redraws it (0x4006d128), REMIX SWITCH's boot picker's
- * sequence (PR #542). The tick stops itself when the dialog closes or
- * another replaces it, by clearing its slot's function (the service
- * re-links a node only while that word is nonzero); the answer handler
- * stops it with UNTIMER, which is only called from outside the tick. */
-
-#define TIMER     ((int (*)(u32, void (*)(void)))0x40031a0c)
-#define UNTIMER   ((void (*)(int))0x40031abc)
-#define TIMERS    0x460d5a28			/* 32 slots, 16 bytes: {period, due, fn, next} */
-#define DLG_OPEN  (*(volatile u32 *)0x460e5cd0)	/* the dialog's window, 0 = none */
-#define DLG_LINES ((char *)0x460e5d28)
-#define DLG_DRAW  ((void (*)(void))0x4006d128)
-#define LIVE_TICKS 60				/* about 0.5 s */
-#define LIVE_W    22				/* characters a dialog line shows */
-
-enum { LIVE_MIDI = 1, LIVE_LOAD = 2 };
-
-static int live_timer DATA = -1;
-static u32 live_kind DATA;
-static u32 live_win DATA;			/* the dialog window ours opened as */
-static char live_lbuf[3][LIVE_W + 1];
-static const char *live_lp[3] = { live_lbuf[0], live_lbuf[1], live_lbuf[2] };
-
-/* LOAD METER's window (modules/load-meter: seq, window, sum, count,
- * longest, in DMA timer 3 counts at 132 MHz), or 0 without that module
- * (hooks.s brain_lm, the LM_STATS defsym). */
-extern volatile u32 *const brain_lm;
-static u32 load_peak_pct DATA, load_peak_us DATA;
-
-static void line_set(u32 i, const char *a, u32 an)
-{
-	u32 k = 0;
-	for (; k < an && k < LIVE_W; k++)
-		live_lbuf[i][k] = a[k];
-	live_lbuf[i][k] = 0;
-}
-
-/* LOAD METER's DSP figures (hooks.s brain_lmd, the LM_DSP defsym): seq,
- * bad, core 0 {busy, period}, core 1 {busy, period}, core 0 peak, core 1
- * peak, TUE, ROE, then the peak reset (modules/load-meter/meter.s). */
-extern volatile u32 *const brain_lmd;
-#define TEXT_W  ((u32 (*)(const char *, u32, const char *))0x40012f30)	/* (font, max, string): pixels */
-#define DLG_FONT ((const char *)0x400ba876)
-#define DLG_W   (*(volatile u32 *)0x460e5e20)	/* the open dialog's width */
-#define DLG_TITLE ((char *)0x460e5ce4)		/* its copy of the title */
-#define DLG_SETTITLE ((void (*)(u32, const char *))0x40057c84)
-static u32 load_dseq DATA, load_dbad DATA, load_miss0 DATA, load_ticks DATA;
-
-/* "DSPn  41%/ 55%": now / the peak since open (+ " M3" on core 0: ESAI
- * underrun and overrun frames since open, mod 512):
- * "-" before a sample, "?" when the records since the last tick were all
- * bad */
-static u32 dsp_line(char *t, u32 core, int fresh, int bad)
-{
-	u32 n = put_s(t, core ? "DSP1 " : "DSP0 ");
-	const volatile u32 *now = brain_lmd + 2 + 2 * core, *pk = brain_lmd + 6 + 2 * core;
-	if (!brain_lmd[0] || (!fresh && !bad)) {
-		n += put_s(t + n, "  -%/  -%");
-	} else if (!fresh) {
-		n += put_s(t + n, "  ?%/  ?%");
-	} else {
-		n += put_dec(t + n, now[0] * 100 / now[1], 3);
-		n += put_s(t + n, "%/");
-		n += put_dec(t + n, pk[1] ? pk[0] * 100 / pk[1] : 0, 3);
-		n += put_s(t + n, "%");
-	}
-	if (!core) {
-		n += put_s(t + n, " M");
-		if (!brain_lmd[0])
-			n += put_s(t + n, "-");
-		else
-			n += put_dec(t + n, ((brain_lmd[10] + brain_lmd[11]) - load_miss0) & 0x1ff, 0);
-	}
-	return n;
-}
-
-/* a line cut, in characters, until it fits the open dialog in pixels */
-static void line_fit(u32 i, char *t, u32 n)
-{
-	t[n] = 0;
-	while (n && DLG_OPEN && TEXT_W(DLG_FONT, 0x1e, t) + 9 > DLG_W)
-		t[--n] = 0;
-	line_set(i, t, n);
-}
-
-static void fill_load(void)
-{
-	char t[LIVE_W + 8];
-	u32 n;
-	if (!brain_lm) {
-		line_set(0, "NO LOAD METER", 13);
-		line_set(1, "IN THIS REMIX", 13);
-		line_set(2, "", 0);
-		return;
-	}
-	u32 seq = brain_lm[0], win = brain_lm[1], sum = brain_lm[2], cnt = brain_lm[3], max = brain_lm[4];
-	n = put_s(t, "CF   ");				/* the frame interrupt's share now / peak, the longest run */
-	if (!seq || !win || !cnt) {
-		n += put_s(t + n, "  -%/  -%   -US");
-	} else {
-		u32 pct = sum / (win / 100 ? win / 100 : 1), us = max / 132;
-		if (pct > load_peak_pct)
-			load_peak_pct = pct;
-		if (us > load_peak_us)
-			load_peak_us = us;
-		n += put_dec(t + n, pct, 3);
-		n += put_s(t + n, "%/");
-		n += put_dec(t + n, load_peak_pct, 3);
-		n += put_s(t + n, "% ");
-		n += put_dec(t + n, load_peak_us, 3);
-		n += put_s(t + n, "US");
-	}
-	line_fit(0, t, n);
-	int fresh = brain_lmd && brain_lmd[0] != load_dseq;
-	int bad = brain_lmd && brain_lmd[1] != load_dbad;
-	if (brain_lmd) {
-		load_dseq = brain_lmd[0];
-		load_dbad = brain_lmd[1];
-		line_fit(1, t, dsp_line(t, 0, fresh, bad));
-		line_fit(2, t, dsp_line(t, 1, fresh, bad));
-	} else {
-		line_set(1, "", 0);
-		line_set(2, "", 0);
-	}
-}
-
-/* the title row: "LOAD" and the refresh count, the live view's proof */
-static void load_title(void)
-{
-	char *d = DLG_TITLE;
-	u32 n = put_s(d, "LOAD ");
-	n += put_dec(d + n, load_ticks % 1000, 0);
-	d[n] = 0;
-	DLG_SETTITLE(DLG_OPEN, d);
-}
-
 /* One logged message as text: "CH01 CC 007=020", "CH10 NOTE 036 100",
  * "START" ... */
 static u32 midi_text(char *t, const struct dbg_ent *e)
@@ -2788,72 +2424,408 @@ static u32 midi_text(char *t, const struct dbg_ent *e)
 	return n + put_dec(t + n, e->d2, 3);
 }
 
-static void fill_midi(void)
+
+/* ---- BRAIN's screens: the menu states ------------------------------------- */
+
+/* One state of the menu-state table per screen (SC_BASE + screen; the
+ * table's members {enter, exit, draw, key, encoder} are the brain_scr_*
+ * functions below, which read the state index 0x400cbf40). The screen is a
+ * list of rows (sr[], rebuilt on entry and after each action) drawn the way
+ * the stock MIDI screens draw: the category icon at the left and the title
+ * at the right of the first band, a rule under it, then rows at the stock
+ * 7-pixel pitch with the stock inverted bar on the cursor row
+ * (0x40012254). The stock key dispatcher (0x4006510a) calls key(code,
+ * pressed) and redraws after it; NO leaves the state through the exit
+ * member back to the menu (0x400650a0). LOAD and MIDI redraw every half
+ * second from a soft timer (0x40031a0c). */
+
+#define SC_BASE    16
+#define STATEG     (*(volatile u32 *)0x400cbf40)
+#define OPEN_STATE ((void (*)(u32))0x40064e20)	/* the id path's: sets the state, calls its enter member, redraws */
+#define MENU_REDRAW ((void (*)(void))0x40064d7c)
+#define FONT       ((const char *)0x400ba876)
+#define TEXT_W     ((u32 (*)(const char *, u32, const char *))0x40012f30)	/* (font, max, string): pixels */
+#define DRAWSTR    ((void (*)(const char *, void *, int, int, int, const char *))0x40012bd8)
+#define INVERT     ((void (*)(void *, int, int, int, int, int))0x40012254)
+#define ICON       ((void (*)(const void *, void *, int, int))0x400128a8)
+#define RULE       ((void (*)(void *, int, int, int, int))0x40011910)
+#define DOTH       ((void (*)(void *, int, int, int))0x40011a58)
+#define VLINE      ((void (*)(void *, int, int, int, int))0x40011b94)
+#define HLINE      ((void (*)(void *, int, int, int, int, int))0x40012004)
+#define TIMER      ((int (*)(u32, void (*)(void)))0x40031a0c)
+#define UNTIMER    ((void (*)(int))0x40031abc)
+#define TIMERS     0x460d5a28			/* 32 slots, 16 bytes: {period, due, fn, next} */
+#define LIVE_TICKS 60				/* about 0.5 s */
+#define VISIBLE    4				/* rows under the rule */
+#define PITCH      8				/* pixels between rows */
+#define MARGIN     6				/* the text's distance from the window's sides */
+
+extern const u32 brain_icon[];
+
+enum { K_HEAD, K_TEXT, K_ITEM, K_TOGGLE, K_VALUE };
+struct srow { const char *label, *val; void (*act)(u32); u32 arg; u8 kind, on; };
+#define SR_MAX 176
+static struct srow sr[SR_MAX];
+static u32 sn DATA, scur DATA, stop DATA;
+static char slab[SR_MAX][16];			/* heading and template names */
+static const char *const sc_title[SC_N] = { "DEFAULTS", "LOAD", "MIDI", "REMIXES", "SETTINGS", "TEMPLATES" };
+
+static u32 sc_now(void)
 {
-	char t[LIVE_W + 8];
+	u32 st = STATEG;
+	return st >= SC_BASE && st < SC_BASE + SC_N ? st - SC_BASE : SC_N;
+}
+
+static struct srow *add(u32 kind, const char *label, void (*act)(u32), u32 arg)
+{
+	struct srow *r = &sr[sn < SR_MAX ? sn++ : SR_MAX - 1];
+	r->label = label;
+	r->val = 0;
+	r->act = act;
+	r->arg = arg;
+	r->kind = (u8)kind;
+	r->on = 0;
+	return r;
+}
+
+static int selectable(u32 i)
+{
+	return i < sn && sr[i].kind >= K_ITEM;
+}
+
+/* ---- MIDI: the log switch, the log file, the last messages ------------------ */
+
+static char mon_buf[3][32];
+
+static void tog_log(u32 unused)
+{
+	(void)unused;
+	brain_v_octabam_brain_1 ^= 1;
+	brain_post_settings();
+}
+
+static void midi_write(u32 unused)
+{
+	(void)unused;
+	brain_menu_log(0);
+}
+
+static void mon_update(void)
+{
+	for (u32 i = 0; i < 3; i++)
+		mon_buf[i][0] = 0;
 	if (!brain_v_octabam_brain_1) {
-		line_set(0, "MIDI LOG IS OFF", 15);
-		line_set(1, "SETTINGS > MIDI LOG", 19);
-		line_set(2, "", 0);
+		put_s(mon_buf[0], "MIDI LOG IS OFF");
 		return;
 	}
+	char t[32];
 	for (u32 i = 0; i < 3; i++) {
 		u32 back = 3 - i;			/* the newest last */
 		if (dbg_seq < back) {
-			line_set(i, i == 0 && !dbg_seq ? "NO MESSAGES YET" : "", i == 0 && !dbg_seq ? 15 : 0);
+			if (i == 0 && !dbg_seq)
+				put_s(mon_buf[0], "NO MESSAGES YET");
 			continue;
 		}
 		const struct dbg_ent *e = &dbg_ring[(dbg_seq - back) % LOG_N];
-		line_set(i, t, midi_text(t, e));
+		u32 n = midi_text(t, e);
+		t[n] = 0;
+		put_s(mon_buf[i], t);
 	}
 }
 
-static void live_fill(void)
+static void build_midi(void)
 {
-	if (live_kind == LIVE_LOAD)
-		fill_load();
-	else
-		fill_midi();
+	add(K_TOGGLE, "MIDI LOG", tog_log, 0)->on = (u8)brain_v_octabam_brain_1;
+	add(K_ITEM, "WRITE DEBUG LOG", midi_write, 0);
+	mon_update();
+	for (u32 i = 0; i < 3; i++)
+		add(K_TEXT, mon_buf[i], 0, 0);
 }
 
-void brain_live_tick(void)
+/* ---- DEFAULTS --------------------------------------------------------------- */
+
+static void tog_apply(u32 unused)
+{
+	(void)unused;
+	brain_v_octabam_brain_2 ^= 1;
+	brain_post_settings();
+}
+
+static void build_def(void)
+{
+	add(K_HEAD, "FX DEFAULTS", 0, 0);
+	add(K_ITEM, "SAVE FX DEFAULT", brain_menu_save, 0);
+	add(K_ITEM, "CLEAR FX DEFAULT", brain_menu_clear, 0);
+	add(K_HEAD, "NEW PROJECT", 0, 0);
+	add(K_ITEM, "SAVE NEW PROJECT", brain_menu_psave, 0);
+	add(K_ITEM, "CLEAR NEW PROJECT", brain_menu_pclear, 0);
+	add(K_HEAD, "CARD", 0, 0);
+	add(K_TOGGLE, "APPLY DEFAULTS", tog_apply, 0)->on = (u8)brain_v_octabam_brain_2;
+}
+
+/* ---- REMIXES (REMIX SWITCH's rows) ------------------------------------------- */
+
+/* osw_pick reads the selection from brain_list's scroll + cursor */
+static void rmx_pick(u32 i)
+{
+	brain_list.scroll = 0;
+	brain_list.cursor = i;
+	brain_rmx_rows[i].action(0);
+}
+
+static void build_rmx(void)
+{
+	for (u32 i = 0; i < brain_rmx_n && i < 36; i++) {
+		const struct mrow *m = &brain_rmx_rows[i];
+		add(m->action == NOOP ? K_TEXT : K_ITEM, m->label, rmx_pick, i);
+	}
+	if (!sn)
+		add(K_TEXT, "NO REMIX SWITCH", 0, 0);
+}
+
+/* ---- SETTINGS: the other modules' settings (BRAIN's own are in DEFAULTS and MIDI) ---- */
+
+static char setval[MAX_SET][12];
+
+static void set_value(u32 i)
+{
+	const struct set_ent *e = &brain_set[i];
+	int v = brain_values[i];
+	char *o = setval[i];
+	if (e->type == 1)
+		put_s(o, v ? "ON" : "OFF");
+	else if (e->type == 2)
+		put_s(o, (u32)v < e->nlabels ? e->labels[v] : "?");
+	else {
+		u32 n = 0;
+		if (v < 0) {
+			o[n++] = '-';
+			v = -v;
+		}
+		n += put_dec(o + n, (u32)v, 0);
+		o[n] = 0;
+	}
+}
+
+static void set_step(u32 i)
+{
+	const struct set_ent *e = &brain_set[i];
+	int v = brain_values[i] + (e->type == 3 ? e->step : 1);
+	if (v > e->max)
+		v = e->min;
+	brain_values[i] = v;
+	brain_post_settings();
+}
+
+static int own_setting(const struct set_ent *e)
+{
+	return same_id(e->id, e->id_len, "octabam.brain", 13);
+}
+
+static void build_set(void)
+{
+	const char *group = 0;
+	u32 head = 0;
+	for (u32 i = 0; i < brain_set_n && i < MAX_SET; i++) {
+		const struct set_ent *e = &brain_set[i];
+		if (own_setting(e))
+			continue;
+		if (e->group != group) {
+			group = e->group;
+			char *h = slab[head++ & 63];
+			u32 k = 0;
+			for (const char *c = group; *c && k < 15; c++)
+				if (*c != '\027')
+					h[k++] = *c;
+			h[k] = 0;
+			add(K_HEAD, h, 0, 0);
+		}
+		set_value(i);
+		struct srow *r = add(K_VALUE, e->name, set_step, i);
+		r->val = setval[i];
+	}
+	if (!sn)
+		add(K_TEXT, "NO MODULE SETTINGS", 0, 0);
+}
+
+/* ---- TEMPLATES --------------------------------------------------------------- */
+
+static void build_tpl(void)
+{
+	add(K_ITEM, "SAVE TEMPLATE", brain_tpl_save, 0);
+	u8 done[ST_BASE + ST_N];
+	for (u32 e = 0; e < sizeof done; e++)
+		done[e] = 0;
+	u32 name = 0;
+	for (;;) {
+		/* the next section: the alphabetically first target not yet listed */
+		u32 pick = 0xffff;
+		for (u32 e = 0; e < ST_BASE + ST_N; e++) {
+			if (done[e] || (e >= brain_fx_n && e < ST_BASE) || !card_nth(e, 0))
+				continue;
+			if (pick == 0xffff || str_lt(ent_name(e), ent_name(pick)))
+				pick = e;
+		}
+		if (pick == 0xffff || sn + 2 > SR_MAX)
+			break;
+		done[pick] = 1;
+		char *h = slab[name++];
+		u32 k = 0;
+		for (const char *c = ent_name(pick); *c && k < 15; c++)
+			h[k++] = *c;
+		h[k] = 0;
+		add(K_HEAD, h, 0, 0);
+		u8 used[TPL_MAX];
+		u32 kc = 0;
+		while (kc < TPL_MAX && card_nth(pick, kc))
+			used[kc++] = 0;
+		for (u32 r = 0; r < kc && sn < SR_MAX && name < 64 + SR_MAX - 64; r++) {
+			u32 best = 0xffff;
+			for (u32 j = 0; j < kc; j++)
+				if (!used[j] && (best == 0xffff || name_lt(tname_of(card_nth(pick, j)),
+									   tname_of(card_nth(pick, best)))))
+					best = j;
+			used[best] = 1;
+			char *t = slab[64 + (sn & 127)];
+			trow_name(t, card_nth(pick, best));
+			add(K_ITEM, t, tpl_item, pick << 8 | best);
+		}
+	}
+}
+
+/* ---- LOAD: LOAD METER's figures, drawn as bars ---------------------------------- */
+
+extern volatile u32 *const brain_lm;
+extern volatile u32 *const brain_lmd;
+static u32 load_peak_pct DATA, load_peak_us DATA;
+static u32 load_dseq DATA, load_dbad DATA, load_miss0 DATA, load_ticks DATA;
+static int load_now[3] DATA, load_pk[3] DATA;	/* percent; -1 before a sample, -2 when the records were all bad */
+static int load_miss DATA;
+
+static void load_update(void)
+{
+	load_now[0] = load_pk[0] = load_now[1] = load_pk[1] = load_now[2] = load_pk[2] = -1;
+	load_miss = -1;
+	if (!brain_lm)
+		return;
+	u32 seq = brain_lm[0], win = brain_lm[1], sum = brain_lm[2], cnt = brain_lm[3], max = brain_lm[4];
+	if (seq && win && cnt) {
+		u32 pct = sum / (win / 100 ? win / 100 : 1), us = max / 132;
+		if (pct > load_peak_pct)
+			load_peak_pct = pct;
+		if (us > load_peak_us)
+			load_peak_us = us;
+		load_now[0] = (int)pct;
+		load_pk[0] = (int)load_peak_pct;
+	}
+	if (!brain_lmd)
+		return;
+	int fresh = brain_lmd[0] != load_dseq, bad = brain_lmd[1] != load_dbad;
+	for (u32 core = 0; core < 2; core++) {
+		const volatile u32 *now = brain_lmd + 2 + 2 * core, *pk = brain_lmd + 6 + 2 * core;
+		if (brain_lmd[0] && fresh && now[1]) {
+			load_now[1 + core] = (int)(now[0] * 100 / now[1]);
+			load_pk[1 + core] = pk[1] ? (int)(pk[0] * 100 / pk[1]) : 0;
+		} else if (brain_lmd[0] && bad) {
+			load_now[1 + core] = -2;
+		}
+	}
+	load_dseq = brain_lmd[0];
+	load_dbad = brain_lmd[1];
+	if (brain_lmd[0])
+		load_miss = (int)(((brain_lmd[10] + brain_lmd[11]) - load_miss0) & 0x1ff);
+	load_ticks++;
+}
+
+/* ---- the engine ---------------------------------------------------------------- */
+
+static int live_timer DATA = -1;
+
+static void sc_build(void)
+{
+	sn = 0;
+	switch (sc_now()) {
+	case SC_DEF: build_def(); break;
+	case SC_MIDI: build_midi(); break;
+	case SC_RMX: build_rmx(); break;
+	case SC_SET: build_set(); break;
+	case SC_TPL: build_tpl(); break;
+	default: break;
+	}
+}
+
+static void sc_fix(void)
+{
+	if (scur >= sn)
+		scur = sn ? sn - 1 : 0;
+	/* a heading directly above the cursor row is shown with it */
+	u32 want = scur > 0 && sr[scur - 1].kind == K_HEAD ? scur - 1 : scur;
+	if (want < stop)
+		stop = want;
+	if (scur >= stop + VISIBLE)
+		stop = scur + 1 - VISIBLE;
+}
+
+static void sc_rebuild(void)
+{
+	if (sc_now() == SC_N)
+		return;
+	sc_build();
+	sc_fix();
+}
+
+static void sc_move(int d)
+{
+	u32 i = scur;
+	for (u32 k = 0; k < sn; k++) {
+		i = (i + (u32)d + sn) % sn;
+		if (selectable(i)) {
+			scur = i;
+			break;
+		}
+	}
+	sc_fix();
+}
+
+static void sc_tick(void)
 {
 	if (live_timer < 0)
 		return;
-	if (!DLG_OPEN || DLG_OPEN != live_win) {
+	u32 sc = sc_now();
+	if (sc != SC_LOAD && sc != SC_MIDI) {
 		*(volatile u32 *)(TIMERS + (u32)live_timer * 16 + 8) = 0;	/* not re-linked */
 		live_timer = -1;
 		return;
 	}
-	if (live_kind == LIVE_LOAD)
-		load_ticks++;
-	live_fill();
-	if (live_kind == LIVE_LOAD)
-		load_title();
-	for (u32 i = 0; i < 3; i++) {
-		char *d = DLG_LINES + 31 * i;
-		u32 k = 0;
-		for (; live_lbuf[i][k] && k < 30; k++)
-			d[k] = live_lbuf[i][k];
-		d[k] = 0;
-	}
-	DLG_DRAW();
+	if (sc == SC_LOAD)
+		load_update();
+	else
+		mon_update();
+	MENU_REDRAW();
 }
 
-void brain_live_answer(u32 answer)
+static void sc_open(u32 sc)
 {
-	(void)answer;
+	OPEN_STATE(SC_BASE + sc);
+}
+
+void brain_scr_enter(void)
+{
+	u32 sc = sc_now();
 	if (live_timer >= 0) {
 		UNTIMER(live_timer);
 		live_timer = -1;
 	}
-}
-
-static void live_open(u32 kind, const char *title)
-{
-	brain_live_answer(0);
-	live_kind = kind;
-	if (kind == LIVE_LOAD) {
+	sc_build();
+	scur = 0;
+	stop = 0;
+	for (u32 i = 0; i < sn; i++)
+		if (selectable(i)) {
+			scur = i;
+			break;
+		}
+	sc_fix();
+	if (sc == SC_LOAD) {
 		load_peak_pct = load_peak_us = 0;
 		load_ticks = 0;
 		if (brain_lmd) {
@@ -2862,45 +2834,155 @@ static void live_open(u32 kind, const char *title)
 			load_dbad = brain_lmd[1];
 			load_miss0 = brain_lmd[10] + brain_lmd[11];
 		}
-		/* the box is sized here from its lines: the widest each can be */
-		line_set(0, "CF   100%/100% 999US", 20);
-		line_set(1, "DSP0 100%/100% M999", 19);
-		line_set(2, "DSP1 100%/100%", 14);
-	} else
-		live_fill();
-	POPUP(title, 3, live_lp, 0, (u32)brain_live_answer);	/* mode 0: one OK button */
-	if (kind == LIVE_LOAD) {
-		live_fill();
-		for (u32 i = 0; i < 3; i++) {
-			char *d = DLG_LINES + 31 * i;
-			u32 k = 0;
-			for (; live_lbuf[i][k] && k < 30; k++)
-				d[k] = live_lbuf[i][k];
-			d[k] = 0;
-		}
-		DLG_DRAW();
+		load_update();
 	}
-	live_win = DLG_OPEN;
-	live_timer = TIMER(LIVE_TICKS, brain_live_tick);
+	if (sc == SC_LOAD || sc == SC_MIDI)
+		live_timer = TIMER(LIVE_TICKS, sc_tick);
 }
 
-void brain_menu_midimon(u32 unused)
+void brain_scr_exit(void)
 {
-	(void)unused;
-	if (log_is_off())
+	if (live_timer >= 0) {
+		UNTIMER(live_timer);
+		live_timer = -1;
+	}
+}
+
+void brain_scr_key(u32 code, u32 pressed)
+{
+	(void)pressed;
+	if (code == 0x33)
+		sc_move(-1);
+	else if (code == 0x20)
+		sc_move(1);
+	else if (code == 0x31 && selectable(scur)) {
+		struct srow *r = &sr[scur];
+		if (r->act)
+			r->act(r->arg);
+		sc_rebuild();
+	}
+}
+
+void brain_scr_enc(u32 index, int delta)
+{
+	(void)index;
+	for (int k = delta < 0 ? -delta : delta; k > 0 && k < 8; k--)
+		sc_move(delta < 0 ? -1 : 1);
+}
+
+/* the checkbox: a 7 x 7 square, its middle filled when on */
+static void checkbox(void *ctx, int x, int y, int on)
+{
+	RULE(ctx, x, y - 1, x + 6, 1);
+	RULE(ctx, x, y + 5, x + 6, 1);
+	VLINE(ctx, x, y - 1, y + 5, 1);
+	VLINE(ctx, x + 6, y - 1, y + 5, 1);
+	if (on)
+		for (int k = 2; k <= 4; k++)
+			VLINE(ctx, x + k, y + 1, y + 3, 1);
+}
+
+/* LOAD: a bar per processor (the peak a mark on it), then two readouts */
+#define BAR_X 50
+
+static void load_bar(void *ctx, int w, int y, int now, int pk)
+{
+	int x0 = BAR_X, x1 = w - 6;
+	RULE(ctx, x0, y, x1, 1);
+	RULE(ctx, x0, y + 4, x1, 1);
+	VLINE(ctx, x0, y, y + 4, 1);
+	VLINE(ctx, x1, y, y + 4, 1);
+	if (now < 0)
 		return;
-	live_open(LIVE_MIDI, "MIDI MONITOR");
+	int span = x1 - x0 - 2;
+	int f = now > 100 ? 100 : now, p = pk > 100 ? 100 : pk;
+	for (int x = x0 + 1; x < x0 + 1 + f * span / 100; x++)
+		VLINE(ctx, x, y + 1, y + 3, 1);
+	VLINE(ctx, x0 + 1 + p * span / 100, y - 1, y + 5, 1);
 }
 
-void brain_menu_load(u32 unused)
+static void draw_load(void *ctx, int w, int a2)
 {
-	(void)unused;
-	live_open(LIVE_LOAD, "LOAD");
+	static const char *const names[3] = { "CF", "DSP0", "DSP1" };
+	char t[40];
+	for (u32 r = 0; r < 3; r++) {
+		int y = a2 - 9 - 7 * (int)r;
+		DRAWSTR(FONT, ctx, MARGIN, y, -1, names[r]);
+		u32 n = 0;
+		if (load_now[r] == -1)
+			n = put_s(t, "-");
+		else if (load_now[r] == -2)
+			n = put_s(t, "?");
+		else {
+			n = put_dec(t, (u32)load_now[r], 0);
+			t[n++] = '%';
+		}
+		t[n] = 0;
+		DRAWSTR(FONT, ctx, BAR_X - 4 - (int)TEXT_W(FONT, -1, t), y, -1, t);
+		load_bar(ctx, w, y, load_now[r], load_pk[r]);
+	}
+	int y = a2 - 9 - 7 * 3 - 1;
+	u32 n = put_s(t, "LONGEST RUN ");
+	n += put_dec(t + n, load_peak_us > 99999 ? 99999 : load_peak_us, 0);
+	n += put_s(t + n, "US");
+	t[n] = 0;
+	DRAWSTR(FONT, ctx, MARGIN, y, -1, load_peak_us ? t : "LONGEST RUN -");
+	y -= 8;
+	n = put_s(t, "ESAI MISSES ");
+	if (load_miss < 0)
+		n += put_s(t + n, "-");
+	else
+		n += put_dec(t + n, (u32)load_miss, 0);
+	t[n] = 0;
+	DRAWSTR(FONT, ctx, MARGIN, y, -1, t);
 }
 
-/* FUNC + LEVEL push on an MKII: the record manifest.py adds to the FUNC
- * layer's keys; the record's press handler. */
+void brain_scr_draw(void *ctx)
+{
+	u32 sc = sc_now();
+	if (!ctx || sc == SC_N)
+		return;
+	int w = (int)((u32 *)ctx)[0], h = (int)((u32 *)ctx)[1];
+	int a2 = h - 20;
+	const char *title = sc_title[sc];
+	DRAWSTR(FONT, ctx, w - 6 - (int)TEXT_W(FONT, -1, title), a2 + 2, -1, title);
+	ICON(brain_icon, ctx, 6, a2);
+	RULE(ctx, 4, a2 - 1, w - 6, 1);
+	if (sc == SC_LOAD) {
+		draw_load(ctx, w, a2);
+		return;
+	}
+	for (u32 j = 0; j < VISIBLE; j++) {
+		u32 i = stop + j;
+		if (i >= sn)
+			break;
+		const struct srow *r = &sr[i];
+		int y = a2 - 9 - PITCH * (int)j;
+		int x = MARGIN;
+		if (r->kind >= K_ITEM && r->kind != K_TEXT)
+			x += 0;
+		DRAWSTR(FONT, ctx, x, y, -1, r->label);
+		if (r->kind == K_HEAD)
+			DOTH(ctx, x + (int)TEXT_W(FONT, -1, r->label) + 4, y + 2, w - MARGIN);
+		else if (r->kind == K_TOGGLE)
+			checkbox(ctx, w - MARGIN - 8, y, r->on);
+		else if (r->kind == K_VALUE && r->val)
+			DRAWSTR(FONT, ctx, w - MARGIN - (int)TEXT_W(FONT, -1, r->val), y, -1, r->val);
+		if (i == scur && selectable(i))
+			INVERT(ctx, MARGIN - 2, y - 1, w - MARGIN + 1, y + 5, -1);
+	}
+	if (sn > VISIBLE) {			/* the scroll thumb on the right edge */
+		int lo = a2 - 9 - PITCH * (VISIBLE - 1) - 1, hi = a2 - 4, span = hi - lo;
+		int len = span * VISIBLE / (int)sn, top = hi - (span - len) * (int)stop / (int)(sn - VISIBLE);
+		VLINE(ctx, w - 3, top - len, top, 1);
+	}
+}
+
+/* FUNC + LEVEL push on an MKII (the record manifest.py adds to the FUNC
+ * layer's keys): the LOAD screen is in MAIN MENU > BRAIN now */
 void brain_load_chord(void)
 {
-	brain_menu_load(0);
+	msg[0] = "PROJ > BRAIN";
+	msg[1] = "> LOAD";
+	POPUP("LOAD", 2, msg, 0, 0);
 }

@@ -9,7 +9,7 @@ DEFAULT in the BRAIN category of the MAIN MENU.
 - Everything in [bottleservice](../../bottleservice/README.md).
 - **BRAIN** — `modules/brain/README.md`. On the panel: PROJ, the BRAIN
   category (fifth), its heading (the remix and build tag), SAVE AS
-  DEFAULT, CLR FX DEFAULT. Open it over an FX1 or FX2 page of an audio
+  DEFAULT, CLEAR FX DEFAULT. Open it over an FX1 or FX2 page of an audio
   track: the page in view is the one saved or cleared.
 
 ## Status

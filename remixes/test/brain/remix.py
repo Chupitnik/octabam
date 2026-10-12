@@ -1,7 +1,7 @@
 """core -- bottleservice plus BRAIN: the settings store on the rig.
 
 bottleservice's selection (remixes/bottleservice) with BRAIN: card-wide knob
-defaults from BRAIN/card.work, SAVE FX DEFAULT and CLR FX DEFAULT in the
+defaults from BRAIN/card.work, SAVE FX DEFAULT and CLEAR FX DEFAULT in the
 BRAIN MAIN MENU category. BRAIN's gate (tools/verify/verify_brain.py) runs
 on it, restoring the FX2 chooser's YES entry in RAM where it selects.
 """

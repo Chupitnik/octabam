@@ -33,7 +33,7 @@ lane at the end:
                 on both descriptors
   menu          the BRAIN category on the panel: T1, the FX2 page, PROJ,
                 DOWN x4, RIGHT, YES on DEFAULTS, DOWN, YES on SAVE FX DEFAULT: card.work
-                holds T1's FX2 page; then OK, UP, YES on CLR FX DEFAULT: no
+                holds T1's FX2 page; then OK, UP, YES on CLEAR FX DEFAULT: no
                 BusDelay record left
   mode          a GRAIN record for BusDelay (T1): the FX2 page-2 editor moves
                 MODE CLEAN -> GRAIN (verify_modedefaults' call) and MODE
@@ -495,7 +495,7 @@ def main():
     check(f"save: on a card with no BRAIN folder the first save creates it and card.work  {recs}",
           recs == [brain.fx_store_id(bd)])
 
-    # ---- menu: SAVE FX DEFAULT and CLR FX DEFAULT from the panel ------------
+    # ---- menu: SAVE FX DEFAULT and CLEAR FX DEFAULT from the panel ------------
     MK = dict(no=0x32, yes=0x31, t1=0x10, fx2=0x26, proj=0x1c, down=0x20, up=0x33, right=0x21)
 
     def keys_script(keys):
@@ -506,9 +506,9 @@ def main():
         lines.append(f"{tt} quit")
         return "\n".join(lines) + "\n"
     nav = [("no", 400), ("t1", 600), ("fx2", 1500), ("proj", 1200)] + [("down", 400)] * 4 + [("right", 800)]
-    nav += [("yes", 800), ("down", 400)]     # DEFAULTS (the first row): its sub-list on CLR FX DEFAULT, down to SAVE FX DEFAULT
+    nav += [("yes", 800)]     # DEFAULTS (the first row): its screen, the cursor on SAVE FX DEFAULT
     runs = {"menu_save": nav + [("yes", 2500)],
-            "menu_clear": nav + [("yes", 2500), ("yes", 800), ("up", 400), ("yes", 2500)]}
+            "menu_clear": nav + [("yes", 2500), ("yes", 800), ("down", 400), ("yes", 2500)]}
     for name, keys in runs.items():
         mc, mafter, mlog, mlanes = OUT / f"{name}.img", OUT / f"{name}_after.img", OUT / f"{name}.txt", OUT / f"{name}_lanes.bin"
         r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
@@ -534,10 +534,10 @@ def main():
             want = {k: page[i] for i, k in enumerate(brain.fx_keys(bd)) if k}
             check(f"menu: SAVE FX DEFAULT from the panel writes T1's FX2 page ({got == want})", rec is not None and got == want)
         else:
-            check(f"menu: CLR FX DEFAULT leaves no BusDelay record ({sorted(recs)})",
+            check(f"menu: CLEAR FX DEFAULT leaves no BusDelay record ({sorted(recs)})",
                   mw is not None and brain.fx_store_id(bd) not in recs)
 
-    # ---- settings from the panel: SETTINGS > MIDI LOG, YES (off by default: on) ----
+    # ---- settings from the panel: MIDI > MIDI LOG, YES (off by default: on) ----
     seed = brainfile.File(brainfile.CARD_WORK, [brainfile.Record(brainfile.SETTINGS, "octabam.brain",
         payload=brainfile.Value(99, brainfile.BINARY, b"\x01").encode())]).encode()
     (OUT / "mset_seed.work").write_bytes(seed)
@@ -547,7 +547,7 @@ def main():
                         "--root-file", f"{OUT / 'mset_seed.work'}:BRAIN/card.work"], cwd=ROOT, capture_output=True, text=True)
     if r.returncode:
         sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
-    keys = [("no", 400), ("proj", 1200)] + [("down", 400)] * 4 + [("right", 800), ("down", 400), ("down", 400), ("yes", 800), ("down", 400), ("yes", 3000)]
+    keys = [("no", 400), ("proj", 1200)] + [("down", 400)] * 4 + [("right", 800)] + [("down", 400)] * 3 + [("yes", 800), ("yes", 3000)]   # BRAIN > MIDI, MIDI LOG
     (OUT / "menu_settings.script").write_text(keys_script(keys))
     cmd = [EMU, "--image", image, "--card", mc, "--set", a.set_name, "--project", a.name, "--load-ms", "90000",
            "--mkii", "--live-script", OUT / "menu_settings.script", "--card-out", mafter]
@@ -559,7 +559,7 @@ def main():
     mw = next((v for k, v in files.items() if k.upper().endswith("BRAIN/CARD.WORK")), None)
     srec = [r for r in brainfile.parse(mw).records if r.kind == brainfile.SETTINGS] if mw else []
     got = {v.key: v.data[0] for v in srec[0].values()} if len(srec) == 1 else {}
-    check(f"settings: YES on SETTINGS > MIDI LOG writes one settings record, MIDI LOG on, APPLY DFLTS on, "
+    check(f"settings: YES on MIDI > MIDI LOG writes one settings record, MIDI LOG on, APPLY DFLTS on, "
           f"the unknown key kept  {got}", got == {1: 1, 2: 1, 99: 1})
 
     # ---- templates: SAVE from the shortcut; LOAD of a seeded template -------
@@ -746,7 +746,7 @@ def main():
         return next((v for k, v in files.items() if k.upper().endswith(tail.upper())), None)
 
     # ---- BRAIN > TEMPLATES: SAVE TEMPLATE, LOAD, RENAME, DELETE --------------
-    # The pane: SAVE TEMPLATE, then a heading per target and its card
+    # The screen: SAVE TEMPLATE, then a heading per target and its card
     # templates by name. card.work seeded with one stock.amp template TPL 07
     # (ATK 5): the pane opens on it, the list is LOAD, RENAME, DELETE.
     #   load    with T1's AMP page in view: its ATK becomes 5
@@ -759,23 +759,23 @@ def main():
     tseed.write_bytes(brainfile.File(brainfile.CARD_WORK, [brainfile.Record(brainfile.TEMPLATE_REC, amp["id"],
         payload=brainfile.prefix_bytes(brainfile.TEMPLATE_REC, layout=amp["layout"], name="TPL 07")
         + brainfile.Value(1, brainfile.BYTE, b"\x05").encode())]).encode())
-    to_pane = [(0x1c, 1200)] + [(0x20, 400)] * 4 + [(0x21, 800)] + [(0x20, 400)] * 3 + [(0x31, 800)]
+    to_pane = [(0x1c, 1200)] + [(0x20, 400)] * 4 + [(0x21, 800)] + [(0x20, 400)] * 6 + [(0x31, 800)]
     on_amp = [(0x32, 400), (0x10, 500), (0x23, 800)]
     def pane_recs(files):
         w = card_file(files, "BRAIN/CARD.WORK")
         return [(r.store_id, r.name(), {v.key: v.data[0] for v in r.values()})
                 for r in brainfile.parse(w).records if r.kind == brainfile.TEMPLATE_REC] if w else []
-    files, _, (atk0,) = ui_run("tpl_pane_load", on_amp + to_pane + [(0x31, 800), (0x31, 2500)],
+    files, _, (atk0,) = ui_run("tpl_pane_load", on_amp + to_pane + [(0x20, 400), (0x31, 800), (0x31, 2500)],
                                roots=((tseed, "BRAIN/card.work"),), dumps=((part_at + 0x8eea0, 1),))
     check(f"templates: BRAIN > TEMPLATES, LOAD on TPL 07 with T1's AMP page in view sets its ATK to 5  {atk0.hex()}",
           atk0[0] == 5)
-    files, _, _ = ui_run("tpl_pane_rename", [(0x32, 400)] + to_pane + [(0x31, 800), (0x20, 400), (0x31, 1200),
+    files, _, _ = ui_run("tpl_pane_rename", [(0x32, 400)] + to_pane + [(0x20, 400), (0x31, 800), (0x20, 400), (0x31, 1200),
                                                                       (0x33, 300), (0x31, 2500)],
                          roots=((tseed, "BRAIN/card.work"),))
     recs = pane_recs(files)
     check(f"templates: BRAIN > TEMPLATES, RENAME through the name editor (UP, YES) renames TPL 07 to "
           f"TPL 070, its value kept  {recs}", recs == [(amp["id"], "TPL 070", {1: 5})])
-    files, _, _ = ui_run("tpl_pane_delete", [(0x32, 400)] + to_pane + [(0x31, 800), (0x20, 400), (0x20, 400),
+    files, _, _ = ui_run("tpl_pane_delete", [(0x32, 400)] + to_pane + [(0x20, 400), (0x31, 800), (0x20, 400), (0x20, 400),
                                                                       (0x31, 2500)],
                          roots=((tseed, "BRAIN/card.work"),))
     recs = pane_recs(files)
@@ -862,7 +862,7 @@ def main():
     ps_keys = [1 + o for o in range(0x70) if o == 0x24 or 0x28 <= o <= 0x37 or 0x3f <= o <= 0x54
                or 0x56 <= o <= 0x6a]
     keys = [(0x32, 400), (0x1c, 1200)] + [(0x20, 400)] * 4 + [(0x21, 800), (0x31, 800),
-                                                               (0x20, 400), (0x20, 400), (0x20, 400), (0x31, 2500)]
+                                                               (0x20, 400), (0x20, 400), (0x31, 2500)]   # DEFAULTS: SAVE NEW PROJECT
     files, _, (ram,) = ui_run("pset_save", keys, dumps=((0x80000000, 0x70),))
     work_ = card_file(files, "BRAIN/CARD.WORK")
     prec = [r for r in brainfile.parse(work_).records
@@ -886,12 +886,13 @@ def main():
     check(f"project settings: CREATE EMPTY PROJECT applies the card's stock.project default to the new "
           f"project.work  {got}", got == {"LOAD_24BIT_FLEX": "1", "MIDI_AUTO_CHANNEL": "5"})
 
-    # ---- live popups: TOOLS > MIDI MONITOR, TOOLS > LOAD, FUNC + LEVEL push --
+    # ---- the live screens: BRAIN > MIDI and BRAIN > LOAD ---------------------
     # With the frame timer (--frame) so LOAD METER publishes; each run dumps
-    # the stock dialog's copies of its three lines (0x460e5d28, 31 apart),
-    # which the popup's tick rewrites every half second.
-    def live_run(tag, script, wait, seed=None):
-        lc, ll, lines = OUT / f"{tag}.img", OUT / f"{tag}.txt", OUT / f"{tag}_lines.bin"
+    # the screens' data after a few half-second ticks: MIDI's three monitor
+    # lines (mon_buf, 3 x 32) and LOAD's figures (load_now, three ints:
+    # percent, -1 before a sample; load_peak_us).
+    def live_run(tag, script, wait, dumps, seed=None):
+        lc, ll = OUT / f"{tag}.img", OUT / f"{tag}.txt"
         r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
                             "--tree", str(OUT / f"tree_{tag}"), "--out", str(lc)]
                            + (["--root-file", f"{seed}:BRAIN/card.work"] if seed else []),
@@ -907,34 +908,33 @@ def main():
                 out_lines += [f"{t} key {code:#x} down", f"{t + 30} key {code:#x} up"]; t += gap
         out_lines.append(f"{t + wait} quit")
         (OUT / f"{tag}.script").write_text("\n".join(out_lines) + "\n")
+        files_ = [OUT / f"{tag}_d{i}.bin" for i in range(len(dumps))]
         cmd = [EMU, "--image", image, "--card", lc, "--set", a.set_name, "--project", a.name, "--load-ms", "90000",
-               "--mkii", "--frame", "--live-script", OUT / f"{tag}.script", "--mem-dump", f"0x460e5d28,93={lines}"]
+               "--mkii", "--frame", "--live-script", OUT / f"{tag}.script",
+               "--mem-dump", ";".join(f"{symbol(sym):#x},{n}={f_}" for (sym, n), f_ in zip(dumps, files_))]
         with open(ll, "w") as fh:
             r = subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
         if r.returncode or "ended on quit" not in ll.read_text():
             sys.exit(f"verify_brain: the {tag} run did not finish -- {ll}")
-        raw = lines.read_bytes()
-        return [raw[i * 31:i * 31 + 30].split(b"\0")[0].decode("ascii", "replace") for i in range(3)]
+        return [f_.read_bytes() for f_ in files_]
 
     logon = OUT / "logon.work"       # MIDI LOG is off by default; these runs read the log
     logon.write_bytes(brainfile.File(brainfile.CARD_WORK, [brainfile.Record(
         brainfile.SETTINGS, "octabam.brain",
         payload=brainfile.Value(1, brainfile.BINARY, b"\x01").encode())]).encode())
-    tools = [(0x1c, 500)] + [(0x20, 500)] * 4 + [(0x21, 500)] + [(0x20, 500)] * 4 + [(0x31, 500)]  # BRAIN > TOOLS
-    got = live_run("midimon", [(0x32, 500), "midi B0 07 14", "midi C0 02", "midi 91 24 64"]
-                   + tools + [(0x20, 500), (0x20, 500), (0x31, 500)], 2000, seed=logon)
-    check(f"midimon: TOOLS > MIDI MONITOR shows the last three messages decoded  {got}",
+    into = [(0x1c, 500)] + [(0x20, 500)] * 4 + [(0x21, 500)]     # PROJ, BRAIN's pane
+    (mon,) = live_run("midimon", [(0x32, 500), "midi B0 07 14", "midi C0 02", "midi 91 24 64"]
+                      + into + [(0x20, 500)] * 3 + [(0x31, 500)], 2000, (("mon_buf", 96),), seed=logon)
+    got = [mon[i * 32:i * 32 + 32].split(b"\0")[0].decode("ascii", "replace") for i in range(3)]
+    check(f"midimon: BRAIN > MIDI shows the last three messages decoded  {got}",
           got[0].startswith("CH01 CC") and got[0].replace(" ", "").endswith("7=20")
           and got[1].startswith("CH01 PC") and got[2].startswith("CH02 NOTE"))
-    got = live_run("loadview", [(0x32, 500)] + tools + [(0x20, 500), (0x31, 500)], 20000)
-    check(f"load: TOOLS > LOAD shows LOAD METER's rows: the frame interrupt's share now/peak and its longest "
-          f"run, and each DSP core's row (no DSP runs here: '-')  {got}",
-          got[0].startswith("CF") and "%/" in got[0] and got[0].endswith("US")
-          and got[1].startswith("DSP0") and "-%" in got[1] and got[2].startswith("DSP1"))
-    got = live_run("loadchord", [(0x32, 500), (0x10, 500), (0x25, 500), "key 0x2d down", "key 0x3e down",
-                                  "key 0x3e up", "key 0x2d up"], 3000)
-    check(f"load: FUNC + LEVEL push on T1's FX1 page opens LOAD  {got}",
-          got[0].startswith("CF"))
+    now, peak = live_run("loadview", [(0x32, 500)] + into + [(0x20, 500)] * 2 + [(0x31, 500)], 20000,
+                         (("load_now", 12), ("load_peak_us", 4)))
+    pcts = struct.unpack(">3i", now)
+    check(f"load: BRAIN > LOAD has LOAD METER's figures: the frame interrupt's share and its longest run, "
+          f"and each DSP core's (no DSP runs here: -1)  {pcts}, {struct.unpack('>I', peak)[0]} us",
+          pcts[0] >= 0 and pcts[1] == -1 and pcts[2] == -1 and struct.unpack(">I", peak)[0] > 0)
 
     # ---- debug log: the MIDI thread's messages to /BRAIN/debug.txt ----------
     log_at = symbol("brain_post_log")
