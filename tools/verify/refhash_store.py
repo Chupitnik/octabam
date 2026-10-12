@@ -52,13 +52,22 @@ def sha_file(path):
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else "none"
 
 
+def tool_version(tool):
+    """First line of `tool --version`; "none" when the tool is not installed."""
+    try:
+        out = run(tool, "--version", check=False).stdout.splitlines()
+    except FileNotFoundError:
+        return "none"
+    return out[0] if out else "none"
+
+
 def key(base, root=ROOT):
     h = hashlib.sha256()
     h.update(merge_base(base, root).encode())
     h.update(sha_file(root / "out/raw/section_3_MAIN_OS.bin").encode())
     for rel in TOOLCHAIN:
         h.update(sha_file(root / rel).encode())
-    h.update((run("m68k-elf-as", "--version", check=False).stdout.splitlines() or ["none"])[0].encode())
+    h.update(tool_version("m68k-elf-as").encode())
     h.update(f"{sys.version_info.major}.{sys.version_info.minor}".encode())
     return h.hexdigest()
 
