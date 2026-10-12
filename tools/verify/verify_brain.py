@@ -973,27 +973,6 @@ def main():
     check(f"load: FUNC + LEVEL push on T1's FX1 page opens LOAD  {got}",
           got[0].startswith("CF"))
 
-    # ---- boot screen: the OS's boot animation draws bootart.py -------------
-    snapf_at = symbol("brain_boot_snapf")
-    bc, blog, bsnap = OUT / "boot.img", OUT / "boot.txt", OUT / "boot_snap.bin"
-    r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
-                        "--tree", str(OUT / "tree_boot"), "--out", str(bc)], cwd=ROOT, capture_output=True, text=True)
-    if r.returncode:
-        sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
-    (OUT / "boot.script").write_text("8000 quit\n")
-    cmd = [EMU, "--image", image, "--card", bc, "--set", a.set_name, "--project", a.name, "--load-ms", "90000",
-           "--mkii", "--boot-logo", "--live-script", OUT / "boot.script", "--mem-dump", f"{snapf_at:#x},1028={bsnap}"]
-    with open(blog, "w") as fh:
-        r = subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
-    raw = bsnap.read_bytes() if bsnap.exists() else b""
-    sys.path.insert(0, str(ROOT / "modules/brain"))
-    import bootart
-    frame = int.from_bytes(raw[:4], "big") if len(raw) == 1028 else 0
-    want = b"".join(sum(1 << y for y in range(bootart.H) if bootart.pixel(x, y, frame)).to_bytes(8, "big")
-                    for x in range(bootart.W))
-    check(f"boot: the animation's frame {frame} is bootart.py's, bit for bit (first frame at or past 280)",
-          frame >= 280 and raw[4:] == want)
-
     # ---- debug log: the MIDI thread's messages to /BRAIN/debug.txt ----------
     log_at = symbol("brain_post_log")
     lcard, lafter, llog, lmidi = OUT / "log.img", OUT / "log_after.img", OUT / "log.txt", OUT / "log.midi"

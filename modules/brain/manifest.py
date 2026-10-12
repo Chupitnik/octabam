@@ -40,7 +40,7 @@ def fx_inc(modules):
                 "        .word   0"]
     for i, m in enumerate(targets):
         out.append(f'brain_id_{i}: .ascii "{brain.fx_store_id(m)}"')
-    return ("\n".join(out) + "\n" + tpl_inc(mods) + "\n" + menu_inc() + "\n" + settings_inc(mods) + "\n" + boot_inc()
+    return ("\n".join(out) + "\n" + tpl_inc(mods) + "\n" + menu_inc() + "\n" + settings_inc(mods)
             + "\n" + page_keys_inc() + "\n" + func_keys_inc()
             + "\n        .text\n")
 
@@ -105,24 +105,6 @@ def func_keys_inc():
         "        .long   brain_load_chord, 0, 0, 0, 0",
         "        .word   0",
         "        .byte   0xff, 0", "        .long   0, 0, 0, 0, 0", "        .word   0"])
-
-
-def boot_inc():
-    """The boot screen's columns (bootart.py, drawn from shapes at build):
-    brain_boot_brain and brain_boot_word, 128 columns each, a column as one
-    big-endian 64-bit word with row y at bit y (the top row the lowest bit;
-    the plane's layout, docs/firmware/PANEL.md section 1, as PIRATE FLAG
-    measured it)."""
-    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-    import bootart
-    out = ["        .section .rodata", "        .balign 4"]
-    for label, f in (("brain_boot_brain", bootart.brain_pixel), ("brain_boot_word", bootart.word_pixel)):
-        out.append(f"        .globl  {label}")
-        out.append(f"{label}:")
-        for x in range(bootart.W):
-            v = sum(1 << y for y in range(bootart.H) if f(x, y))
-            out.append(f"        .long   0x{v >> 32:08x}, 0x{v & 0xFFFFFFFF:08x}")
-    return "\n".join(out)
 
 
 PANE_W = 15                              # characters BRAIN's list pane shows (brain.c PANE_W)
@@ -289,11 +271,6 @@ MODULE = Module(
                "the bank load the power-up runs: the card's defaults onto the descriptors", kind="jsr"),
         Detour(0x40005572, H("20720c004e90"), "brain", "brain_on_midi",
                "the MIDI thread's handler call: the debug log records each message and what it left", kind="jsr"),
-        Detour(0x40055AA2, H("4eb940013abc"), "brain", "brain_boot_frame",
-               "the boot animation's per-frame flush: BRAIN's boot screen first (PIRATE FLAG's site, sanderlegit)",
-               kind="jsr"),
-        Detour(0x40064e98, H("243c400cbd8c"), "brain", "brain_on_left",
-               "the LEFT key in the menu: inside a BRAIN sub-list it goes back to BRAIN's top list"),
         Detour(0x4008485e, H("7192722db280"), "brain", "brain_on_job",
                "the engine task's job switch: type 0x41 runs SAVE FX DEFAULT"),
         Detour(0x40085176, H("4eb940096f24"), "brain", "brain_on_newproj",

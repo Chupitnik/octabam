@@ -222,19 +222,6 @@ SWITCH's boot picker's sequence (PR #542). The tick stops itself when the
 dialog closes or another replaces it (it clears its slot's function
 word); the answer handler stops it with `UNTIMER` (`0x40031abc`).
 
-## The boot screen
-
-The OS's own boot animation (2.8 s after the bootstrap's logo, the
-LED/key-scan task) draws a brain over OCTABAM instead of stock's sprite
-field: the brain draws in from the left, then the word. A `jsr` detour at
-the animation's per-frame flush (`0x40055aa2`, PIRATE FLAG's site,
-sanderlegit, PR #542) replaces the plane's 128 columns each frame, then
-calls the flush stock called. The frame value in `d2` is DTIM3 time
-(0..559, by steps of varying size). The art is `bootart.py`'s, drawn from
-shapes and generated into the build (`manifest.py boot_inc`). The
-bootstrap's logo and version line before it are NOR's and do not change.
-Every image carrying BRAIN shows it, after a REMIX SWITCH too.
-
 ## SAVE FX DEFAULT
 
 `brain_post_save(track, fx)` posts a message of type `0x41` to the engine
@@ -298,7 +285,6 @@ with T2's FX2 chooser select (SEND -> stock DELAY) and FX1 select
 | a settings record with an out-of-bounds Binary and a wrong type | values stay (1,1); 2 skipped | card.work |
 | the panel: PROJ, DOWN x4, RIGHT, DOWN x2, YES on SETTINGS, DOWN, YES on MIDI LOG | `card.work` holds one settings record {1:1, 2:1, 99:1}; screens rendered under `ot_emu --lcd` | card.work |
 | the shortcut on T1's FX1 page: SAVE TEMPLATE, knob A +10, LOAD TEMPLATE `TPL 01` | one template record of CHARACTER with the saved page; the page moves with the knob and comes back to the saved values on LOAD; screens rendered under `ot_emu --lcd` | card.work |
-| `--boot-logo`: the first animation frame at or past 280 | equals `bootart.py`'s pixels for that frame, bit for bit | |
 | a GRAIN record for BusDelay (FDBK, SCTR, GLEN listed by the view; DEL not), then MODE CLEAN -> GRAIN through the FX2 page-2 editor on T1 | the view with the card's three values; DEL skipped and untouched | card.work |
 
 Both hooks run during one LOAD PROJECT under the port (2 calls a load). A power-up with no LOAD PROJECT post
