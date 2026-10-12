@@ -716,7 +716,8 @@ PORT_STAMP = "out/emu/.sources.sha256"      # written by `make emu-cf`: the dige
 
 
 def port_sources(src):
-    return sorted(p for p in src.rglob("*") if p.is_file() and "build" not in p.parts and "out" not in p.parts)
+    return sorted(p for p in src.rglob("*") if p.is_file()
+                  and not {"build", "out"} & set(p.relative_to(src).parts))
 
 
 def port_digest(src=None):
