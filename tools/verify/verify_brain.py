@@ -3,7 +3,7 @@
 
     python3 tools/verify/verify_brain.py [REMIX] [--project DIR]
 
-Builds REMIX (default `brain`: bottleservice plus BRAIN), stages
+Builds REMIX (default `brain`: the retired bottleservice selection plus BRAIN), stages
 the project with BRAIN/card.work and card.strd written by
 tools/hw/ot_brain.py, and under the port selects T2's effect through the
 FX2 chooser (SEND -> stock DELAY) and the FX1 chooser (SPECTRUM ->

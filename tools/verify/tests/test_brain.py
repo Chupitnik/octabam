@@ -126,7 +126,7 @@ class Resolution(unittest.TestCase):
 
 
 class EarlyBudget(unittest.TestCase):
-    def test_bottleservice_layout(self):
+    def test_early_budget_with_kits_and_plocks(self):
         kits = Module(name="kits", key="KITS", kind=Kind.CF_PATCH, doc="fixture",
                       claims=Claims(sram=((0x100F85A0, 0x48, "RESID"), (0x100FFE00, 0x100, "ASSIGN"))))
         plocks = Module(name="plocks", key="PLOCKS", kind=Kind.CF_PATCH, doc="fixture",

@@ -8,7 +8,7 @@ The BRAIN module's card-layer defaults rest on it (docs/proposals/BRAIN.md
 section 5.1): it writes the card's values over the descriptor
 bytes (P+0x5e, 12 bytes) after the boot, and nothing else is patched.
 
-Builds REMIX (default bottleservice), stages the project, and under the
+Builds REMIX (default octabam-bus), stages the project, and under the
 port selects T2's effect through the FX2 chooser and then the FX1 chooser
 (the track key, the page key twice, DOWN, YES), twice each: once as built,
 once with the landed effect's twelve default bytes poked in RAM after the
@@ -75,7 +75,7 @@ def run(image, card, a, page, poke, tag):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("remix", nargs="?", default=os.environ.get("REMIX") or "bottleservice")
+    ap.add_argument("remix", nargs="?", default=os.environ.get("REMIX") or "octabam-bus")
     ap.add_argument("--project", default=os.environ.get("OT_PROJECT", ""))
     ap.add_argument("--set-name", default="OCTABAM")
     ap.add_argument("--name", default="DESCDEF")

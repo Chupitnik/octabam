@@ -32,12 +32,12 @@ buffer, both payloads, any track.
 modules/character/manifest.py      the declaration -- knobs, donor, id, ModeViews
 modules/character/character.asm    the engine -- init, proc, in place
 modules/character/README.md        status, measured vs inferred, what is open
-remixes/bottleservice/remix.py     a remix that carries it (FX1 and FX2)
+remixes/octabam-bus/remix.py      a remix that carries it (FX1 and FX2)
 tools/verify/verify_character.py   render gates against a float reference
 ```
 
 ```bash
-make check REMIX=bottleservice
+make check REMIX=octabam-bus
 python3 tools/remix/audition.py character out/dry/drums_110.wav DRV=64
 python3 tools/verify/verify_character.py
 ```
@@ -315,7 +315,7 @@ operator arrives at this mode.
 | | the remixer | the unit |
 |---|---|---|
 | `names` | the UNIT pane's rows follow the current MODE (`Module.knob_map_in`); `send_probe --set SCTR=40` resolves the alias | `tools/build/mode_names.py` emits a MODE formatter that rewrites the descriptor's name fields before printing its own word |
-| `defaults` | applied the moment MODE changes | `modules/mode-defaults` (in bottleservice): the FX1 and FX2 page-2 editors are detoured, and a MODE turned on the panel writes the view -- page 1 through the stock page-1 writer, page 2 with the editor's own stores; without the module, `stamp-defaults` writes them; a MODE over CC MAP goes through the same unit (the cave calls it) |
+| `defaults` | applied the moment MODE changes | `modules/mode-defaults` (in octabam-bus): the FX1 and FX2 page-2 editors are detoured, and a MODE turned on the panel writes the view -- page 1 through the stock page-1 writer, page 2 with the editor's own stores; without the module, `stamp-defaults` writes them; a MODE over CC MAP goes through the same unit (the cave calls it) |
 
 The unit half needs no new hook: a descriptor carries its twelve parameter
 names as 12 × 6 bytes at `E+0x4e`, the clones are writable RAM, and every

@@ -21,7 +21,7 @@ race: a green run is not evidence a timing fix works.
                                # (what `make reach` runs)
 
 The subject is remix `bus`: both servers, neither locked. A remix that
-locks its servers to position 0 (bottleservice, rig, brain: HOSTGUARD)
+locks its servers to position 0 (octabam-bus, rig, brain: HOSTGUARD)
 renders every layout that moves a server dry -- 11 of the cases came back
 digital silence that way from 27 Sep 2026 (a5bd2828 took the default remix,
 which was `bus`, away) until 12 Oct 2026.

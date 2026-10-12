@@ -7,7 +7,7 @@ SCENES' Part-window bytes, `Claims.part_window`), Tim Hastie's DIRECT JUMP
 (it declares a conflict with DIRECT_JUMP_KYOTI) and SCALE QUANTIZER (its
 2,916-byte ROM unit leaves CC MAP's 724-byte cave no run
 in the free ROM; measured 28 Sep 2026). Those are
-[`octatrick`](../../octatrick/README.md).
+[`octatrick`](../octatrick/README.md).
 
 ## What is in it
 

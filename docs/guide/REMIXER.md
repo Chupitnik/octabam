@@ -243,10 +243,10 @@ nothing else registers it. A remix that carries one module for that
 module's gates goes in `remixes/test/<name>/`; names are unique across
 both, and every tool takes the bare name (`make check REMIX=miniverb`).
 
-Copy an existing `remix.py` and edit it, or save one from the remixer (`s`). `remixes/bottleservice/remix.py`
+Copy an existing `remix.py` and edit it, or save one from the remixer (`s`). `remixes/octabam-bus/remix.py`
   is the bus with stations, hosts and ColdFire mods,
   `remixes/test/euclid/remix.py` an insert beside the stock effects,
-  `remixes/ok-ms/remix.py` two ColdFire mods and no DSP code.
+  `remixes/test/kits/remix.py` one ColdFire mod and no DSP code.
 
 ```python
 from remix.schema import Proof, Remix

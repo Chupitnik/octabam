@@ -12,5 +12,5 @@ new assignments default to 18 kHz.
 
 Earlier ANALOGBD1 was auditioned on an MK1 by mathgonzlez (28 Sep 2026):
 all parameters worked, with no glitches while tweaking. The current browser
-and eight-track revision has not been flashed. See [the module](../../modules/analog-bassdrum/README.md) for
+and eight-track revision has not been flashed. See [the module](../../../modules/analog-bassdrum/README.md) for
 controls, integration limits and the authenticity qualification still open.
