@@ -774,7 +774,7 @@ static int current_store(void)
 	return cur("/BRAIN/card.work", "/BRAIN/card.strd");
 }
 
-/* SAVE AS DEFAULT: track t's FX1 (fx 0) or FX2 (fx 1) page in the current
+/* SAVE FX DEFAULT: track t's FX1 (fx 0) or FX2 (fx 1) page in the current
  * Part becomes that effect's card-layer default. The record replaces the
  * effect's default record (no mode) in card.work; every other record keeps
  * its bytes. The descriptor takes the values at once. 0, or an error code
@@ -977,7 +977,7 @@ int brain_save_default(u32 t, u32 fx)
 	return write_default(t, fx, 0);
 }
 
-/* CLEAR DEFAULT: the effect's default record (no mode) leaves card.work and
+/* CLR FX DEFAULT: the effect's default record (no mode) leaves card.work and
  * the descriptor goes back to the image's values. */
 int brain_clear_default(u32 t, u32 fx)
 {
@@ -1122,7 +1122,7 @@ void brain_card_store(void)
 		brain_proj_counts[PS_STRD]++;
 }
 
-/* ---- the engine job: SAVE AS DEFAULT off the UI task ----------------------- */
+/* ---- the engine job: SAVE FX DEFAULT off the UI task ----------------------- */
 
 #define Q_SEND   ((int (*)(void *, void *))0x40000c3c)	/* post a message to a queue */
 #define ENGINE_Q ((void *)0x460d17ce)			/* the engine task's queue */
@@ -1131,7 +1131,7 @@ void brain_card_store(void)
 static u32 job_msg[4];		/* type byte first, as stock's records */
 static u32 job_args;
 
-/* From any task: SAVE AS DEFAULT for track t's FX1 (0) or FX2 (1), run by
+/* From any task: SAVE FX DEFAULT for track t's FX1 (0) or FX2 (1), run by
  * the engine task, where the stock writes the project's files. One job is
  * pending at a time; a second post before the engine runs replaces it. */
 void brain_post_save(u32 t, u32 fx)
@@ -1150,7 +1150,7 @@ void brain_post_store(void)
 	Q_SEND(ENGINE_Q, job_msg);
 }
 
-/* From any task: CLEAR DEFAULT for track t's FX1 (0) or FX2 (1). */
+/* From any task: CLR FX DEFAULT for track t's FX1 (0) or FX2 (1). */
 void brain_post_clear(u32 t, u32 fx)
 {
 	job_args = (t & 7) | (fx ? 0x100 : 0) | 0x200;
@@ -1246,7 +1246,7 @@ void brain_menu_save(u32 unused)
 		brain_post_save(CUR_TRACK & 7, (u32)fx);
 		msg[1] = "SAVED AS DEFAULT";
 	}
-	POPUP("SAVE AS DEFAULT", 2, msg, 0, 0);
+	POPUP("SAVE FX DEFAULT", 2, msg, 0, 0);
 }
 
 void brain_menu_clear(u32 unused)
@@ -1257,10 +1257,10 @@ void brain_menu_clear(u32 unused)
 		brain_post_clear(CUR_TRACK & 7, (u32)fx);
 		msg[1] = "DEFAULT CLEARED";
 	}
-	POPUP("CLEAR DEFAULT", 2, msg, 0, 0);
+	POPUP("CLR FX DEFAULT", 2, msg, 0, 0);
 }
 
-/* TOOLS > PROJECT CHECK: what the last load found when it compared the
+/* TOOLS > IMAGE CHECK: what the last load found when it compared the
  * project's saved record with this image (brain_pcounts). */
 static char pc_line[20];
 static u32 put_s(char *o, const char *s);
@@ -1297,7 +1297,7 @@ void brain_menu_pcheck(u32 unused)
 		msg[0] = pc_line;
 		msg[1] = "SINCE THE SAVE";
 	}
-	POPUP("PROJECT CHECK", 2, msg, 0, 0);
+	POPUP("IMAGE CHECK", 2, msg, 0, 0);
 }
 
 /* ---- the debug log: MIDI messages and what the firmware did with them ------ */
@@ -1384,9 +1384,22 @@ void brain_post_log(void)
 	Q_SEND(ENGINE_Q, job_msg);
 }
 
+/* WRITE DEBUG LOG and MIDI MONITOR read the log SETTINGS > MIDI LOG fills */
+static int log_is_off(void)
+{
+	if (brain_v_octabam_brain_1)
+		return 0;
+	msg[0] = "MIDI LOG IS OFF";
+	msg[1] = "(SETTINGS)";
+	POPUP("MIDI LOG", 2, msg, 0, 0);
+	return 1;
+}
+
 void brain_menu_log(u32 unused)
 {
 	(void)unused;
+	if (log_is_off())
+		return;
 	brain_post_log();
 	msg[0] = "WRITING THE LOG TO";
 	msg[1] = "/BRAIN/DEBUG.TXT";
@@ -1399,8 +1412,9 @@ void brain_menu_log(u32 unused)
  * and YES on a list row runs its action (0x40064e64; docs/firmware/
  * MAINMENU.md section 4). So BRAIN's top rows each
  * point brain_list at another row array, and the redraw that follows every
- * key (0x40064d7c) shows it. Each sub-list's first row goes back to the
- * top; MAIN MENU's opening (REMIX SWITCH's osw_menu) resets to the top too. */
+ * key (0x40064d7c) shows it. LEFT inside a sub-list goes back to the top
+ * (brain_on_left); MAIN MENU's opening (REMIX SWITCH's osw_menu) resets to
+ * the top too. */
 
 struct mrow { const char *label; void *window; void (*action)(u32); u32 getter; void *child; u32 id; };
 struct mlist { u32 count, scroll, cursor, sel, visible, count2; struct mrow *rows; };
@@ -1422,7 +1436,7 @@ static void show(struct mrow *rows, u32 n, u32 at)
 	brain_list.sel = at;
 }
 
-#define TOP_N   5				/* SETTINGS, DEFAULTS, TEMPLATES, REMIXES, TOOLS */
+#define TOP_N   5				/* DEFAULTS, REMIXES, SETTINGS, TEMPLATES, TOOLS */
 #define PANE_W  15				/* characters the list pane shows */
 #define NOOP    ((void (*)(u32))0x400648f8)	/* stock's shared row action, `rts` */
 
@@ -1440,25 +1454,25 @@ void brain_menu_back(u32 unused)
 void brain_open_defaults(u32 unused)
 {
 	(void)unused;
-	brain_from = 1;
-	show(brain_def_rows, 5, 1);
+	brain_from = 0;
+	show(brain_def_rows, 4, 0);
 }
 
 void brain_open_remixes(u32 unused)
 {
 	(void)unused;
-	brain_from = 3;
-	show(brain_rmx_rows, brain_rmx_n, brain_rmx_n > 1 ? 1 : 0);
+	brain_from = 1;
+	show(brain_rmx_rows, brain_rmx_n, 0);
 }
 
 void brain_open_tools(u32 unused)
 {
 	(void)unused;
 	brain_from = 4;
-	show(brain_tool_rows, 5, 1);
+	show(brain_tool_rows, 4, 0);
 }
 
-/* SETTINGS: the back row, then per module a heading (its key, no action)
+/* SETTINGS: per module a heading (its key, no action)
  * and its settings, each label "NAME" with the value at the pane's right
  * edge. YES steps the value (Binary and Option wrap; a Number by its step,
  * from max back to min) and has the engine task write card.work. */
@@ -1543,8 +1557,8 @@ void brain_set_row(u32 unused)
 void brain_open_settings(u32 unused)
 {
 	(void)unused;
-	struct mrow *row = brain_set_rows + 1;	/* row 0: the back row (manifest) */
-	u32 n = 1, first = 0;
+	struct mrow *row = brain_set_rows;
+	u32 n = 0, first = 0;
 	const char *group = 0;
 	for (u32 i = 0; i < sizeof set_row_ent; i++)
 		set_row_ent[i] = 0xff;
@@ -1562,12 +1576,11 @@ void brain_open_settings(u32 unused)
 			first = n;
 		n++;
 	}
-	if (n == 1) {
+	if (!n) {
 		put_row(row, set_none, NOOP);
-		n = 2;
-		first = 1;
+		n = 1;
 	}
-	brain_from = 0;
+	brain_from = 2;
 	show(brain_set_rows, n, first);
 }
 
@@ -2022,7 +2035,7 @@ void brain_tpl_delete(u32 unused);
 
 static u32 pop_sel;
 void brain_kn_list(u32 unused);
-static const char *const page_lbl[6] = { "SAVE AS DEFAULT", "CLEAR DEFAULT", "SAVE TEMPLATE",
+static const char *const page_lbl[6] = { "SAVE FX DEFAULT", "CLR FX DEFAULT", "SAVE TEMPLATE",
 					 "LOAD TEMPLATE", "DELETE TEMPLATE", "NAME KNOB" };
 static void (*const page_fn[6])(u32) = { brain_menu_save, brain_menu_clear, brain_tpl_save,
 					 brain_tpl_load, brain_tpl_delete, brain_kn_list };
@@ -2133,16 +2146,16 @@ void brain_tpl_save(u32 unused)
 
 /* ---- BRAIN > TEMPLATES ----------------------------------------------------- */
 
-/* The back row, then per target with templates a heading (its store id
+/* Per target with templates a heading (its store id
  * after the first '.') and its templates, the image's first, each marked
- * IMG. YES on a row opens the stock list popup: a card template takes
+ * IMAGE. YES on a row opens the stock list popup: a card template takes
  * RENAME (the stock name editor, 0x4007e664(max, title, buffer, 1,
  * done(confirmed)), KITS' SAVE KIT call) and DELETE, an image template
  * COPY TO CARD. Each posts an engine job and returns the pane to the top,
  * so no row built from the old file is acted on. */
 
 #define NAMEED   ((void (*)(u32, const char *, char *, u32, void (*)(u32)))0x4007e664)
-#define TROWS    160				/* brain_tpl_rows after its back row (manifest.py) */
+#define TROWS    160				/* brain_tpl_rows (manifest.py) */
 
 extern struct mrow brain_tpl_rows[];
 static char trow_lbl[TROWS][PANE_W + 1];
@@ -2157,9 +2170,9 @@ static void trow_name(char *o, const u8 *rec, int img)
 	for (; k < TPL_NAME && nm[k]; k++)
 		o[k] = (char)nm[k];
 	if (img) {
-		for (; k < PANE_W - 3; k++)
+		for (; k < PANE_W - 5; k++)
 			o[k] = ' ';
-		o[k++] = 'I'; o[k++] = 'M'; o[k++] = 'G';
+		o[k++] = 'I'; o[k++] = 'M'; o[k++] = 'A'; o[k++] = 'G'; o[k++] = 'E';
 	}
 	o[k] = 0;
 }
@@ -2169,7 +2182,7 @@ void brain_tpl_row(u32 unused);
 void brain_open_templates(u32 unused)
 {
 	(void)unused;
-	u32 n = 1, first = 0;
+	u32 n = 0, first = 0;
 	for (u32 i = 0; i <= TROWS; i++)
 		trow_ref[i] = 0xffff;
 	for (u32 e = 0; e < ST_BASE + ST_N && n < TROWS; e++) {
@@ -2187,7 +2200,7 @@ void brain_open_templates(u32 unused)
 		while (d < id_len && id[d] != '.')
 			d++;
 		d = d < id_len ? d + 1 : 0;
-		char *h = trow_lbl[n - 1];
+		char *h = trow_lbl[n];
 		u32 k = 0;
 		for (; d < id_len && k < PANE_W; d++, k++)
 			h[k] = (char)(id[d] >= 'a' && id[d] <= 'z' ? id[d] - 32 : id[d]);
@@ -2196,20 +2209,20 @@ void brain_open_templates(u32 unused)
 		for (u32 j = 0; j < ki + kc && n < TROWS; j++) {
 			int img = j < ki;
 			const u8 *rec = img ? nth_in(brain_img_tpl, brain_img_tpl_len, e, j) : card_nth(e, j - ki);
-			trow_name(trow_lbl[n - 1], rec, img);
+			trow_name(trow_lbl[n], rec, img);
 			trow_ref[n] = (u16)(e << 8 | (img ? 0x80 | j : j - ki));
-			put_row(brain_tpl_rows + n, trow_lbl[n - 1], brain_tpl_row);
+			put_row(brain_tpl_rows + n, trow_lbl[n], brain_tpl_row);
 			if (!first)
 				first = n;
 			n++;
 		}
 	}
-	if (n == 1) {
-		put_row(brain_tpl_rows + 1, "NO TEMPLATES", 0);
-		n = 2;
+	if (!n) {
+		put_row(brain_tpl_rows, "NO TEMPLATES", NOOP);
+		n = 1;
 	}
-	brain_from = 2;
-	show(brain_tpl_rows, n, first ? first : 1);
+	brain_from = 3;
+	show(brain_tpl_rows, n, first);
 }
 
 static void tpl_job(u32 args, const char *done)
@@ -2415,7 +2428,7 @@ static int write_names(void)
 
 /* The stock PROJECT menu's bytes (docs/firmware/STORAGE.md section 5:
  * bytes from 0x80000000, each mirrored in CS1 at 0x100b1460 + the same
- * offset), TEMPOx24 left out: SAVE PROJ SETUP stores them as a card-layer
+ * offset), TEMPOx24 left out: SAVE NEW PROJ stores them as a card-layer
  * default of store stock.project (keys 1 + offset, raw bytes); CREATE
  * EMPTY PROJECT applies it right after the empty project's RAM is set up
  * (0x400909d8; the detour at 0x40085176, hooks.s brain_on_newproj), so the
@@ -2434,7 +2447,7 @@ static int ps_byte(u32 off)
 enum { NP_RUNS, NP_VALUES, NP_N };
 u32 brain_np_counts[NP_N] DATA;
 
-/* engine task: SAVE PROJ SETUP (clear 0) or CLEAR PROJ SETUP (clear 1) */
+/* engine task: SAVE NEW PROJ (clear 0) or CLR NEW PROJ (clear 1) */
 static int write_pset(int clear)
 {
 	int n = current_store();
@@ -2787,7 +2800,7 @@ static void live_open(u32 kind, const char *title)
 		line_set(2, "DSP1 100%/100%", 14);
 	} else
 		live_fill();
-	POPUP(title, 3, live_lp, 3, (u32)brain_live_answer);
+	POPUP(title, 3, live_lp, 0, (u32)brain_live_answer);	/* mode 0: one OK button */
 	if (kind == LIVE_LOAD) {
 		live_fill();
 		for (u32 i = 0; i < 3; i++) {
@@ -2806,6 +2819,8 @@ static void live_open(u32 kind, const char *title)
 void brain_menu_midimon(u32 unused)
 {
 	(void)unused;
+	if (log_is_off())
+		return;
 	live_open(LIVE_MIDI, "MIDI MONITOR");
 }
 

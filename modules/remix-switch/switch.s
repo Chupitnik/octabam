@@ -75,7 +75,7 @@
         .text
 
 | ---- MAIN MENU > BRAIN > REMIXES ------------------------------------------
-| BRAIN's REMIXES sub-list (brain_rmx_rows) holds its back row, then the
+| BRAIN's REMIXES sub-list (brain_rmx_rows) holds the
 | rows buildrows writes; brain_rmx_n counts them. Until 8 Oct 2026 this was
 | a fifth root category of its own, OS (PR #542), then rows in BRAIN's pane.
 str_self:
@@ -246,8 +246,8 @@ sortnames:
         lea     (20,%sp),%sp
         rts
 
-| buildrows: REMIXES' rows after BRAIN's back row (brain_rmx_rows), and
-| their count with it (brain_rmx_n). A row per file, sorted, labelled with
+| buildrows: REMIXES' rows (brain_rmx_rows), and their count
+| (brain_rmx_n). A row per file, sorted, labelled with
 | its name without .RMX (or one NO REMIX FILES row); after a switch a
 | FLASHED separator in stock's form and the name of the image a power-cycle
 | returns to; a failed last switch's reason. Every row
@@ -256,7 +256,7 @@ sortnames:
 buildrows:
         lea     (-16,%sp),%sp
         movem.l %d2-%d3/%a2-%a3,(%sp)
-        lea     brain_rmx_rows+0x18,%a2
+        lea     brain_rmx_rows,%a2
         | the files
         move.l  count,%d2
         bne.s   3f
@@ -320,10 +320,8 @@ buildrows:
         bne.s   2f
 1:      bsr.w   quiet
         addq.l  #1,%d2
-2:      addq.l  #1,%d2                  | BRAIN's back row
-        move.l  %d2,brain_rmx_n
-        moveq   #1,%d0                  | the files start after the back row
-        move.l  %d0,nhead
+2:      move.l  %d2,brain_rmx_n
+        clr.l   nhead                   | the files start at row 0
         movem.l (%sp),%d2-%d3/%a2-%a3
         lea     (16,%sp),%sp
         rts
@@ -972,7 +970,7 @@ rec_load:
         .align  4
 count:  .long   0
 idx:    .long   0
-nhead:  .long   1
+nhead:  .long   0
 lines:  .long   line1, str_stops, str_home
 line1:  .space  32
 path:   .space  48                  | "/BRAIN/REMIXES/" + a name of NLEN bytes

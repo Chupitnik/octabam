@@ -120,14 +120,13 @@ def live_table(remix, mods) -> list[tuple[Resolved, object, object]]:
     """(Resolved, Setting, module) for each setting the unit holds at run
     time: the remix carries BRAIN, the value is not pinned, it is not
     Apply.BUILD, and it is a Binary, an Option or a Number (a long in the
-    value table; Blobs and Triggers have no row yet). BRAIN's own first,
-    then remix order, then key order: the SETTINGS list's order (BRAIN.md
-    section 9)."""
+    value table; Blobs and Triggers have no row yet). By module key, then
+    setting name: the SETTINGS list's order (BRAIN.md section 9)."""
     if not has_brain(remix):
         return []
     rows = [(r, s, mods[r.module]) for r, s in resolve(remix, mods)
             if r.runtime and isinstance(s.kind, (Binary, Option, Number))]
-    return sorted(rows, key=lambda row: row[0].module != BRAIN_KEY)
+    return sorted(rows, key=lambda row: (row[0].module, row[1].name))
 
 
 def read_macro(remix, mods, store_id: str, name: str, macro: str) -> str:

@@ -25,16 +25,16 @@ lane at the end:
                 MODE 64 and SIZE 100; SPECTRUM MODE 90 on FX1 of T2-4, T6, T7)
                 read count - 1 after the load: stock's Part validator does it,
                 which is why the brain has no clamp
-  save          SAVE AS DEFAULT: brain_save_default for T1's FX2 (BusDelay) and
+  save          SAVE FX DEFAULT: brain_save_default for T1's FX2 (BusDelay) and
                 T2's FX1 (SPECTRUM), then brain_card_store, on a card whose
                 card.work holds other records: the two records carry the live
                 pages' bytes, the others keep their bytes, card.strd is
                 card.work; a second boot of that card puts the saved values
                 on both descriptors
   menu          the BRAIN category on the panel: T1, the FX2 page, PROJ,
-                DOWN x4, RIGHT, YES on DEFAULTS, YES on SAVE AS DEFAULT: card.work holds T1's
-                FX2 page; then OK, DOWN, YES on CLEAR DEFAULT: no BusDelay
-                record left
+                DOWN x4, RIGHT, YES on DEFAULTS, DOWN x2, YES on SAVE FX DEFAULT: card.work
+                holds T1's FX2 page; then OK, UP x2, YES on CLR FX DEFAULT: no
+                BusDelay record left
   mode          a GRAIN record for BusDelay (T1): the FX2 page-2 editor moves
                 MODE CLEAN -> GRAIN (verify_modedefaults' call) and MODE
                 DEFAULTS lands GRAIN's view with the card's values for the
@@ -269,14 +269,15 @@ def main():
         if name == "duplicate":
             check(f"{name}: both copies refused ({counts['skip_dup']})", counts["skip_dup"] == 2)
         if name == "settings":
-            check(f"settings: MIDI LOG and DEFAULTS read off from card.work, so the default records "
+            check(f"settings: APPLY DFLTS and MIDI LOG read off from card.work, so the default records "
                   f"are not applied (values {svals}, {scounts})",
                   svals == (0, 0) and scounts["values"] == 2 and counts["applied"] == 0)
         if name == "settings_bad":
             check(f"settings: a value out of bounds and one of the wrong type take the layer below "
-                  f"(values {svals}, {scounts})", svals == (1, 1) and scounts["skip"] == 2)
+                  f"(values {svals}, {scounts})", svals == (1, 0) and scounts["skip"] == 2)
         if name == "none":
-            check(f"settings: no card store, the defaults of layers 1 and 2 (values {svals})", svals == (1, 1))
+            check(f"settings: no card store, the defaults of layers 1 and 2 (values {svals}: APPLY DFLTS, MIDI LOG)",
+                  svals == (1, 0))
     # ---- stock clamps: why the brain has no clamp of its own ----------------
     # The Part validator 0x40002318 rewrites every FX page byte outside its
     # descriptor's [min, min + count - 1] to the nearer end during the load
@@ -324,7 +325,7 @@ def main():
     check(f"stock clamps: {16 * 8 * len(planted)} planted out-of-count bytes (16 banks x 8 Parts) read "
           f"count - 1 after the load ({wrong} do not)", wrong == 0)
 
-    # ---- save: SAVE AS DEFAULT writes card.work, SAVE PROJECT card.strd ----
+    # ---- save: SAVE FX DEFAULT writes card.work, SAVE PROJECT card.strd ----
     import emu_card
     # the posts run the writes in the engine task (a --step call runs as main,
     # where file I/O does not return under the port)
@@ -495,8 +496,8 @@ def main():
     check(f"save: on a card with no BRAIN folder the first save creates it and card.work  {recs}",
           recs == [brain.fx_store_id(bd)])
 
-    # ---- menu: SAVE AS DEFAULT and CLEAR DEFAULT from the panel ------------
-    MK = dict(no=0x32, yes=0x31, t1=0x10, fx2=0x26, proj=0x1c, down=0x20, right=0x21)
+    # ---- menu: SAVE FX DEFAULT and CLR FX DEFAULT from the panel ------------
+    MK = dict(no=0x32, yes=0x31, t1=0x10, fx2=0x26, proj=0x1c, down=0x20, up=0x33, right=0x21)
 
     def keys_script(keys):
         tt, lines = 1500, []
@@ -506,9 +507,9 @@ def main():
         lines.append(f"{tt} quit")
         return "\n".join(lines) + "\n"
     nav = [("no", 400), ("t1", 600), ("fx2", 1500), ("proj", 1200)] + [("down", 400)] * 4 + [("right", 800)]
-    nav += [("down", 400), ("yes", 800)]     # DEFAULTS (SETTINGS first): its sub-list, the cursor on SAVE AS DEFAULT
+    nav += [("yes", 800), ("down", 400), ("down", 400)]     # DEFAULTS (the first row): its sub-list, down to SAVE FX DEFAULT
     runs = {"menu_save": nav + [("yes", 2500)],
-            "menu_clear": nav + [("yes", 2500), ("yes", 800), ("down", 400), ("yes", 2500)]}
+            "menu_clear": nav + [("yes", 2500), ("yes", 800), ("up", 400), ("up", 400), ("yes", 2500)]}
     for name, keys in runs.items():
         mc, mafter, mlog, mlanes = OUT / f"{name}.img", OUT / f"{name}_after.img", OUT / f"{name}.txt", OUT / f"{name}_lanes.bin"
         r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
@@ -532,12 +533,12 @@ def main():
             rec = recs.get(brain.fx_store_id(bd))
             got = {v.key: v.data[0] for v in rec.values()} if rec else {}
             want = {k: page[i] for i, k in enumerate(brain.fx_keys(bd)) if k}
-            check(f"menu: SAVE AS DEFAULT from the panel writes T1's FX2 page ({got == want})", rec is not None and got == want)
+            check(f"menu: SAVE FX DEFAULT from the panel writes T1's FX2 page ({got == want})", rec is not None and got == want)
         else:
-            check(f"menu: CLEAR DEFAULT leaves no BusDelay record ({sorted(recs)})",
+            check(f"menu: CLR FX DEFAULT leaves no BusDelay record ({sorted(recs)})",
                   mw is not None and brain.fx_store_id(bd) not in recs)
 
-    # ---- settings from the panel: SETTINGS > MIDI LOG, YES ------------------
+    # ---- settings from the panel: SETTINGS > MIDI LOG, YES (off by default: on) ----
     seed = brainfile.File(brainfile.CARD_WORK, [brainfile.Record(brainfile.SETTINGS, "octabam.brain",
         payload=brainfile.Value(99, brainfile.BINARY, b"\x01").encode())]).encode()
     (OUT / "mset_seed.work").write_bytes(seed)
@@ -547,7 +548,7 @@ def main():
                         "--root-file", f"{OUT / 'mset_seed.work'}:BRAIN/card.work"], cwd=ROOT, capture_output=True, text=True)
     if r.returncode:
         sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
-    keys = [("no", 400), ("proj", 1200)] + [("down", 400)] * 4 + [("right", 800), ("yes", 800), ("yes", 3000)]
+    keys = [("no", 400), ("proj", 1200)] + [("down", 400)] * 4 + [("right", 800), ("down", 400), ("down", 400), ("yes", 800), ("down", 400), ("yes", 3000)]
     (OUT / "menu_settings.script").write_text(keys_script(keys))
     cmd = [EMU, "--image", image, "--card", mc, "--set", a.set_name, "--project", a.name, "--load-ms", "90000",
            "--mkii", "--live-script", OUT / "menu_settings.script", "--card-out", mafter]
@@ -559,8 +560,8 @@ def main():
     mw = next((v for k, v in files.items() if k.upper().endswith("BRAIN/CARD.WORK")), None)
     srec = [r for r in brainfile.parse(mw).records if r.kind == brainfile.SETTINGS] if mw else []
     got = {v.key: v.data[0] for v in srec[0].values()} if len(srec) == 1 else {}
-    check(f"settings: YES on SETTINGS > MIDI LOG writes one settings record, MIDI LOG off, DEFAULTS on, "
-          f"the unknown key kept  {got}", got == {1: 0, 2: 1, 99: 1})
+    check(f"settings: YES on SETTINGS > MIDI LOG writes one settings record, MIDI LOG on, APPLY DFLTS on, "
+          f"the unknown key kept  {got}", got == {1: 1, 2: 1, 99: 1})
 
     # ---- templates: SAVE from the shortcut; LOAD of a seeded template -------
     # Run 1: T1's FX1 page; hold FX1 + FUNC (the shortcut), SAVE TEMPLATE:
@@ -730,7 +731,7 @@ def main():
     seed = brainfile.File(brainfile.CARD_WORK, [brainfile.Record(brainfile.TEMPLATE_REC, amp["id"],
         payload=brainfile.prefix_bytes(brainfile.TEMPLATE_REC, layout=amp["layout"], name="TPL 07")
         + brainfile.Value(1, brainfile.BYTE, b"\x05").encode())]).encode()
-    into = [(0x32, 400), (0x1c, 1200)] + [(0x20, 400)] * 4 + [(0x21, 800), (0x20, 400), (0x20, 400), (0x31, 800)]
+    into = [(0x32, 400), (0x1c, 1200)] + [(0x20, 400)] * 4 + [(0x21, 800), (0x20, 400), (0x20, 400), (0x20, 400), (0x31, 800)]
     runs = {"tpl_pane_copy": into + [(0x31, 800), (0x31, 2500)],
             "tpl_pane_rename": into + [(0x20, 400), (0x31, 800), (0x31, 1200),
                                       (0x33, 300), (0x31, 2500)]}
@@ -889,7 +890,7 @@ def main():
               not bad and any(seedv[k] != part[k - 1] for k in seedv))
 
     # ---- project settings for new projects (stock.project) ------------------
-    # Run 1: BRAIN > DEFAULTS > SAVE PROJ SETUP writes a card default of the
+    # Run 1: BRAIN > DEFAULTS > SAVE NEW PROJ writes a card default of the
     # settings bytes (docs/firmware/STORAGE.md section 5) equal to RAM.
     # Run 2: card.work seeded with LOAD_24BIT_FLEX (0x51) = 1 and
     # MIDI_AUTO_CHANNEL (0x47) = 5; PROJECT > CHANGE > <CREATE EMPTY
@@ -897,14 +898,14 @@ def main():
     # new project's own values are 0 and 10, measured under the port).
     ps_keys = [1 + o for o in range(0x70) if o == 0x24 or 0x28 <= o <= 0x37 or 0x3f <= o <= 0x54
                or 0x56 <= o <= 0x6a]
-    keys = [(0x32, 400), (0x1c, 1200)] + [(0x20, 400)] * 4 + [(0x21, 800), (0x20, 400), (0x31, 800),
-                                                               (0x20, 400), (0x20, 400), (0x31, 2500)]
+    keys = [(0x32, 400), (0x1c, 1200)] + [(0x20, 400)] * 4 + [(0x21, 800), (0x31, 800),
+                                                               (0x20, 400), (0x20, 400), (0x20, 400), (0x31, 2500)]
     files, _, (ram,) = ui_run("pset_save", keys, dumps=((0x80000000, 0x70),))
     work_ = card_file(files, "BRAIN/CARD.WORK")
     prec = [r for r in brainfile.parse(work_).records
             if r.kind == brainfile.DEFAULT and r.store_id == "stock.project"] if work_ else []
     got = {v.key: v.data[0] for v in prec[0].values()} if len(prec) == 1 else {}
-    check(f"project settings: SAVE PROJ SETUP writes one stock.project default of the {len(ps_keys)} settings "
+    check(f"project settings: SAVE NEW PROJ writes one stock.project default of the {len(ps_keys)} settings "
           f"bytes, equal to RAM  ({len(got)} values)", got == {k: ram[k - 1] for k in ps_keys})
     pseed = OUT / "pset_seed.work"
     pseed.write_bytes(brainfile.File(brainfile.CARD_WORK, [brainfile.Record(brainfile.DEFAULT, "stock.project",
@@ -926,10 +927,12 @@ def main():
     # With the frame timer (--frame) so LOAD METER publishes; each run dumps
     # the stock dialog's copies of its three lines (0x460e5d28, 31 apart),
     # which the popup's tick rewrites every half second.
-    def live_run(tag, script, wait):
+    def live_run(tag, script, wait, seed=None):
         lc, ll, lines = OUT / f"{tag}.img", OUT / f"{tag}.txt", OUT / f"{tag}_lines.bin"
         r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
-                            "--tree", str(OUT / f"tree_{tag}"), "--out", str(lc)], cwd=ROOT, capture_output=True, text=True)
+                            "--tree", str(OUT / f"tree_{tag}"), "--out", str(lc)]
+                           + (["--root-file", f"{seed}:BRAIN/card.work"] if seed else []),
+                           cwd=ROOT, capture_output=True, text=True)
         if r.returncode:
             sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
         t, out_lines = 1500, []
@@ -950,13 +953,17 @@ def main():
         raw = lines.read_bytes()
         return [raw[i * 31:i * 31 + 30].split(b"\0")[0].decode("ascii", "replace") for i in range(3)]
 
+    logon = OUT / "logon.work"       # MIDI LOG is off by default; these runs read the log
+    logon.write_bytes(brainfile.File(brainfile.CARD_WORK, [brainfile.Record(
+        brainfile.SETTINGS, "octabam.brain",
+        payload=brainfile.Value(1, brainfile.BINARY, b"\x01").encode())]).encode())
     tools = [(0x1c, 500)] + [(0x20, 500)] * 4 + [(0x21, 500)] + [(0x20, 500)] * 4 + [(0x31, 500)]  # BRAIN > TOOLS
     got = live_run("midimon", [(0x32, 500), "midi B0 07 14", "midi C0 02", "midi 91 24 64"]
-                   + tools + [(0x20, 500), (0x31, 500)], 2000)
+                   + tools + [(0x20, 500), (0x20, 500), (0x31, 500)], 2000, seed=logon)
     check(f"midimon: TOOLS > MIDI MONITOR shows the last three messages decoded  {got}",
           got[0].startswith("CH01 CC") and got[0].replace(" ", "").endswith("7=20")
           and got[1].startswith("CH01 PC") and got[2].startswith("CH02 NOTE"))
-    got = live_run("loadview", [(0x32, 500)] + tools + [(0x20, 500), (0x20, 500), (0x31, 500)], 20000)
+    got = live_run("loadview", [(0x32, 500)] + tools + [(0x20, 500), (0x31, 500)], 20000)
     check(f"load: TOOLS > LOAD shows LOAD METER's rows: the frame interrupt's share now/peak and its longest "
           f"run, and each DSP core's row (no DSP runs here: '-')  {got}",
           got[0].startswith("CF") and "%/" in got[0] and got[0].endswith("US")
@@ -992,7 +999,8 @@ def main():
     lcard, lafter, llog, lmidi = OUT / "log.img", OUT / "log_after.img", OUT / "log.txt", OUT / "log.midi"
     lmidi.write_text("40 B0 07 14\n60 C0 02\n80 B1 28 40\n")
     r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
-                        "--tree", str(OUT / "tree_log"), "--out", str(lcard)], cwd=ROOT, capture_output=True, text=True)
+                        "--tree", str(OUT / "tree_log"), "--out", str(lcard),
+                        "--root-file", f"{logon}:BRAIN/card.work"], cwd=ROOT, capture_output=True, text=True)
     if r.returncode:
         sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
     cmd = [EMU, "--image", image, "--card", lcard, "--set", a.set_name, "--project", a.name,

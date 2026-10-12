@@ -214,3 +214,32 @@ brain_on_newproj:
         movem.l %sp@,%d0-%d1/%a0-%a1
         lea     %sp@(16),%sp
         jmp     0x40096f24
+
+| ---- LEFT inside a BRAIN sub-list goes back to BRAIN's top list ------------
+|   0x40064e98  `move.l #0x400cbd8c,%d2`: the LEFT key's handler puts the
+|               focus on the root list (0x400cbda8 = the root list's
+|               descriptor) and ends at the redraw 0x40065060. With the focus
+|               in the list, the root selection on BRAIN (index 4, 0x400cbd98)
+|               and a sub-list showing (brain_list's rows pointer, +24, is not
+|               brain_top_rows), the pane goes back to the top list and the
+|               focus stays; otherwise stock's move runs.
+        .text
+        .globl  brain_on_left
+brain_on_left:
+        move.l  0x400cbda8,%d0
+        cmp.l   #0x400cbd8c,%d0         | focus already on the root
+        beq.s   1f
+        moveq   #4,%d1
+        move.l  0x400cbd98,%d0
+        cmp.l   %d1,%d0                 | the root selection is not BRAIN
+        bne.s   1f
+        lea     brain_list,%a0
+        move.l  %a0@(24),%d0
+        cmp.l   #brain_top_rows,%d0     | the top list is already showing
+        beq.s   1f
+        clr.l   %sp@-
+        jsr     brain_menu_back
+        addq.l  #4,%sp
+        jmp     0x40065060
+1:      move.l  #0x400cbd8c,%d2         | stock's instruction, then on
+        jmp     0x40064e9e

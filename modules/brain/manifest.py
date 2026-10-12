@@ -215,61 +215,51 @@ def menu_inc():
             "brain_list: .long 5, 0, 0, 0, 7, 5, brain_top_rows",
             "        .globl  brain_top_rows, brain_def_rows, brain_tool_rows, brain_rmx_rows, brain_rmx_n, brain_set_rows",
            "        .globl  brain_tpl_rows",
+            # the root rows in alphabetical order, no arrows: LEFT inside a
+            # sub-list goes back to this list (brain_on_left)
             "brain_top_rows:",
-            "        .long   brain_lbl_settings, 0, brain_open_settings, 0, 0, 0",
             "        .long   brain_lbl_defaults, 0, brain_open_defaults, 0, 0, 0",
-            "        .long   brain_lbl_templates, 0, brain_open_templates, 0, 0, 0",
             "        .long   brain_lbl_remixes, 0, brain_open_remixes, 0, 0, 0",
+            "        .long   brain_lbl_settings, 0, brain_open_settings, 0, 0, 0",
+            "        .long   brain_lbl_templates, 0, brain_open_templates, 0, 0, 0",
             "        .long   brain_lbl_tools, 0, brain_open_tools, 0, 0, 0",
             "brain_def_rows:",
-            "        .long   brain_lbl_bdefaults, 0, brain_menu_back, 0, 0, 0",
-            "        .long   brain_lbl_save, 0, brain_menu_save, 0, 0, 0",
             "        .long   brain_lbl_clear, 0, brain_menu_clear, 0, 0, 0",
-            "        .long   brain_lbl_psave, 0, brain_menu_psave, 0, 0, 0",
             "        .long   brain_lbl_pclear, 0, brain_menu_pclear, 0, 0, 0",
+            "        .long   brain_lbl_save, 0, brain_menu_save, 0, 0, 0",
+            "        .long   brain_lbl_psave, 0, brain_menu_psave, 0, 0, 0",
             "brain_tool_rows:",
-            "        .long   brain_lbl_btools, 0, brain_menu_back, 0, 0, 0",
-            "        .long   brain_lbl_log, 0, brain_menu_log, 0, 0, 0",
-            "        .long   brain_lbl_midimon, 0, brain_menu_midimon, 0, 0, 0",
-            "        .long   brain_lbl_load, 0, brain_menu_load, 0, 0, 0",
             "        .long   brain_lbl_pcheck, 0, brain_menu_pcheck, 0, 0, 0",
-            # REMIXES: the back row, then REMIX SWITCH's rows (modules/
-            # remix-switch/switch.s): up to NMAX (32) images and four text rows
+            "        .long   brain_lbl_load, 0, brain_menu_load, 0, 0, 0",
+            "        .long   brain_lbl_midimon, 0, brain_menu_midimon, 0, 0, 0",
+            "        .long   brain_lbl_log, 0, brain_menu_log, 0, 0, 0",
+            # REMIXES: REMIX SWITCH's rows (modules/remix-switch/switch.s):
+            # up to NMAX (32) images and four text rows
             "brain_rmx_rows:",
-            "        .long   brain_lbl_bremixes, 0, brain_menu_back, 0, 0, 0",
             "        .space  36 * 0x18",
-            "brain_rmx_n: .long 1",
-            # SETTINGS: the back row, then brain.c's rows (a heading per
-            # module and each setting: up to 48 settings and their headings)
-            # TEMPLATES: the back row, then brain.c's rows (headings and
-            # templates, up to 160: brain.c TROWS)
+            "brain_rmx_n: .long 0",
+            # SETTINGS: brain.c's rows (a heading per module and each
+            # setting: up to 48 settings and their headings)
+            # TEMPLATES: brain.c's rows (headings and templates, up to 160:
+            # brain.c TROWS)
             "brain_tpl_rows:",
-            "        .long   brain_lbl_btemplates, 0, brain_menu_back, 0, 0, 0",
             "        .space  160 * 0x18",
             "brain_set_rows:",
-            "        .long   brain_lbl_bsettings, 0, brain_menu_back, 0, 0, 0",
             "        .space  97 * 0x18",
             'brain_lbl_root: .asciz "BRAIN"',
-            # \x14 / \x13: the stock font's right and left arrows (drawn
-            # under the port, 8 Oct 2026); \027 its separator dot
-            'brain_lbl_settings: .asciz "SETTINGS    \\x14"',
-            'brain_lbl_bsettings: .asciz "\\x13 SETTINGS"',
-            'brain_lbl_defaults: .asciz "DEFAULTS    \\x14"',
-            'brain_lbl_templates: .asciz "TEMPLATES   \\x14"',
-            'brain_lbl_btemplates: .asciz "\\x13 TEMPLATES"',
-            'brain_lbl_remixes: .asciz "REMIXES     \\x14"',
-            'brain_lbl_tools: .asciz "TOOLS       \\x14"',
-            'brain_lbl_bdefaults: .asciz "\\x13 DEFAULTS"',
-            'brain_lbl_bremixes: .asciz "\\x13 REMIXES"',
-            'brain_lbl_btools: .asciz "\\x13 TOOLS"',
-            'brain_lbl_save: .asciz "SAVE AS DEFAULT"',
-            'brain_lbl_clear: .asciz "CLEAR DEFAULT"',
-            'brain_lbl_psave: .asciz "SAVE PROJ SETUP"',
-            'brain_lbl_pclear: .asciz "CLEAR PROJ SET."',
+            'brain_lbl_settings: .asciz "SETTINGS"',
+            'brain_lbl_defaults: .asciz "DEFAULTS"',
+            'brain_lbl_templates: .asciz "TEMPLATES"',
+            'brain_lbl_remixes: .asciz "REMIXES"',
+            'brain_lbl_tools: .asciz "TOOLS"',
+            'brain_lbl_save: .asciz "SAVE FX DEFAULT"',
+            'brain_lbl_clear: .asciz "CLR FX DEFAULT"',
+            'brain_lbl_psave: .asciz "SAVE NEW PROJ"',
+            'brain_lbl_pclear: .asciz "CLR NEW PROJ"',
             'brain_lbl_log: .asciz "WRITE DEBUG LOG"',
             'brain_lbl_midimon: .asciz "MIDI MONITOR"',
             'brain_lbl_load: .asciz "LOAD"',
-            'brain_lbl_pcheck: .asciz "PROJECT CHECK"']
+            'brain_lbl_pcheck: .asciz "IMAGE CHECK"']
     return "\n".join(out)
 
 
@@ -286,9 +276,9 @@ MODULE = Module(
     # MODEDEF_TABLE: MODE DEFAULTS' view table, 0 without that module.
     # BRAIN's own settings (SETTINGS > BRAIN), read by brain.c
     store=Store("octabam.brain"),
-    settings=(Setting(1, "MIDI LOG", Binary(), default=1,
+    settings=(Setting(1, "MIDI LOG", Binary(), default=0,
                       doc="the debug log records MIDI messages (TOOLS > WRITE DEBUG LOG); off, the MIDI thread's handler call returns at once after the handler"),
-              Setting(2, "DEFAULTS", Binary(), default=1,
+              Setting(2, "APPLY DFLTS", Binary(), default=1,
                       doc="the card's knob defaults (BRAIN/card.work) apply at each project load; off, every effect takes the image's defaults")),
     linked=(Linked("brain", SOURCE, cpu="5475", dram=True, include=fx_inc,
                    defsyms=(("MODEDEF_TABLE", 0), ("LM_STATS", 0), ("LM_DSP", 0))),),
@@ -302,6 +292,8 @@ MODULE = Module(
         Detour(0x40055AA2, H("4eb940013abc"), "brain", "brain_boot_frame",
                "the boot animation's per-frame flush: BRAIN's boot screen first (PIRATE FLAG's site, sanderlegit)",
                kind="jsr"),
+        Detour(0x40064e98, H("243c400cbd8c"), "brain", "brain_on_left",
+               "the LEFT key in the menu: inside a BRAIN sub-list it goes back to BRAIN's top list"),
         Detour(0x4008485e, H("7192722db280"), "brain", "brain_on_job",
                "the engine task's job switch: type 0x41 runs SAVE AS DEFAULT"),
         Detour(0x40085176, H("4eb940096f24"), "brain", "brain_on_newproj",

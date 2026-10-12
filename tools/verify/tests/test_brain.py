@@ -358,12 +358,10 @@ class LiveTable(unittest.TestCase):
         r = remix(self.core, self.usb, settings={("octabam.usb", "IN"): Pin(1)})
         self.assertEqual(self.names(r), [])
 
-    def test_order_is_remix_then_key(self):
-        r = remix(self.core, self.log, self.usb)
-        self.assertEqual(self.names(r), [("octabam.log", "A"), ("octabam.log", "B"),
-                                         ("octabam.usb", "IN")])
-        r = remix(self.core, self.usb, self.log)
-        self.assertEqual(self.names(r)[0], ("octabam.usb", "IN"))
+    def test_order_is_module_key_then_setting_name(self):
+        want = [("octabam.log", "A"), ("octabam.log", "B"), ("octabam.usb", "IN")]
+        self.assertEqual(self.names(remix(self.core, self.log, self.usb)), want)
+        self.assertEqual(self.names(remix(self.core, self.usb, self.log)), want)
 
     def test_table_carries_module_and_setting(self):
         res, s, m = brain.live_table(remix(self.core, self.usb), self.mods)[0]
