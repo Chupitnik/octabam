@@ -2884,6 +2884,8 @@ static void checkbox(void *ctx, int x, int y, int on)
 
 /* LOAD: a bar per processor (the peak a mark on it), then two readouts */
 #define BAR_X 50
+#define FRAME_US 363			/* the frame interrupt's period, 1 / 2,756 Hz = 362.8 us */
+#define FRAME_US 363			/* the frame interrupt's period, 1 / 2,756 Hz = 362.8 us */
 
 static void load_bar(void *ctx, int w, int y, int now, int pk)
 {
@@ -2921,14 +2923,24 @@ static void draw_load(void *ctx, int w, int a2)
 		DRAWSTR(FONT, ctx, BAR_X - 4 - (int)TEXT_W(FONT, -1, t), y, -1, t);
 		load_bar(ctx, w, y, load_now[r], load_pk[r]);
 	}
+	/* the worst single run of the frame interrupt since opening, as a share of
+	 * the frame (362.8 us); a run as long as the frame is "OVER" */
+	/* the worst single run of the frame interrupt since opening, as a share of
+	 * the frame (362.8 us); a run as long as the frame is "OVER" */
 	int y = a2 - 9 - 7 * 3 - 1;
-	u32 n = put_s(t, "LONGEST RUN ");
-	n += put_dec(t + n, load_peak_us > 99999 ? 99999 : load_peak_us, 0);
-	n += put_s(t + n, "US");
+	u32 n = put_s(t, "WORST FRAME ");
+	if (!load_peak_us) {
+		n += put_s(t + n, "-");
+	} else if (load_peak_us * 100 / FRAME_US >= 100) {
+		n += put_s(t + n, "OVER");
+	} else {
+		n += put_dec(t + n, load_peak_us * 100 / FRAME_US, 0);
+		t[n++] = '%';
+	}
 	t[n] = 0;
-	DRAWSTR(FONT, ctx, MARGIN, y, -1, load_peak_us ? t : "LONGEST RUN -");
+	DRAWSTR(FONT, ctx, MARGIN, y, -1, t);
 	y -= 8;
-	n = put_s(t, "ESAI MISSES ");
+	n = put_s(t, "AUDIO DROPS ");
 	if (load_miss < 0)
 		n += put_s(t + n, "-");
 	else
