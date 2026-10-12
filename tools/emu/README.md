@@ -528,15 +528,24 @@ a third in the ColdFire. A change to the ColdFire core alone is bounded by
 that third.
 
 1. **`--dsp-rt` for the gates that read no lockstep instrument.** Measured
-   through `--interactive`: `ready` after 14.5-17.8 s against 33-46 s,
-   4 s of play in 6.0-8.3 s against 31-40 s. The longest gates that start the
-   cores and use no instrument by the grep above are `verify_plocksp2`
-   (119-147 s), the KITS strand boot (106 s) and `verify_scenesp2` (39-48 s);
-   a factor near 2 on them is an estimate, not a measurement. Needs: batch
-   `--dsp-rt` (the `--interactive` requirement removed for
-   `--scenario/--step/--live-script`), a per-gate decision, and for each
-   converted gate its verdicts unchanged and the O17c capture comparison on
-   its fixture.
+   12 Oct on one gate with the batch refusal lifted by hand (`OT_DSP_RT_BATCH=1`
+   in a scratch build; the refusal is a check in `main.cpp`, nothing else
+   changes): the KITS strand boot (`--dsp --live-script --mem-dump`, one
+   process) took 108.9 s in lockstep and 26.7, 26.6 and 27.0 s under the JIT.
+   All five memory dumps the gate reads (`strand_st`, `_img`, `_b3`, `_trk`,
+   `_eng`) are byte-identical to lockstep in all three JIT runs, and the log
+   has no halt word; `clean("strand")` reads only those, so its verdict is the
+   same. The JIT cannot be used by a gate that forks: `--scenario` forks the
+   children after one load, a fork keeps only the forking thread, and the
+   JIT's worker threads are not in the children; `verify_scenesp2`,
+   `verify_plocksp2` and `verify_kits`' main fork (the long gates) use
+   `--scenario`. The gates that run the cores in one process without an
+   instrument are `verify_kits`' strand boot (106 s, already beside the fork
+   since #670, so it saves CPU and not wall time), `verify_boottrace`,
+   `verify_analog_bassdrum_ui`, `stems_panel` and `verify_usb_post`
+   (not measured). Making the JIT usable in the forked gates would mean
+   starting the workers in each child after the fork (not tried). Lockstep
+   stays the default and the reference.
 2. **A PGO build in the port store** (`tools/emu/port_store.py`). Done 12 Oct:
    `make emu-pgo` (or `python3 tools/emu/port_store.py pgo`) builds it once
    per source state (306 s: the instrumented build, three training runs on a
