@@ -23,6 +23,9 @@ brain_lm: .long LM_STATS
 | its DSP figures (lm_dsp), 0 without it (LM_DSP defsym)
         .globl  brain_lmd
 brain_lmd: .long LM_DSP
+| its OTOP costs (lm_ot), 0 without it (LM_OT defsym)
+        .globl  brain_lmo
+brain_lmo: .long LM_OT
 
         .text
         .globl  brain_on_load, brain_on_bankload

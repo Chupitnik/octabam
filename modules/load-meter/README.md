@@ -1,7 +1,8 @@
 # `load-meter` — LOAD METER
 
-The frame interrupt's share of the ColdFire, for BRAIN's LOAD view
-(`modules/brain`: TOOLS > LOAD, and FUNC + LEVEL push on an MKII).
+The frame interrupt's share of the ColdFire, each DSP core's busy time per
+frame and the cost of each effect call, for BRAIN's OTOP screen
+(`modules/brain`: BRAIN > OTOP).
 
 The frame interrupt (vector `0x41`, handler `0x4000aad0`) runs about
 2,756 times a second, every 362.8 µs. LOAD METER stamps its entry and its
@@ -77,24 +78,53 @@ counted as bad and changes nothing. CF METER's page-lane route (an FX2
 insert printing values as audio) was the alternative; it takes a track and
 a slot, which this meter must not.
 
-**The view** (BRAIN's TOOLS > LOAD): `CF` the frame interrupt's share now /
-peak since open and its longest run; `DSP0` and `DSP1` each core's busy /
-period as a % now / peak since open, and `M` on DSP0 the ESAI underrun and
-overrun frames since open. `-` = no sample yet, `?` = only bad records
-since the last refresh. The title row is `LOAD` and the refresh count. Lines
-are cut to the box's width in pixels (`0x40012f30`). While the view is
-closed nothing draws and the DSPs and the host port carry the same traffic
-as with it open (`verify_loadmeter` closed); the scrub runs every frame
-either way.
+**The screen** (BRAIN > OTOP, two pages; YES switches). Page 0: a bar per
+processor, `CF` the frame interrupt's share now with its peak since open as
+a mark, `DSP0` and `DSP1` each core's busy over its frame now with the peak
+mark, then `WORST FRAME` (the longest single run of the frame interrupt as a
+share of the 362.8 µs frame, `OVER` at 100%) and `AUDIO DROPS` (the ESAI
+underrun and overrun frames since open). `-` = no sample yet, `?` = only bad
+records since the last refresh. Page 1, `OTOP FX`: the cost of each effect
+call (below), sorted. While the screen is closed nothing draws and the DSPs
+and the host port carry the same traffic as with it open (`verify_loadmeter`
+closed); the scrub runs every frame either way.
+
+**OTOP, the cost of each effect call.** Four more DSP hooks on the stock
+dispatcher (`docs/firmware/DSP.md` section 5: one routine per payload, FX1
+then FX2 for each track position, each with a pre-call, an init on a changed
+id and the process call) stamp timer 0 before and after each slot's calls:
+the start at `move a,x:>$20a` (A `P:$4b2` FX1, `$4e8` FX2; B `$2a7`, `$2dd`),
+the end after the process call at `move x:>$213,b` (A `$4d8`, B `$2cd`) and
+`move x:>$206,r0` (A `$50e`, B `$303`). Each core keeps the cost of the
+frame's eight calls in dispatch order in X:`$37F40` (core 0) and `$37F50`
+(core 1) (the frame start hook resets the pointer); core 0 publishes one slot
+a frame, round robin over the 16, as a second record after the meter's
+(`$b4`, the slot, three cost bytes, their sum: bytes 17-22 of MAIN's low
+bytes). The ColdFire keeps per slot `{last, sum, count, max}` in `lm_ot`
+(also `LM_OT`; `lm_ot_reset` clears them when the screen opens). A slot is
+sampled about every 6 ms. The figure is elapsed time on the chip's own timer
+(CLK/2, 2 cycles a count), so cycles a sample = counts ÷ 8; a row's percent
+is its share of the core's frame. Slot 0..7 are payload A's (tracks 5-8: FX1,
+FX2 of the first position, then the next), 8..15 payload B's (tracks 1-4).
+`STOCK A` and `STOCK B` are each core's mean busy time beyond its effects:
+the stock mixer, AMP and everything else. The stamps read and write only
+registers that are dead at the hook sites (`a` and `b` and `r2`, `r3`; the
+start hook saves `a` through the displaced store) and no modifier register;
+`verify_loadmeter` compares USB AUDIO OUT's ring with the stamps in and
+replaced by no-ops (`LM_NOOT`): byte-identical. They cost 101 words a
+payload (257 in all with the meter). Measured only under the port, whose
+timer moves in 1,024-count steps, so single calls read 0 or 1,024 and only
+the means over many samples mean anything; nothing here has run on a unit.
 
 Credit: the view and its rules (bounded reads, `-` and `?`, the refresh
 counter, the zero-cost close) follow Hamish Renton's ([SamplesAndSnacks](https://github.com/SamplesAndSnacks)) LOAD
 view design for the Machinedrum. The code here is octabam's.
 
-**Payload room.** 156 words on each payload. The only remix carrying LOAD
-METER is the test remix `brain`: payload A 61 words free, payload B 623
-(11 Oct 2026). A remix it does not fit is refused by the build's region
-fit, by name.
+**Payload room.** 257 words on each payload (156 before OTOP). The only remix
+carrying LOAD METER is the test remix `brain`, without MODULATION since
+12 Oct 2026: payload A 1,361 words free, payload B 1,922. With MODULATION
+(bottleservice's set) payload A overruns by 50 words (6,208 > 6,158), which
+the build refuses by name.
 
 **Calibration.** `LM_BURN=N` builds put a DO loop of N one-cycle `nop`s
 at each core's frame end, before the busy stamp: N core cycles plus the
@@ -149,7 +179,7 @@ the chip's; the numbers on a unit are a hardware-round item.
   traffic, nothing stock writes the claimed words but payload B's boot
   zero loop, and an injected burn (`LM_BURN` builds) raises each core's
   busy by N/2 counts.
-- `tools/verify/verify_brain.py` (BRAIN's gate) runs the LOAD view on the
+- `tools/verify/verify_brain.py` (BRAIN's gate) runs the OTOP screen on the
   `brain` remix, which carries this module.
 - `tools/verify/verify_dspvectors.py`, `verify_twocore` and `make
   verify-bus` (audio bit-identity) for the DSP section.

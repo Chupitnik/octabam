@@ -1420,11 +1420,11 @@ extern struct mrow brain_top_rows[], brain_rmx_rows[];
 void brain_post_settings(void);
 extern u32 brain_rmx_n;			/* REMIXES' rows (switch.s) */
 
-#define TOP_N   7				/* DEFAULTS, IMAGE CHECK, LOAD, MIDI, REMIXES, SETTINGS, TEMPLATES */
+#define TOP_N   7				/* DEFAULTS, IMAGE CHECK, MIDI, OTOP, REMIXES, SETTINGS, TEMPLATES */
 #define PANE_W  15				/* characters the list pane shows */
 #define NOOP    ((void (*)(u32))0x400648f8)	/* stock's shared row action, `rts` */
 
-enum { SC_DEF, SC_LOAD, SC_MIDI, SC_RMX, SC_SET, SC_TPL, SC_N };
+enum { SC_DEF, SC_OTOP, SC_MIDI, SC_RMX, SC_SET, SC_TPL, SC_N };
 static void sc_open(u32 sc);
 static void sc_rebuild(void);
 
@@ -1437,7 +1437,7 @@ void brain_menu_top(void)
 }
 
 void brain_open_defaults(u32 unused) { (void)unused; sc_open(SC_DEF); }
-void brain_open_load(u32 unused) { (void)unused; sc_open(SC_LOAD); }
+void brain_open_otop(u32 unused) { (void)unused; sc_open(SC_OTOP); }
 void brain_open_midi(u32 unused) { (void)unused; sc_open(SC_MIDI); }
 void brain_open_remixes(u32 unused) { (void)unused; sc_open(SC_RMX); }
 void brain_open_settings(u32 unused) { (void)unused; sc_open(SC_SET); }
@@ -2462,13 +2462,13 @@ static u32 midi_text(char *t, const struct dbg_ent *e)
 
 extern const u32 brain_icon[];
 
-enum { K_HEAD, K_TEXT, K_ITEM, K_TOGGLE, K_VALUE };
+enum { K_HEAD, K_TEXT, K_COST, K_BAR, K_ITEM, K_TOGGLE, K_VALUE };	/* K_COST: text with a value; K_BAR: a processor's bar (arg 0..2); neither selectable */
 struct srow { const char *label, *val; void (*act)(u32); u32 arg; u8 kind, on; };
 #define SR_MAX 176
 static struct srow sr[SR_MAX];
 static u32 sn DATA, scur DATA, stop DATA;
 static char slab[SR_MAX][16];			/* heading and template names */
-static const char *const sc_title[SC_N] = { "DEFAULTS", "LOAD", "MIDI", "REMIXES", "SETTINGS", "TEMPLATES" };
+static const char *const sc_title[SC_N] = { "DEFAULTS", "OTOP", "MIDI", "REMIXES", "SETTINGS", "TEMPLATES" };
 
 static u32 sc_now(void)
 {
@@ -2693,7 +2693,7 @@ static void build_tpl(void)
 	}
 }
 
-/* ---- LOAD: LOAD METER's figures, drawn as bars ---------------------------------- */
+/* ---- OTOP: LOAD METER's figures, bars and the cost of each effect ------------------ */
 
 extern volatile u32 *const brain_lm;
 extern volatile u32 *const brain_lmd;
@@ -2701,6 +2701,13 @@ static u32 load_peak_pct DATA, load_peak_us DATA;
 static u32 load_dseq DATA, load_dbad DATA, load_miss0 DATA, load_ticks DATA;
 static int load_now[3] DATA, load_pk[3] DATA;	/* percent; -1 before a sample, -2 when the records were all bad */
 static int load_miss DATA;
+
+/* a core's frame in timer-0 counts, from LOAD METER's last record (nominal 36,256) */
+static u32 load_period(u32 core)
+{
+	u32 p = brain_lmd ? brain_lmd[3 + 2 * core] : 0;
+	return p ? p : 36256;
+}
 
 static void load_update(void)
 {
@@ -2737,6 +2744,135 @@ static void load_update(void)
 	load_ticks++;
 }
 
+/* OTOP: one list under the rule, scrolled by UP and DOWN: a bar per processor, the
+ * worst frame and the audio drops, then the cost of each effect slot, from the DSP cores' own timer 0
+ * stamps around each FX1 and FX2 call (modules/load-meter dsp_meter.asm). LOAD
+ * METER's lm_ot holds, per slot (0..7 core 0's, 8..15 core 1's: FX1 then FX2
+ * of position 0, 1, 2, 3), the last, summed, counted and largest cost in timer-0
+ * counts (CLK/2: 2 cycles; a frame is 16 samples, so cycles a sample = counts / 8).
+ * Core 0 is payload A (tracks 5-8), core 1 payload B (tracks 1-4). The rows are
+ * sorted by cost, a STOCK row per core is what its busy time holds beyond them. */
+extern volatile u32 *const brain_lmo;		/* lm_ot: 16 x {last, sum, count, max}, then the reset flag; 0 without LOAD METER */
+#define FX1_LIVE 0x80000ec4			/* the live FX1 id of each track; FX2's are 8 on */
+#define FRAME_US 363			/* the frame interrupt's period, 1 / 2,756 Hz = 362.8 us */
+#define OT_ROWS  18			/* effect rows: 16 slots and two STOCK rows */
+
+static char ot_sum[32];			/* the summary line */
+static char ot_pct[3][8];			/* the bars' percent text */
+static char ot_lab[OT_ROWS + 6][22], ot_val[OT_ROWS + 6][12];
+
+static u32 ot_cost(u32 slot)
+{
+	const volatile u32 *e = brain_lmo + 4 * slot;
+	return e[2] ? e[1] / e[2] : 0;
+}
+
+/* a track's FX name: the descriptor's 12-character name (P + 9) */
+static const char *fx_name(u32 fx, u32 id)
+{
+	const u8 *d = find((const u8 *const *)(fx ? FX2_IDS : FX1_IDS), id);
+	return d ? (const char *)d + 9 : "NONE";
+}
+
+static void ot_val_text(char *o, u32 counts, u32 period)
+{
+	u32 n = put_dec(o, counts / 8, 0);			/* cycles a sample */
+	n += put_s(o + n, " ");
+	n += put_dec(o + n, period ? counts * 100 / period : 0, 0);
+	o[n++] = '%';
+	o[n] = 0;
+}
+
+static void build_otop(void)
+{
+	static const char *const names[3] = { "CF", "DSP0", "DSP1" };
+	for (u32 r = 0; r < 3; r++) {
+		u32 n = 0;
+		if (load_now[r] == -1)
+			n = put_s(ot_pct[r], "-");
+		else if (load_now[r] == -2)
+			n = put_s(ot_pct[r], "?");
+		else {
+			n = put_dec(ot_pct[r], (u32)load_now[r], 0);
+			ot_pct[r][n++] = '%';
+		}
+		ot_pct[r][n] = 0;
+		add(K_BAR, names[r], 0, r)->val = ot_pct[r];
+	}
+	/* the worst single run of the frame interrupt since opening, as a share of the
+	 * frame (362.8 us), "OVER" at 100%; the ESAI underrun and overrun frames */
+	u32 n = put_s(ot_sum, "WORST FRAME ");
+	if (!load_peak_us)
+		n += put_s(ot_sum + n, "-");
+	else if (load_peak_us * 100 / FRAME_US >= 100)
+		n += put_s(ot_sum + n, "OVER");
+	else {
+		n += put_dec(ot_sum + n, load_peak_us * 100 / FRAME_US, 0);
+		ot_sum[n++] = '%';
+	}
+	n += put_s(ot_sum + n, "  DROPS ");
+	if (load_miss < 0)
+		n += put_s(ot_sum + n, "-");
+	else
+		n += put_dec(ot_sum + n, (u32)load_miss, 0);
+	ot_sum[n] = 0;
+	add(K_TEXT, ot_sum, 0, 0);
+	if (!brain_lmo) {
+		add(K_TEXT, "NO LOAD METER", 0, 0);
+		return;
+	}
+	u32 period[2] = { load_period(0), load_period(1) };
+	/* the DSP busy line, then every slot and each core's remainder, by cost */
+	struct { u32 cost; u8 slot; } it[OT_ROWS];
+	u32 sum[2] = { 0, 0 };
+	n = 0;
+	for (u32 sl = 0; sl < 16; sl++) {
+		u32 c = ot_cost(sl);
+		sum[sl >> 3] += c;
+		if (!brain_lmo[4 * sl + 2])
+			continue;
+		u32 at = n++;
+		while (at && it[at - 1].cost < c) {
+			it[at] = it[at - 1];
+			at--;
+		}
+		it[at].cost = c;
+		it[at].slot = (u8)sl;
+	}
+	for (u32 core = 0; core < 2; core++) {			/* the remainder: busy - the effects */
+		u32 busy = brain_lmd && brain_lmd[17] ? brain_lmd[15 + core] / brain_lmd[17] : 0;
+		u32 rest = busy > sum[core] ? busy - sum[core] : 0;
+		if (!busy)
+			continue;
+		u32 at = n++;
+		while (at && it[at - 1].cost < rest) {
+			it[at] = it[at - 1];
+			at--;
+		}
+		it[at].cost = rest;
+		it[at].slot = (u8)(16 + core);
+	}
+	for (u32 i = 0; i < n && sn < OT_ROWS + 4; i++) {
+		u32 sl = it[i].slot, k = sn;
+		char *l = ot_lab[k];
+		u32 c = sl & 16 ? sl & 1 : sl >> 3;
+		if (sl >= 16) {
+			put_s(l, c ? "STOCK B" : "STOCK A");
+		} else {
+			u32 pos = (sl & 7) >> 1, fx = sl & 1, track = (c ? 0 : 4) + pos;
+			u32 m = put_s(l, "T");
+			m += put_dec(l + m, track + 1, 0);
+			m += put_s(l + m, fx ? " 2 " : " 1 ");
+			m += put_s(l + m, fx_name(fx, *(volatile u8 *)(FX1_LIVE + 8 * fx + track)));
+			l[m] = 0;
+		}
+		ot_val_text(ot_val[k], it[i].cost, period[c]);
+		add(K_COST, l, 0, 0)->val = ot_val[k];
+	}
+	if (!n)
+		add(K_TEXT, "NO COSTS YET", 0, 0);
+}
+
 /* ---- the engine ---------------------------------------------------------------- */
 
 static int live_timer DATA = -1;
@@ -2747,6 +2883,7 @@ static void sc_build(void)
 	switch (sc_now()) {
 	case SC_DEF: build_def(); break;
 	case SC_MIDI: build_midi(); break;
+	case SC_OTOP: build_otop(); break;
 	case SC_RMX: build_rmx(); break;
 	case SC_SET: build_set(); break;
 	case SC_TPL: build_tpl(); break;
@@ -2774,16 +2911,16 @@ static void sc_rebuild(void)
 	sc_fix();
 }
 
+/* the cursor to the next selectable row in direction d; it stops at the
+ * first and the last (no wrapping) */
 static void sc_move(int d)
 {
-	u32 i = scur;
-	for (u32 k = 0; k < sn; k++) {
-		i = (i + (u32)d + sn) % sn;
-		if (selectable(i)) {
-			scur = i;
+	int i = (int)scur;
+	for (i += d; i >= 0 && i < (int)sn; i += d)
+		if (selectable((u32)i)) {
+			scur = (u32)i;
 			break;
 		}
-	}
 	sc_fix();
 }
 
@@ -2792,15 +2929,19 @@ static void sc_tick(void)
 	if (live_timer < 0)
 		return;
 	u32 sc = sc_now();
-	if (sc != SC_LOAD && sc != SC_MIDI) {
+	if (sc != SC_OTOP && sc != SC_MIDI) {
 		*(volatile u32 *)(TIMERS + (u32)live_timer * 16 + 8) = 0;	/* not re-linked */
 		live_timer = -1;
 		return;
 	}
-	if (sc == SC_LOAD)
+	if (sc == SC_OTOP) {
 		load_update();
-	else
+		sc_build();
+		if (stop + VISIBLE > sn)
+			stop = sn > VISIBLE ? sn - VISIBLE : 0;
+	} else {
 		mon_update();
+	}
 	MENU_REDRAW();
 }
 
@@ -2825,7 +2966,9 @@ void brain_scr_enter(void)
 			break;
 		}
 	sc_fix();
-	if (sc == SC_LOAD) {
+	if (sc == SC_OTOP) {
+		if (brain_lmo)
+			brain_lmo[64] = 1;			/* the effect costs start again */
 		load_peak_pct = load_peak_us = 0;
 		load_ticks = 0;
 		if (brain_lmd) {
@@ -2836,7 +2979,7 @@ void brain_scr_enter(void)
 		}
 		load_update();
 	}
-	if (sc == SC_LOAD || sc == SC_MIDI)
+	if (sc == SC_OTOP || sc == SC_MIDI)
 		live_timer = TIMER(LIVE_TICKS, sc_tick);
 }
 
@@ -2851,6 +2994,13 @@ void brain_scr_exit(void)
 void brain_scr_key(u32 code, u32 pressed)
 {
 	(void)pressed;
+	if (sc_now() == SC_OTOP) {		/* the list scrolls, no cursor */
+		if (code == 0x33 && stop > 0)
+			stop--;
+		else if (code == 0x20 && stop + VISIBLE < sn)
+			stop++;
+		return;
+	}
 	if (code == 0x33)
 		sc_move(-1);
 	else if (code == 0x20)
@@ -2866,6 +3016,15 @@ void brain_scr_key(u32 code, u32 pressed)
 void brain_scr_enc(u32 index, int delta)
 {
 	(void)index;
+	if (sc_now() == SC_OTOP) {
+		for (int k = delta < 0 ? -delta : delta; k > 0 && k < 8; k--) {
+			if (delta < 0 && stop > 0)
+				stop--;
+			else if (delta > 0 && stop + VISIBLE < sn)
+				stop++;
+		}
+		return;
+	}
 	for (int k = delta < 0 ? -delta : delta; k > 0 && k < 8; k--)
 		sc_move(delta < 0 ? -1 : 1);
 }
@@ -2882,10 +3041,8 @@ static void checkbox(void *ctx, int x, int y, int on)
 			VLINE(ctx, x + k, y + 1, y + 3, 1);
 }
 
-/* LOAD: a bar per processor (the peak a mark on it), then two readouts */
+/* OTOP page 0: a bar per processor (the peak a mark on it), then two readouts */
 #define BAR_X 50
-#define FRAME_US 363			/* the frame interrupt's period, 1 / 2,756 Hz = 362.8 us */
-#define FRAME_US 363			/* the frame interrupt's period, 1 / 2,756 Hz = 362.8 us */
 
 static void load_bar(void *ctx, int w, int y, int now, int pk)
 {
@@ -2903,52 +3060,6 @@ static void load_bar(void *ctx, int w, int y, int now, int pk)
 	VLINE(ctx, x0 + 1 + p * span / 100, y - 1, y + 5, 1);
 }
 
-static void draw_load(void *ctx, int w, int a2)
-{
-	static const char *const names[3] = { "CF", "DSP0", "DSP1" };
-	char t[40];
-	for (u32 r = 0; r < 3; r++) {
-		int y = a2 - 9 - 7 * (int)r;
-		DRAWSTR(FONT, ctx, MARGIN, y, -1, names[r]);
-		u32 n = 0;
-		if (load_now[r] == -1)
-			n = put_s(t, "-");
-		else if (load_now[r] == -2)
-			n = put_s(t, "?");
-		else {
-			n = put_dec(t, (u32)load_now[r], 0);
-			t[n++] = '%';
-		}
-		t[n] = 0;
-		DRAWSTR(FONT, ctx, BAR_X - 4 - (int)TEXT_W(FONT, -1, t), y, -1, t);
-		load_bar(ctx, w, y, load_now[r], load_pk[r]);
-	}
-	/* the worst single run of the frame interrupt since opening, as a share of
-	 * the frame (362.8 us); a run as long as the frame is "OVER" */
-	/* the worst single run of the frame interrupt since opening, as a share of
-	 * the frame (362.8 us); a run as long as the frame is "OVER" */
-	int y = a2 - 9 - 7 * 3 - 1;
-	u32 n = put_s(t, "WORST FRAME ");
-	if (!load_peak_us) {
-		n += put_s(t + n, "-");
-	} else if (load_peak_us * 100 / FRAME_US >= 100) {
-		n += put_s(t + n, "OVER");
-	} else {
-		n += put_dec(t + n, load_peak_us * 100 / FRAME_US, 0);
-		t[n++] = '%';
-	}
-	t[n] = 0;
-	DRAWSTR(FONT, ctx, MARGIN, y, -1, t);
-	y -= 8;
-	n = put_s(t, "AUDIO DROPS ");
-	if (load_miss < 0)
-		n += put_s(t + n, "-");
-	else
-		n += put_dec(t + n, (u32)load_miss, 0);
-	t[n] = 0;
-	DRAWSTR(FONT, ctx, MARGIN, y, -1, t);
-}
-
 void brain_scr_draw(void *ctx)
 {
 	u32 sc = sc_now();
@@ -2960,10 +3071,6 @@ void brain_scr_draw(void *ctx)
 	DRAWSTR(FONT, ctx, w - 6 - (int)TEXT_W(FONT, -1, title), a2 + 2, -1, title);
 	ICON(brain_icon, ctx, 6, a2);
 	RULE(ctx, 4, a2 - 1, w - 6, 1);
-	if (sc == SC_LOAD) {
-		draw_load(ctx, w, a2);
-		return;
-	}
 	for (u32 j = 0; j < VISIBLE; j++) {
 		u32 i = stop + j;
 		if (i >= sn)
@@ -2971,14 +3078,15 @@ void brain_scr_draw(void *ctx)
 		const struct srow *r = &sr[i];
 		int y = a2 - 9 - PITCH * (int)j;
 		int x = MARGIN;
-		if (r->kind >= K_ITEM && r->kind != K_TEXT)
-			x += 0;
 		DRAWSTR(FONT, ctx, x, y, -1, r->label);
-		if (r->kind == K_HEAD)
+		if (r->kind == K_BAR) {
+			DRAWSTR(FONT, ctx, BAR_X - 4 - (int)TEXT_W(FONT, -1, r->val), y, -1, r->val);
+			load_bar(ctx, w, y, load_now[r->arg], load_pk[r->arg]);
+		} else if (r->kind == K_HEAD)
 			DOTH(ctx, x + (int)TEXT_W(FONT, -1, r->label) + 4, y + 2, w - MARGIN);
 		else if (r->kind == K_TOGGLE)
 			checkbox(ctx, w - MARGIN - 8, y, r->on);
-		else if (r->kind == K_VALUE && r->val)
+		else if ((r->kind == K_VALUE || r->kind == K_COST) && r->val)
 			DRAWSTR(FONT, ctx, w - MARGIN - (int)TEXT_W(FONT, -1, r->val), y, -1, r->val);
 		if (i == scur && selectable(i))
 			INVERT(ctx, MARGIN - 2, y - 1, w - MARGIN + 1, y + 5, -1);
@@ -2991,10 +3099,10 @@ void brain_scr_draw(void *ctx)
 }
 
 /* FUNC + LEVEL push on an MKII (the record manifest.py adds to the FUNC
- * layer's keys): the LOAD screen is in MAIN MENU > BRAIN now */
+ * layer's keys): the OTOP screen is in MAIN MENU > BRAIN now */
 void brain_load_chord(void)
 {
 	msg[0] = "PROJ > BRAIN";
-	msg[1] = "> LOAD";
-	POPUP("LOAD", 2, msg, 0, 0);
+	msg[1] = "> OTOP";
+	POPUP("OTOP", 2, msg, 0, 0);
 }

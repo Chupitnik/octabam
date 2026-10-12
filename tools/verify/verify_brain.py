@@ -547,7 +547,7 @@ def main():
                         "--root-file", f"{OUT / 'mset_seed.work'}:BRAIN/card.work"], cwd=ROOT, capture_output=True, text=True)
     if r.returncode:
         sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
-    keys = [("no", 400), ("proj", 1200)] + [("down", 400)] * 4 + [("right", 800)] + [("down", 400)] * 3 + [("yes", 800), ("yes", 3000)]   # BRAIN > MIDI, MIDI LOG
+    keys = [("no", 400), ("proj", 1200)] + [("down", 400)] * 4 + [("right", 800)] + [("down", 400)] * 2 + [("yes", 800), ("yes", 3000)]   # BRAIN > MIDI, MIDI LOG
     (OUT / "menu_settings.script").write_text(keys_script(keys))
     cmd = [EMU, "--image", image, "--card", mc, "--set", a.set_name, "--project", a.name, "--load-ms", "90000",
            "--mkii", "--live-script", OUT / "menu_settings.script", "--card-out", mafter]
@@ -924,15 +924,15 @@ def main():
         payload=brainfile.Value(1, brainfile.BINARY, b"\x01").encode())]).encode())
     into = [(0x1c, 500)] + [(0x20, 500)] * 4 + [(0x21, 500)]     # PROJ, BRAIN's pane
     (mon,) = live_run("midimon", [(0x32, 500), "midi B0 07 14", "midi C0 02", "midi 91 24 64"]
-                      + into + [(0x20, 500)] * 3 + [(0x31, 500)], 2000, (("mon_buf", 96),), seed=logon)
+                      + into + [(0x20, 500)] * 2 + [(0x31, 500)], 2000, (("mon_buf", 96),), seed=logon)
     got = [mon[i * 32:i * 32 + 32].split(b"\0")[0].decode("ascii", "replace") for i in range(3)]
     check(f"midimon: BRAIN > MIDI shows the last three messages decoded  {got}",
           got[0].startswith("CH01 CC") and got[0].replace(" ", "").endswith("7=20")
           and got[1].startswith("CH01 PC") and got[2].startswith("CH02 NOTE"))
-    now, peak = live_run("loadview", [(0x32, 500)] + into + [(0x20, 500)] * 2 + [(0x31, 500)], 20000,
+    now, peak = live_run("loadview", [(0x32, 500)] + into + [(0x20, 500)] * 3 + [(0x31, 500)], 20000,
                          (("load_now", 12), ("load_peak_us", 4)))
     pcts = struct.unpack(">3i", now)
-    check(f"load: BRAIN > LOAD has LOAD METER's figures: the frame interrupt's share and its longest run, "
+    check(f"otop: BRAIN > OTOP has LOAD METER's figures: the frame interrupt's share and its longest run, "
           f"and each DSP core's (no DSP runs here: -1)  {pcts}, {struct.unpack('>I', peak)[0]} us",
           pcts[0] >= 0 and pcts[1] == -1 and pcts[2] == -1 and struct.unpack(">I", peak)[0] > 0)
 

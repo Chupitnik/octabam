@@ -15,7 +15,7 @@ _RE = re.compile(re.escape(LITERAL) + r"(?![0-9A-Fa-f])")
 # caller against its own expected count.
 EXPECTED = {
     "SEND": 1,
-    "LOAD METER": 2,
+    "LOAD METER": 5,
     "REVERB SERVER": 5,
 }
 

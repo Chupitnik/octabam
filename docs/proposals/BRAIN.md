@@ -492,7 +492,7 @@ with a name editor, copy, paste and clear (✅ on the unit, image A6).
   (`0x3e`) only the timer. So page-held + FUNC reaches only FUNC's own
   handler (✅ under the port on stock: no state change), and FUNC + LEVEL
   push is free on every page of an MKII (MKI encoders do not push), the
-  LOAD view's chord to come.
+  OTOP's chord to come.
 - A pinned value has no row. A module absent from the image has no rows.
   A remix without the brain has no category, and a module that owns a menu
   today keeps it.
@@ -536,7 +536,7 @@ with a name editor, copy, paste and clear (✅ on the unit, image A6).
 | 4 | the stock provider: MIDI track target, instrument templates with knob names, incoming CC map, controller presets; audio track pages; project-level stock settings. Built 11 Oct 2026 (port): card templates for the AMP and LFO pages and for MIDI tracks (`stock.amp`, `stock.lfo`, `stock.midi`); MIDI knob names (NAME KNOB, the CTRL labels, in the project store and in `stock.midi` templates); SRC page templates per machine type; the card's project settings for new projects (`stock.project`) | yes | yes |
 | from 2, in parallel | DSP run-time delivery: probe, route, first DSP setting | yes | yes |
 | REMIX SWITCH | sanderlegit's OS SWITCH (PR #542), renamed, carried by every remix with BRAIN: the `.RMX` images in `/BRAIN/REMIXES/` in BRAIN's REMIXES sub-list, rebuilt at each MAIN MENU opening (PR #542's power-on picker left out). Built 8 Oct 2026 (`verify_remixswitch` under the port; a switch on an MKII as image B2) | yes | yes |
-| MIDI monitor, LOAD view | built 11 Oct 2026 (port): TOOLS > MIDI MONITOR and TOOLS > LOAD, live dialogs; LOAD METER measures the frame interrupt | yes | yes |
+| MIDI screen, OTOP | built 11-12 Oct 2026 (port): BRAIN > MIDI and BRAIN > OTOP, screens (menu states); LOAD METER measures the frame interrupt, each DSP core and each effect call | yes | yes |
 | after REMIX SWITCH | a MIDI monitor in the BRAIN category: the last incoming messages decoded, each marked with what the firmware did (which handler, or dropped and at which test); a detour on the MIDI byte parser and dispatch (`docs/firmware/MIDI.md` appendix B) into a ring, rows rebuilt and redrawn on a timer (the row mechanism REMIX SWITCH's list needs) | yes | yes |
 
 Phase 0 is implemented (6 Oct 2026): the declarations in

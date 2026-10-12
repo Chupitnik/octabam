@@ -47,6 +47,16 @@
 ; r7 is set by stock's next instruction and r6 takes the displaced
 ; `#>$421` last. No modifier register is written.
 ;
+; OTOP, the cost of each effect call (a second record, below): four more
+; hooks on the dispatcher, a start and an end around each FX1 and FX2 slot's
+; calls (the pre-call, an init on a changed id, and the process call), each
+; core timing its own slots with timer 0. A core's cost block at X:$37F40
+; (core 0) / $37F50 (core 1): +0..+7 the last cost of each call of the
+; frame in dispatch order (position 0's FX1, FX2, position 1's FX1, ...),
+; +8 the call's start stamp, +9 the address of the next cost cell (set by
+; the frame start hook, advanced by each end hook). Core 0 publishes one
+; slot a frame, round robin over both cores' 16, in a second record.
+;
 ; A core's block: +0 the start stamp, +1 busy, +2 period, +3 TUE frames,
 ; +4 ROE frames, +5 armed ($5a5a5a), +6 frames; core 0's at $37F10, core
 ; 1's at $37F18; core 0's publish keeps its sum at +$10 and a value at
@@ -64,6 +74,7 @@
 
 lm_start:
         move    r5,x:>$206              ; the displaced instruction
+        bsr     otop_reset
         move    #>$ffff8c,r1            ; peripherals through a pointer: dsp_asm's
         move    x:(r1)+,x1              ;   round trip names them (TCR0 now)
         move    #>$37f10,r1             ; core 0's block
@@ -139,6 +150,73 @@ lme_x:
         move    #>$421,r6               ; the displaced instruction
         rts
 
+; OTOP: the frame start points this core's next cost cell at its first. a
+; and x0 are dead (lm_start's own), r1 is set again by what follows.
+otop_reset:
+        move    #>$30000,a
+        cmp     #>$38000,a
+        move    #>$37f40,x0
+        bne     otr_0
+        move    #>$37f50,x0
+otr_0:
+        move    x0,r1
+        move    x0,x:(r1+9)
+        rts
+
+; OTOP start, the displaced `move a,x:>$20a` (A P:$4b2 FX1, $4e8 FX2; B P:$2a7,
+; $2dd): the call's start stamp. The displaced store runs first, which keeps
+; a in x:$20a; a is reloaded last. b and r2 are dead (reloaded below the
+; site, A P:$4b8 and $4ba, B's the same) and nothing else is touched.
+otop_s1:
+otop_s2:
+        move    a,x:>$20a               ; the displaced instruction
+; OT_S
+        move    #>$ffff8c,r2
+        move    x:(r2),b                ; TCR0 now (no address update: m2 may be modulo)
+        move    #>$30000,a
+        cmp     #>$38000,a
+        move    #>$37f48,r2             ; core 0's start stamp cell
+        bne     ots_0
+        move    #>$37f58,r2             ; core 1's
+ots_0:
+        move    b,x:(r2)
+        move    x:>$20a,a
+        rts
+
+; OTOP end, after the displaced `move x:>$213,b` (A P:$4d8, B $2cd) for FX1 and
+; `move x:>$206,r0` (A P:$50e, B $303) for FX2: now minus the start stamp into
+; the next cost cell. a, b, r2 and r3 are dead after both sites (each is
+; written before it is read by the stock code that follows), x0 is left alone
+; (the call at A P:$514 may read it), no modifier register is used.
+otop_e1:
+; OT_E1
+        bsr     otop_end
+        move    x:>$213,b               ; the displaced instruction
+        rts
+otop_e2:
+; OT_E2
+        bsr     otop_end
+        move    x:>$206,r0              ; the displaced instruction
+        rts
+otop_end:
+        move    #>$ffff8c,r2
+        move    x:(r2),a                ; now
+        move    #>$30000,b
+        cmp     #>$38000,b
+        move    #>$37f48,r2
+        bne     ote_0
+        move    #>$37f58,r2
+ote_0:
+        move    x:(r2),b                ; the start stamp
+        sub     b,a                     ; a1: the advance mod 2^24
+        move    x:(r2+1),b              ; the next cost cell
+        move    b,r3
+        move    a1,x:(r3)
+        add     #<$1,b
+        tfr     b,a
+        move    a1,x:(r2+1)
+        rts
+
 ; core 0, after the MAIN pack (A P:$2ec `move x:>$205,r0`, before the
 ; ColdFire's pull of this frame's read-back): the 17 bytes into MAIN's low
 ; words (x:$206 + $100: MAIN's long i at words 2i, 2i + 1). Busy and period
@@ -171,6 +249,28 @@ lm_pub:
         move    x:(r1+4),a
         bsr     lm_low
         move    x:(r1+$10),a            ; the sum, published as it is
+        and     #>$ff,a
+        move    a1,x0
+        bsr     lm_byte
+; OTOP's record: $b4, the slot (0..15: this frame's count mod 16), its cost's
+; three bytes, the sum of those five mod 256. The cost cell is core 0's $37F40
+; + slot for slots 0..7, core 1's $37F50 + slot - 8 for 8..15.
+        move    #>$b4,x0
+        move    x0,x:(r1+$10)
+        bsr     lm_byte
+        move    x:(r1+6),a
+        and     #>$f,a
+        move    a1,x:(r1+$12)           ; the slot
+        bsr     lm_low
+        move    x:(r1+$12),a
+        tfr     a,b
+        and     #>$8,b                  ; slots 8..15 are 8 cells further on
+        add     b,a
+        add     #>$37f40,a
+        move    a,r2
+        move    x:(r2),a                ; the cost
+        bsr     lm_three
+        move    x:(r1+$10),a
         and     #>$ff,a
         move    a1,x0
         bsr     lm_byte

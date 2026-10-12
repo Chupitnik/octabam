@@ -82,14 +82,14 @@ lm_scrub:
         addq.l  #1,lm_scrubs                    | every pass, for verify_loadmeter
         lea     MAIN_LO,%a0
         lea     lm_raw,%a1
-        moveq   #16,%d1
+        moveq   #22,%d1                         | bytes 0..22: the meter record, then OTOP's
         moveq   #0,%d2                          | the sum of bytes 0..15
 1:      move.b  %a0@,%d0
         move.b  %d0,%a1@+
         clr.b   %a0@
         addq.l  #4,%a0
-        cmp.l   #0,%d1                          | byte 16 is the sum itself
-        beq.s   2f
+        cmp.l   #6,%d1                          | d1 = 22 - the byte: bytes 16.. are not summed
+        ble.s   2f
         and.l   #0xff,%d0
         add.l   %d0,%d2
 2:      subq.l  #1,%d1
@@ -118,11 +118,11 @@ lm_scrub:
         clr.l   %a0@
 3:      lea     lm_raw+2,%a1                    | core 0, then core 1
         lea     lm_dsp+8,%a0
-        bsr.s   lm_core
+        bsr.w   lm_core
         bne.s   9f
         lea     lm_raw+8,%a1
         lea     lm_dsp+16,%a0
-        bsr.s   lm_core
+        bsr.w   lm_core
         bne.s   9f
         moveq   #0,%d0
         move.b  lm_raw+14,%d0
@@ -135,12 +135,63 @@ lm_scrub:
         add.l   %d0,lm_dsum+4
         addq.l  #1,lm_dsum+8
         addq.l  #1,lm_dsp                       | seq: a good record
+        bsr.w   lm_otop
         bra.s   8f
 9:      addq.l  #1,lm_dsp+4                     | bad
 8:      movem.l %sp@,%d0-%d3/%a0-%a1
         lea     %sp@(24),%sp
         tst.l   0x800018fe                      | displaced
         jmp     0x4000d316
+
+| OTOP's record, bytes 17..22 of lm_raw: $b4, a slot (0..15), its cost (three
+| bytes, timer-0 counts), the sum of those five. Good: lm_ot[slot] takes the
+| cost as its last and adds it to its sum, count and maximum; lm_ot_reset
+| (set by the view when it opens) clears them first.
+lm_otop:
+        lea     lm_raw+17,%a1
+        moveq   #0,%d0
+        move.b  %a1@,%d0
+        cmp.l   #0xb4,%d0
+        bne.s   2f
+        moveq   #0,%d2
+        moveq   #4,%d1
+1:      moveq   #0,%d0
+        move.b  %a1@(0,%d1:l),%d0
+        add.l   %d0,%d2
+        subq.l  #1,%d1
+        bpl.s   1b
+        and.l   #0xff,%d2
+        moveq   #0,%d0
+        move.b  %a1@(5),%d0
+        cmp.l   %d2,%d0
+        bne.s   2f
+        tst.l   lm_ot_reset
+        beq.s   3f
+        clr.l   lm_ot_reset
+        lea     lm_ot,%a0
+        moveq   #15,%d1
+4:      clr.l   %a0@+
+        clr.l   %a0@+
+        clr.l   %a0@+
+        clr.l   %a0@+
+        subq.l  #1,%d1
+        bpl.s   4b
+3:      moveq   #0,%d1
+        move.b  %a1@(1),%d1
+        cmp.l   #15,%d1
+        bhi.s   2f
+        lea     %a1@(2),%a1
+        bsr.w   lm_u24
+        asl.l   #4,%d1
+        lea     lm_ot,%a0
+        add.l   %d1,%a0
+        move.l  %d0,%a0@                        | last
+        add.l   %d0,%a0@(4)                     | sum
+        addq.l  #1,%a0@(8)                      | count
+        cmp.l   %a0@(12),%d0
+        bls.s   2f
+        move.l  %d0,%a0@(12)                    | maximum
+2:      rts
 
 | a1 = a core's six bytes (busy, period, high first), a0 = its {busy, period}
 | now, then (+16) its peak; Z clear when the record is implausible
@@ -197,7 +248,15 @@ lm_irqs: .long  0                               | frame interrupts (lm_out)
 | every 2,048 instructions), so one frame's busy cannot resolve a small
 | change; the mean over many frames can (verify_loadmeter calibrate)
 lm_dsum: .long  0, 0, 0
-lm_raw: .space  20
+lm_raw: .space  24
+        .balign 4
+        .globl  lm_ot, LM_OT, lm_ot_reset
+| OTOP: per slot (0..7 core 0's FX1, FX2 of position 0, 1, 2, 3; 8..15 core 1's)
+| {last, sum, count, maximum} cost in timer-0 counts (CLK/2: a frame is
+| 36,256), then the flag that clears them
+LM_OT:
+lm_ot:  .space  256
+lm_ot_reset: .long 0
         .balign 4
         .globl  lm_stats, LM_STATS              | LM_STATS: the name BRAIN's defsym takes (brain_lm)
 LM_STATS:

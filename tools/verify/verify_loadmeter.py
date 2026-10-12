@@ -1,26 +1,32 @@
 #!/usr/bin/env python3
-"""LOAD METER's DSP half under the ColdFire port, with both DSP cores running.
+"""LOAD METER under the ColdFire port, with both DSP cores running.
 
     python3 tools/verify/verify_loadmeter.py [remix] [--project DIR]
 
 The remix (default `brain`) carries BRAIN and LOAD METER. Each run loads the
-project, opens TOOLS > LOAD (or leaves it closed) and dumps LOAD METER's
-lm_dsp (modules/load-meter/meter.s) and the dialog's lines and title.
+project, opens BRAIN > OTOP (or leaves it closed) and dumps LOAD METER's
+lm_dsp and lm_ot (modules/load-meter/meter.s) and the screen's figures.
 
-  publish     with the view open: records arrive every frame (seq close to
-              the frames run), periods in range, the dialog's DSP rows
-              carry numbers, the title carries the refresh count
+  publish     with the screen open: records arrive every frame (seq close to
+              the frames run), periods in range, the DSP bars carry numbers,
+              the refresh count rises
+  otop        every effect slot (two cores x four tracks x FX1 and FX2) has
+              samples, each mean cost is within its core's frame, the slots'
+              means sum to no more than the core's mean busy time, and the
+              heaviest slot of each core is the host engine on its track
+              (core 0: T5's FX2, BusVerb; core 1: T1's FX2, BusDelay)
   scrub       a write watch on MAIN's long 0 low byte (0x80005e63): the
               scrub (lm_scrub) zeroes it every frame the DSP wrote it
   every       lm_scrub runs once per frame interrupt (its pass count equals
               lm_out's), so it precedes every reader of MAIN in the interrupt
               (the stock recorder at 0x4000d340, USB AUDIO OUT at 0x4000d9a0)
   usb         USB AUDIO OUT's ring (aud_ring, the producer forced on) is
-              byte-identical between this build and an LM_NOPUB build
-              (core 0 publishes nothing): no published byte reaches a reader
-  closed      the view closed: no dialog draws (0x4006d128 never runs from
-              the LOAD tick) and the host port carries the same blocks and
-              words as with the view open over the same frames
+              byte-identical between this build, an LM_NOPUB build (core 0
+              publishes nothing) and an LM_NOOT build (OTOP's four hooks
+              replay their displaced instruction and return): no published
+              byte reaches a reader and the stamps change no sample
+  closed      the screen closed: BRAIN's screen draw never runs and the
+              host port carries the same blocks and words as with it open
   range       a DSP write watch on X:$37F28 (in the claimed $37F10-$37F2F,
               a word the meter never writes) on each core: only payload B's
               boot zero loop writes it
@@ -30,8 +36,9 @@ lm_dsp (modules/load-meter/meter.s) and the dialog's lines and title.
               so N/2), within TOL; the error is printed
 
 What it cannot see: the timer's rate and the burn's cost on the chip (the
-port's cycle table), DMA timing, hardware jitter. Every % and count is a
-hardware-round item.
+port's cycle table; its timer moves in 1,024-count steps, so only means over
+many samples are compared), DMA timing, hardware jitter. Every % and count is
+a hardware-round item.
 """
 import argparse, os, pathlib, re, shutil, struct, subprocess, sys
 
@@ -43,7 +50,6 @@ EMU = ROOT / "out/emu/ot_emu"
 PY = ROOT / ".venv/bin/python3"
 ELF = ROOT / "out/platform/runtime/runtime.elf"
 OUT = ROOT / "out/loadmeter"
-DLG_LINES, DLG_TITLE, DLG_DRAW = 0x460e5d28, 0x460e5ce4, 0x4006d128
 MAIN_LO = 0x80005e63
 TOL = 0.05                       # measured errors 12 Oct 2026: +1.6%, +0.3%, -0.1%, +0.2%
 BURNS = (0, 1000, 3000)
@@ -65,11 +71,14 @@ def symbol(name):
     sys.exit(f"verify_loadmeter: {name} not in {ELF}")
 
 
-def build(remix, burn, tag, nopub=False):
+def build(remix, burn, tag, nopub=False, noot=False):
     env = dict(os.environ, REMIX=remix, XBUS="1", SPEC="1")
     env.setdefault("BUILD", "0")
     env.pop("LM_BURN", None)
     env.pop("LM_NOPUB", None)
+    env.pop("LM_NOOT", None)
+    if noot:
+        env["LM_NOOT"] = "1"
     if burn:
         env["LM_BURN"] = str(burn)
     if nopub:
@@ -81,6 +90,10 @@ def build(remix, burn, tag, nopub=False):
     image = OUT / f"mainos_{tag}.bin"
     shutil.copy2(ROOT / "out/mainos_bus.bin", image)
     return image, symbol("LM_DSP")
+
+
+def syms():
+    return dict(ot=symbol("LM_OT"), now=symbol("load_now"), ticks=symbol("load_ticks"), draw=symbol("brain_scr_draw"))
 
 
 def main():
@@ -109,8 +122,8 @@ def main():
         if f.is_file() and f.suffix.lower() == ".work":
             shutil.copy2(f, copy / f.name)
 
-    tools = [(0x1c, 500)] + [(0x20, 500)] * 4 + [(0x21, 500)] + [(0x20, 500)] * 4 + [(0x31, 500)]
-    open_load = [(0x32, 500)] + tools + [(0x20, 500), (0x20, 500), (0x31, 500)]   # BRAIN > TOOLS > LOAD
+    into = [(0x1c, 500)] + [(0x20, 500)] * 4 + [(0x21, 500)]                 # PROJ, BRAIN's pane
+    open_load = [(0x32, 500)] + into + [(0x20, 500)] * 3 + [(0x31, 500)]      # BRAIN > OTOP
 
     def run(tag, image, lmd, keys, wait, extra=()):
         card = OUT / f"{tag}.img"
@@ -125,10 +138,12 @@ def main():
             t += gap
         lines.append(f"{t + wait} quit")
         (OUT / f"{tag}.script").write_text("\n".join(lines) + "\n")
-        d_lmd, d_lines, d_title = OUT / f"{tag}_lmd.bin", OUT / f"{tag}_lines.bin", OUT / f"{tag}_title.bin"
+        d_lmd, d_ot, d_now, d_ticks = (OUT / f"{tag}_lmd.bin", OUT / f"{tag}_ot.bin", OUT / f"{tag}_now.bin",
+                                       OUT / f"{tag}_ticks.bin")
+        sy = syms()
         cmd = [EMU, "--image", image, "--card", card, "--set", a.set_name, "--project", a.name,
                "--load-ms", "90000", "--mkii", "--dsp", "--frame", "--live-script", OUT / f"{tag}.script",
-               "--mem-dump", f"{lmd:#x},72={d_lmd};{DLG_LINES:#x},93={d_lines};{DLG_TITLE:#x},16={d_title}",
+               "--mem-dump", f"{lmd:#x},72={d_lmd};{sy['ot']:#x},256={d_ot};{sy['now']:#x},12={d_now};{sy['ticks']:#x},4={d_ticks}",
                *extra]
         log = OUT / f"{tag}.txt"
         with open(log, "w") as fh:
@@ -137,10 +152,10 @@ def main():
         if r.returncode or "ended on quit" not in text:
             sys.exit(f"verify_loadmeter: the {tag} run did not finish -- {log}")
         v = struct.unpack(">18I", d_lmd.read_bytes())
-        raw = d_lines.read_bytes()
-        rows = [raw[i * 31:i * 31 + 30].split(b"\0")[0].decode("ascii", "replace") for i in range(3)]
-        title = d_title.read_bytes().split(b"\0")[0].decode("ascii", "replace")
-        return v, rows, title, text
+        ot = struct.unpack(">64I", d_ot.read_bytes())
+        now = struct.unpack(">3i", d_now.read_bytes())
+        ticks = struct.unpack(">I", d_ticks.read_bytes())[0]
+        return v, (ot, now, ticks), text
 
     def host_totals(text, irqs):
         """Host commands per frame interrupt: writes to the HI08 command
@@ -151,17 +166,28 @@ def main():
 
     # ---- publish, scrub ------------------------------------------------------
     image, lmd = build(a.remix, 0, "b0")
-    v, rows, title, text = run("open", image, lmd, open_load, a.frames_ms,
-                               ("--watch-mem", f"{MAIN_LO:#x},1;0x20000004,2"))
+    v, (ot, now, ticks), text = run("open", image, lmd, open_load, a.frames_ms,
+                                    ("--watch-mem", f"{MAIN_LO:#x},1;0x20000004,2"))
     seq, bad = v[0], v[1]
     b0, p0, b1, p1 = v[2], v[3], v[4], v[5]
     check(f"publish: good records {seq}, bad {bad}; core 0 busy/period {b0}/{p0}, core 1 {b1}/{p1}",
           seq > 1000 and bad <= seq // 100 + 2 and 20000 <= p0 <= 60000 and 20000 <= p1 <= 60000
           and 0 < b0 <= p0 and 0 < b1 <= p1)
-    check(f"view: the DSP rows carry numbers and the title the refresh count  {title!r} {rows}",
-          rows[1].startswith("DSP0") and "-" not in rows[1].split(" M")[0] and "?" not in rows[1]
-          and rows[2].startswith("DSP1") and "-" not in rows[2] and title.startswith("LOAD ")
-          and title[5:].isdigit() and int(title[5:]) >= 2)
+    check(f"screen: both DSP bars carry numbers ({now[1]}, {now[2]}) and the refresh count rises ({ticks})",
+          now[1] >= 0 and now[2] >= 0 and ticks >= 2)
+    slots = [dict(last=ot[4 * i], sum=ot[4 * i + 1], count=ot[4 * i + 2], max=ot[4 * i + 3]) for i in range(16)]
+    mean = [x["sum"] / x["count"] if x["count"] else 0 for x in slots]
+    sample = min(x["count"] for x in slots)
+    mb = (v[15] / max(v[17], 1), v[16] / max(v[17], 1))
+    check(f"otop: every slot has samples (fewest {sample}) and each mean cost is inside its frame",
+          sample >= 100 and all(0 <= mean[i] <= (p0 if i < 8 else p1) for i in range(16)))
+    sums = (sum(mean[:8]), sum(mean[8:]))
+    check(f"otop: the slots' mean costs ({sums[0]:.0f}, {sums[1]:.0f} counts) sum to no more than each core's mean "
+          f"busy ({mb[0]:.0f}, {mb[1]:.0f}) plus the timer's 1,024-count step and are not zero",
+          sums[0] <= mb[0] + 1024 and sums[1] <= mb[1] + 1024 and sums[0] > 0 and sums[1] > 0)
+    top0, top1 = max(range(8), key=lambda i: mean[i]), max(range(8, 16), key=lambda i: mean[i])
+    check(f"otop: the heaviest slot of core 0 is T5's FX2 (slot 1, BusVerb) and of core 1 T1's FX2 (slot 9, "
+          f"BusDelay)  {top0}, {top1}", (top0, top1) == (1, 9))
     clears = sum(1 for ln in text.splitlines() if f"[{MAIN_LO:#x}]" in ln and "<- 0 " in ln)
     sets = sum(1 for ln in text.splitlines() if f"[{MAIN_LO:#x}]" in ln and "<- 0 " not in ln)
     check(f"scrub: MAIN's long 0 low byte zeroed after landing ({clears} clears, {sets} other writes)",
@@ -170,13 +196,13 @@ def main():
     open_host = host_totals(text, v[14])
 
     # ---- closed: no draws, the same host traffic --------------------------------
-    v, rows, title, text = run("closed", image, lmd, [(0x32, 500)] + tools + [(0x20, 500), (0x20, 500)],
-                               a.frames_ms + 500, ("--watch-pc", f"{DLG_DRAW:#x}", "--dsp-watch", "0:X:37f28",
+    v, _x, text = run("closed", image, lmd, [(0x32, 500)] + into + [(0x20, 500)],
+                      a.frames_ms + 500, ("--watch-pc", f"{syms()['draw']:#x}", "--dsp-watch", "0:X:37f28",
                                                    "--watch-mem", "0x20000004,2"))
     range_logs = [text]
     draws = next((int(ln.split(":")[1].split()[0]) for ln in text.splitlines()
                   if ln.startswith("watch-pc") and "hit(s)" in ln), -1)
-    check(f"closed: the dialog draw never runs ({draws} hits) and the DSPs still publish (seq {v[0]})",
+    check(f"closed: BRAIN's screen draw never runs ({draws} hits) and the DSPs still publish (seq {v[0]})",
           draws == 0 and v[0] > 1000)
     closed_host = host_totals(text, v[14])
     check(f"closed: host commands per frame interrupt match the open run  open {open_host}, closed {closed_host}",
@@ -194,7 +220,7 @@ def main():
     for n in BURNS:
         img_n, lmd_n = (image, lmd) if n == 0 else build(a.remix, n, f"b{n}")
         extra = ("--dsp-watch", "1:X:37f28") if n == BURNS[1] else ()
-        v, _r, _t, text_n = run(f"burn{n}", img_n, lmd_n, open_load, a.frames_ms, extra)
+        v, _x, text_n = run(f"burn{n}", img_n, lmd_n, open_load, a.frames_ms, extra)
         if extra:
             range_logs.append(text_n)
         busy[n] = (v[15] / max(v[17], 1), v[16] / max(v[17], 1))
@@ -226,8 +252,8 @@ def main():
     sym = {}
     nm = shutil.which("m68k-elf-nm") or shutil.which("m68k-linux-gnu-nm")
     rings = []
-    for tag, nopub in (("usb_on", False), ("usb_off", True)):
-        img_u, _l = (image, lmd) if not nopub else build(a.remix, 0, "nopub", nopub=True)
+    for tag, nopub, noot in (("usb_on", False, False), ("usb_off", True, False), ("usb_noot", False, True)):
+        img_u, _l = (image, lmd) if not (nopub or noot) else build(a.remix, 0, tag, nopub=nopub, noot=noot)
         for line in subprocess.run([nm, str(ELF)], capture_output=True, text=True).stdout.splitlines():
             parts = line.split()
             if len(parts) == 3:
@@ -251,11 +277,13 @@ def main():
         if r.returncode:
             sys.exit(f"verify_loadmeter: the {tag} run failed -- {log}")
         rings.append(ring.read_bytes())
-    if len(rings) == 2:
-        diff = sum(1 for x, y in zip(*rings) if x != y)
+    if len(rings) == 3:
+        diff = sum(1 for x, y in zip(rings[0], rings[1]) if x != y)
         lows = sum(1 for i in range(3, len(rings[0]), 4) if rings[0][i])
         check(f"usb: USB AUDIO OUT's ring byte-identical with the publish on and off ({diff} bytes differ; "
               f"{lows} nonzero low bytes with it on)", diff == 0 and lows == 0)
+        diff = sum(1 for x, y in zip(rings[0], rings[2]) if x != y)
+        check(f"usb: the ring is byte-identical with OTOP's stamps on and off ({diff} bytes differ)", diff == 0)
     if FAILS:
         print(f"verify_loadmeter: FAILED ({len(FAILS)} failure(s)) -- {OUT}")
         return 1
