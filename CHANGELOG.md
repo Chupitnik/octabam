@@ -18,6 +18,7 @@ The full text before this rewrite: `git show 666b6154:CHANGELOG.md`.
 
 ## Unreleased
 
+- Ledger: LOAD METER (declared range `X:0x37F10..0x37F2F`, no FX2 buffers) no longer refuses the FX2 rows of the buffered stock effects. Measured under the port, none writes at or above `0x37F00` (highest in the slot: DARK REV `0x37DA2`; `docs/firmware/DSP.md` section 5, `stock.SLOT_EXTENT`). A module with no declared range (SEND) still refuses them.
 - Removed repeat98's REPITCH module (`modules/repitch/`) and `remixes/test/repitch/`; REPITCH_REPEAT98_KYOTI is the repitch. `remixes/test/mods` no longer carries a repitch. `docs/firmware/REPITCH.md` (stock facts) and the `verify_repitch*` fixtures stay.
 - Build: a selected module whose menu entry is `stock_dsp` keeps the stock effect it replaces out of the harvest (`stock.harvested`). SIDECHAIN_COMPRESSOR with COMPRESSOR on neither chooser wrote over its own `scdet` hook and the build refused. No existing remix changes (refhash 24/24; `sidechain-compressor` and `kyoti-mute-sidechain` list COMPRESSOR and build identical).
 - BRAIN: TOOLS > MIDI MONITOR (the last three messages, live) and TOOLS > LOAD (the frame interrupt's share, live; FUNC + LEVEL push on an MKII); LOAD METER (new) measures it (11 Oct, port: `verify_brain`).
