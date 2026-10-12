@@ -197,6 +197,22 @@ def _params(desc_E: int, effect: str, key: str) -> tuple[Param, ...]:
 # on the floor is how a number goes stale unnoticed.
 WORDS: dict[str, int] = {}
 
+# The highest word each buffered stock effect writes above its FX2 slot's base,
+# in the four slots of the shared window (Y:0x30000, 0x34000, 0x38000, 0x3c000;
+# the allocator's per-track bases, ledger.py). Measured 13 Oct 2026 under the
+# port: the `mods` image, all eight tracks THRU with tones on the inputs and
+# the same stock effect on every track's FX2, 1,400 frames from transport
+# start, `--dsp-dirty`, `--dsp-peek 0:Y:30000,65536` at the end. A non-zero
+# word is a write; a zero write and a slot that got no signal are invisible,
+# and knobs were at the stamped project's values. The extents match fixed
+# buffer sizes (2,048, 3,072, 4,096 words), not a sweep that stopped.
+# SLOT_EXTENT[key] = highest offset written (0 = base word).
+SLOT_EXTENT: dict[str, int] = {
+    "FLANGER": 0x7FF, "CHORUS": 0xBFD, "SPATIALIZER": 0xA5F, "COMB FILTER": 0xBFF,
+    "PLATE REV": 0x37FF, "SPRING REV": 0xFFF, "DARK REV": 0x3DA2,
+}
+SLOT_BASES = (0x30000, 0x34000, 0x38000, 0x3C000)
+
 
 def _stock(key, name, fx2_id, desc, abbr, fullname, words, doc, char,
            buffer=False):

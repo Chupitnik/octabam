@@ -442,6 +442,21 @@ def main():
     else:
         bad += 1
         print(f"  [FAIL] SYNTH MACHINE + ANALOG BD: {pair}")
+    # LOAD METER's declared range (X:0x37F10..0x37F2F) against the measured
+    # extent of each buffered stock effect (stock.SLOT_EXTENT): none reaches it,
+    # SEND (no declared range) still clashes with every one of them.
+    _lm = registry.by_key("LOAD METER")
+    from remix import stock as _stk_ext
+    _buf = list(_stk_ext.SLOT_EXTENT)
+    _lm_hits = [k for k in _buf if any("stock instance buffer" in x
+                                       for x in ledger.check([_lm, registry.by_key(k)]))]
+    _send_hits = [k for k in _buf if not any("stock instance buffer" in x
+                                             for x in ledger.check([registry.by_key("SEND"), registry.by_key(k)]))]
+    if not _lm_hits and not _send_hits:
+        print("  [PASS] LOAD METER clashes with no buffered stock effect (measured extents); SEND still clashes with all seven")
+    else:
+        bad += 1
+        print(f"  [FAIL] stock instance buffer: LOAD METER clashes with {_lm_hits}; SEND does not with {_send_hits}")
 
     try:
         Param(b"SIXSIX")

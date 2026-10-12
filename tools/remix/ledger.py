@@ -496,8 +496,26 @@ def check(selected) -> list[str]:
     # cannot follow them there, because the allocator keeps SEPARATE tables
     # and an FX1 slot tops out at 0x3fff while every FX2 buffer a module of
     # ours pins starts at 0x4000 or in the shared window.
+    # A module that holds no FX2 buffers and declares its shared-window words
+    # (LOAD METER: Claims.dsp_ranges) clashes only with a stock effect whose
+    # measured extent (stock.SLOT_EXTENT) reaches one of them.
+    def _outside_extent(a, b):
+        c = getattr(b, "claims", None)
+        if c is None or c.owns_fx2_buffers or not c.dsp_ranges:
+            return False
+        if any(r.half_relative for r in c.dsp_ranges):
+            return False
+        from remix import stock
+        ext = stock.SLOT_EXTENT.get(a.key)
+        if ext is None:
+            return False
+        return not any(r.start < base + ext + 1 and r.start + r.length > base
+                       for r in c.dsp_ranges for base in stock.SLOT_BASES)
+
     for a in stocked:
         for b in fixed:
+            if _outside_extent(a, b):
+                continue
             clash("stock instance buffer", a.name, b.name,
                   "the allocator's per-track FX2 buffer slots -- the stock "
                   "effect's buffer lands on whichever track hosts it and "
