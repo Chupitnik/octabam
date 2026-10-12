@@ -19,7 +19,7 @@ Decide first which kind you are writing.
 - A **ColdFire module** changes what the firmware does (parts, kits, menus,
   MIDI, bug fixes) and touches no audio; midisc (`modules/midi-scenes`)
   and Octakit (`modules/octakit`) are this shape. Skeleton
-  `modules/_template_cf/`, worked example `modules/repitch/`, section
+  `modules/_template_cf/`, worked example `modules/direct-jump-kyoti/`, section
   "Declaring a ColdFire module" below; `docs/contributing/PLACEMENT.md` says
   where the bytes land.
 

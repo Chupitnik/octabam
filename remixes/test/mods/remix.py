@@ -21,10 +21,10 @@ REMIX = Remix(
     name="mods",
     family="mods", proof=Proof.PORT, proof_note="",
     doc="Every ColdFire mod in one image on the stock effects: MIDI SCENES, "
-        "KITS, the recorder fixes, REPITCH, the KYOTI direct jump and reload, USB MIDI + AUDIO.",
+        "KITS, the recorder fixes, the KYOTI direct jump and reload, USB MIDI + AUDIO.",
     modules=("MIDI SCENES", "STORE", "KITS", "LOFI AMF FIX", "CC MAP",
              "RECORDER LOOP FIX", "RLEN PLEN",
-             "REPITCH", "DIRECT_JUMP_KYOTI", "BATCH_BUGFIXES", "RELOAD_FROM_PROJECT",
+             "DIRECT_JUMP_KYOTI", "BATCH_BUGFIXES", "RELOAD_FROM_PROJECT",
              "USB MIDI", "USB AUDIO OUT",
              "FILTER", "EQUALIZER", "DJ EQ", "PHASER", "FLANGER", "CHORUS",
              "SPATIALIZER", "COMB FILTER", "COMPRESSOR", "LO-FI", "DELAY",
