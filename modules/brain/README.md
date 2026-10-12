@@ -3,7 +3,7 @@
 The settings store's run-time side on the unit ([`docs/proposals/BRAIN.md`](../../docs/proposals/BRAIN.md)).
 A remix lists it to give the card layer to its knob defaults.
 
-It applies card-wide knob defaults and writes them: SAVE AS DEFAULT
+It applies card-wide knob defaults and writes them: SAVE FX DEFAULT
 (`brain_post_save(track, fx)`) makes the current Part's page of that track's
 FX1 or FX2 the effect's default in `card.work`, and SAVE PROJECT copies
 `card.work` to `card.strd`.
@@ -14,25 +14,26 @@ PROJ (MAIN MENU), then BRAIN, the fifth category. Its pane:
 
 | row | does |
 |---|---|
-| SETTINGS ► | its sub-list: `◄ SETTINGS`, then a heading row per module and a value row per setting (below) |
-| DEFAULTS ► | its sub-list: `◄ DEFAULTS`, SAVE AS DEFAULT, CLEAR DEFAULT, SAVE PROJ SETUP, CLEAR PROJ SET. |
-| TEMPLATES ► | its sub-list: `◄ TEMPLATES`, then per target with templates a heading (its store id after the first `.`, upper case) and its templates by name, the image's first and marked `IMG` |
-| REMIXES ► | its sub-list: `◄ REMIXES`, then REMIX SWITCH's rows (`modules/remix-switch`, sanderlegit): each `.RMX` in `/BRAIN/REMIXES/`, sorted; after a switch a `FLASHED` separator and the image a power-cycle returns to |
-| TOOLS ► | its sub-list: `◄ TOOLS`, WRITE DEBUG LOG, MIDI MONITOR, LOAD, PROJECT CHECK |
+| DEFAULTS | its sub-list: CLR FX DEFAULT, CLR NEW PROJ, SAVE FX DEFAULT, SAVE NEW PROJ |
+| REMIXES | its sub-list: REMIX SWITCH's rows (`modules/remix-switch`, sanderlegit): each `.RMX` in `/BRAIN/REMIXES/`, sorted; after a switch a `FLASHED` separator and the image a power-cycle returns to |
+| SETTINGS | its sub-list: a heading row per module and a value row per setting (below), both alphabetical |
+| TEMPLATES | its sub-list: per target with templates a heading (its store id after the first `.`, upper case) and its templates by name, the image's first and marked `IMAGE` |
+| TOOLS | its sub-list: IMAGE CHECK, LOAD, MIDI MONITOR, WRITE DEBUG LOG |
+
+The rows are alphabetical and carry no arrows. YES or RIGHT on a row opens its sub-list; LEFT inside a sub-list goes back to this list (the cursor on the row it came from), and LEFT again moves to the root, as in a stock category (`brain_on_left`, `0x40064e98`).
 
 | sub-list row | does |
 |---|---|
-| `◄ <NAME>` | back to the pane's top, the cursor on the row it came from |
-| SAVE AS DEFAULT | the FX1 or FX2 page in view (of the current audio track, in the current Part) becomes that effect's default on this card; a popup names the page |
-| CLEAR DEFAULT | that effect's default leaves `card.work`; the descriptor goes back to the image's |
-| SAVE PROJ SETUP | the current project's settings (the stock PROJECT menu's bytes, TEMPO left out) become the card's settings for new projects: a `stock.project` default in `card.work` |
-| CLEAR PROJ SET. | that record leaves `card.work`; new projects take stock's settings |
+| SAVE FX DEFAULT | the FX1 or FX2 page in view (of the current audio track, in the current Part) becomes that effect's default on this card; a popup names the page |
+| CLR FX DEFAULT | that effect's default leaves `card.work`; the descriptor goes back to the image's |
+| SAVE NEW PROJ | the current project's settings (the stock PROJECT menu's bytes, TEMPO left out) become the card's settings for new projects: a `stock.project` default in `card.work` |
+| CLR NEW PROJ | that record leaves `card.work`; new projects take stock's settings |
 | a setting row | `NAME  VALUE` (a Binary reads ON or OFF); YES steps the value (a Binary toggles; an Option steps by one and a Number by its step, each wrapping to its minimum past the maximum) and writes it to `card.work` through an engine-task job |
 | a card template | YES: a list with RENAME (the stock name editor, eight characters) and DELETE; either runs as an engine-task job and the pane returns to its top |
 | an image template | YES: COPY TO CARD, which adds it to `card.work` under its name (refused when a card template of the target has that name) |
 | an image | [YES]: `SWITCH TO <NAME>?`; YES boots it without writing the flash (REMIX SWITCH) |
 | WRITE DEBUG LOG | the last 256 MIDI messages (clock and active sensing left out), each with the sync flags, the playing pattern and the next pattern after its handler ran, written to `/BRAIN/debug.txt` by the engine task |
-| MIDI MONITOR | a dialog with the last three MIDI messages decoded (`CH01 CC 7= 20`, `CH01 PC 2 P3`: the pattern the program change queued, `CH02 NOTE 36 100`), redrawn every half second; it reads the debug log's ring, so SETTINGS > MIDI LOG must be on |
+| MIDI MONITOR | a dialog (the stock dialog's OK mode) with the last three MIDI messages decoded (`CH01 CC 7= 20`, `CH01 PC 2 P3`: the pattern the program change queued, `CH02 NOTE 36 100`), redrawn every half second; it reads the debug log's ring; with SETTINGS > MIDI LOG off it says so |
 | LOAD | a dialog with LOAD METER's window (`modules/load-meter`): the frame interrupt's share and its peak, the average and longest run in µs, interrupts a second; redrawn every half second. Also FUNC + LEVEL push on an MKII (a record in a copy of the FUNC layer's keys, `0x400bfa36`). Without LOAD METER in the remix it says so |
 
 The stock menu engine is two levels deep: LEFT always focuses the root and
@@ -73,8 +74,8 @@ python3 tools/hw/ot_brain.py dump /Volumes/CARD/BRAIN/card.work
 
 | key | name | kind | default | does |
 |---|---|---|---|---|
-| 1 | MIDI LOG | Binary | on | the debug log (TOOLS, WRITE DEBUG LOG) records MIDI messages; off, the MIDI thread's handler call returns at once after the handler |
-| 2 | DEFAULTS | Binary | on | the card's knob defaults apply at each project load; off, every effect takes the image's defaults |
+| 1 | MIDI LOG | Binary | off | the debug log (TOOLS, WRITE DEBUG LOG) records MIDI messages; off, the MIDI thread's handler call returns at once after the handler |
+| 2 | APPLY DFLTS | Binary | on | the card's knob defaults apply at each project load; off, every effect takes the image's defaults |
 
 At each load the core reads kind-1 records from `BRAIN/card.work` into
 `brain_values[]` (one long per setting): a value outside its bounds or of
@@ -106,9 +107,9 @@ Blob and Trigger rows; `Apply.CALLBACK` has no callback field.
 ## The page shortcut and templates
 
 Hold a page key (SRC, AMP, LFO, FX1, FX2) and press FUNC: a list opens
-over the page with SAVE AS DEFAULT, CLEAR DEFAULT, SAVE TEMPLATE, LOAD
+over the page with SAVE FX DEFAULT, CLR FX DEFAULT, SAVE TEMPLATE, LOAD
 TEMPLATE and DELETE TEMPLATE. They act on the track and page in view.
-SAVE AS DEFAULT and CLEAR DEFAULT take an FX page, as the BRAIN pane's
+SAVE FX DEFAULT and CLR FX DEFAULT take an FX page, as the BRAIN pane's
 DEFAULTS rows do. The three template rows also take the AMP and LFO pages
 of an audio track and, in MIDI mode, the whole MIDI track (all five pages
 and their setup pages); over SRC they say to open an LFO, AMP or FX page.
@@ -178,7 +179,7 @@ and their setup pages); over SRC they say to open an LFO, AMP or FX page.
 
 ## Project settings for new projects
 
-SAVE PROJ SETUP (BRAIN > DEFAULTS) writes a card default of store
+SAVE NEW PROJ (BRAIN > DEFAULTS) writes a card default of store
 `stock.project`: the stock PROJECT menu's bytes (`0x80000024..0x8000006a`
 as `docs/firmware/STORAGE.md` section 5 lists them, TEMPOx24 left out;
 keys `1 + offset`, raw bytes). CREATE EMPTY PROJECT applies it: a detour
@@ -213,8 +214,8 @@ name clears it).
 
 ## Live dialogs
 
-MIDI MONITOR and LOAD open the stock dialog (`0x4006d57c`, YES and NO
-close it) and start a soft timer (`0x40031a0c`, about 0.5 s on the sys
+MIDI MONITOR and LOAD open the stock dialog in its mode 0 (`0x4006d57c`; one OK button, YES or NO
+closes it; the draw routine `0x4006d128` labels mode 3 YES, mode 1 EXIT, mode 2 HIDE, read from the image's button strings `0x400b7653`, `0x400b6866`, `0x400b686b`) and start a soft timer (`0x40031a0c`, about 0.5 s on the sys
 task's tick) that rewrites the dialog's copies of its three lines
 (`0x460e5d28`, 31 bytes apart) and redraws it (`0x4006d128`): REMIX
 SWITCH's boot picker's sequence (PR #542). The tick stops itself when the
@@ -234,7 +235,7 @@ shapes and generated into the build (`manifest.py boot_inc`). The
 bootstrap's logo and version line before it are NOR's and do not change.
 Every image carrying BRAIN shows it, after a REMIX SWITCH too.
 
-## SAVE AS DEFAULT
+## SAVE FX DEFAULT
 
 `brain_post_save(track, fx)` posts a message of type `0x41` to the engine
 task's queue (`0x460d17ce`, through stock's `0x40000c3c`); stock's job
@@ -289,13 +290,13 @@ with T2's FX2 chooser select (SEND -> stock DELAY) and FX1 select
 | a record with another layout | the image's defaults | card.work, 1 skipped |
 | two records for one effect | the image's defaults | card.work, both skipped |
 
-| SAVE AS DEFAULT for T1's FX2 and T2's FX1, then the store copy, on a card holding two other records | the two records hold the live pages; the others keep their bytes; `card.strd` = `card.work`; a second boot puts the saved page on BusDelay's descriptor | card.work |
-| the panel: T1, FX2 page, PROJ, DOWN x4, RIGHT, YES on SAVE AS DEFAULT; then OK, DOWN, YES on CLEAR DEFAULT | `card.work` holds T1's FX2 page; after CLEAR no BusDelay record | |
-| SAVE AS DEFAULT on a card with no `BRAIN` folder | the folder and `card.work` with one record | |
+| SAVE FX DEFAULT for T1's FX2 and T2's FX1, then the store copy, on a card holding two other records | the two records hold the live pages; the others keep their bytes; `card.strd` = `card.work`; a second boot puts the saved page on BusDelay's descriptor | card.work |
+| the panel: T1, FX2 page, PROJ, DOWN x4, RIGHT, YES on SAVE FX DEFAULT; then OK, DOWN, YES on CLR FX DEFAULT | `card.work` holds T1's FX2 page; after CLEAR no BusDelay record | |
+| SAVE FX DEFAULT on a card with no `BRAIN` folder | the folder and `card.work` with one record | |
 | out-of-count bytes in every Part of every bank, no file | read count - 1 after the load: stock's Part validator `0x40002318`, so the brain has no clamp | |
-| `card.work` with MIDI LOG and DEFAULTS off and an unknown key 99 | values (0,0); no default record applied; the unknown key kept on write | card.work |
+| `card.work` with MIDI LOG and APPLY DFLTS off and an unknown key 99 | values (0,0); no default record applied; the unknown key kept on write | card.work |
 | a settings record with an out-of-bounds Binary and a wrong type | values stay (1,1); 2 skipped | card.work |
-| the panel: PROJ, DOWN x4, RIGHT, YES on SETTINGS, YES on MIDI LOG | `card.work` holds one settings record {1:0, 2:1, 99:1}; screens rendered under `ot_emu --lcd` | card.work |
+| the panel: PROJ, DOWN x4, RIGHT, DOWN x2, YES on SETTINGS, DOWN, YES on MIDI LOG | `card.work` holds one settings record {1:1, 2:1, 99:1}; screens rendered under `ot_emu --lcd` | card.work |
 | the shortcut on T1's FX1 page: SAVE TEMPLATE, knob A +10, LOAD TEMPLATE `TPL 01` | one template record of CHARACTER with the saved page; the page moves with the knob and comes back to the saved values on LOAD; screens rendered under `ot_emu --lcd` | card.work |
 | `--boot-logo`: the first animation frame at or past 280 | equals `bootart.py`'s pixels for that frame, bit for bit | |
 | a GRAIN record for BusDelay (FDBK, SCTR, GLEN listed by the view; DEL not), then MODE CLEAN -> GRAIN through the FX2 page-2 editor on T1 | the view with the card's three values; DEL skipped and untouched | card.work |
@@ -328,7 +329,7 @@ the card's DELAY default (TIME 52, FB 5) lands on T2's FX2 select (7 Oct
   names another store), layout (same store, another layout hash), gone
   (the image has no such store); skipped records (CRC, schema major, a
   second record). `brain_proj_counts` holds the last project save's result.
-- TOOLS > PROJECT CHECK shows the last load's result in the stock popup:
+- TOOLS > IMAGE CHECK shows the last load's result in the stock popup:
   `SAVED WITH THIS IMAGE`, `N EFFECT(S) CHANGED SINCE THE SAVE` (moved +
   layout + gone), `NO RECORD OF A BRAIN SAVE`, or `BRAIN FILES OF THIS
   PROJECT BAD`.
@@ -365,7 +366,7 @@ Not yet.
   not measured on a unit.
 - Timing of the card read on the unit (one file, at most 16 KB).
 
-- The CS1 block (BRAIN.md section 12). The PROJECT CHECK popup's text
+- The CS1 block (BRAIN.md section 12). The IMAGE CHECK popup's text
   is not rendered under `--lcd`.
 - LOAD TEMPLATE writes the current bank's Part through the stock writers
   (✅ under the port, the Part bytes). The live lane, what the DSP plays,

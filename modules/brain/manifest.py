@@ -5,7 +5,7 @@ and at the power-up's bank load the brain reads /BRAIN/card.work (card.strd
 by the pair rule) and writes each valid default record over its effect's
 descriptor defaults; the choosers and the new-part initialiser read them
 from there. Written by tools/hw/ot_brain.py on a computer; the unit's own
-SAVE AS DEFAULT, the SETTINGS list, the project pair and the CS1 block are
+SAVE FX DEFAULT, the SETTINGS list, the project pair and the CS1 block are
 the next increments. README.md.
 """
 import os
@@ -295,7 +295,7 @@ MODULE = Module(
         Detour(0x40064e98, H("243c400cbd8c"), "brain", "brain_on_left",
                "the LEFT key in the menu: inside a BRAIN sub-list it goes back to BRAIN's top list"),
         Detour(0x4008485e, H("7192722db280"), "brain", "brain_on_job",
-               "the engine task's job switch: type 0x41 runs SAVE AS DEFAULT"),
+               "the engine task's job switch: type 0x41 runs SAVE FX DEFAULT"),
         Detour(0x40085176, H("4eb940096f24"), "brain", "brain_on_newproj",
                "CREATE EMPTY PROJECT, after the empty project's RAM (0x400909d8): the card's project settings",
                kind="jsr"),

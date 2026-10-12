@@ -1,7 +1,7 @@
 """core -- bottleservice plus BRAIN: the settings store on the rig.
 
 bottleservice's selection (remixes/bottleservice) with BRAIN: card-wide knob
-defaults from BRAIN/card.work, SAVE AS DEFAULT and CLEAR DEFAULT in the
+defaults from BRAIN/card.work, SAVE FX DEFAULT and CLR FX DEFAULT in the
 BRAIN MAIN MENU category. BRAIN's gate (tools/verify/verify_brain.py) runs
 on it, restoring the FX2 chooser's YES entry in RAM where it selects.
 """
@@ -11,7 +11,7 @@ from remix.schema import Pin, Proof, Remix
 REMIX = Remix(
     name="brain",
     family="mods", proof=Proof.PORT, proof_note="`verify_brain` under the port, 6 Oct 2026; not on hardware",
-    doc="bottleservice + BRAIN: card-wide knob defaults, SAVE AS DEFAULT in the BRAIN menu.",
+    doc="bottleservice + BRAIN: card-wide knob defaults, SAVE FX DEFAULT in the BRAIN menu.",
     modules=("REVERB SERVER", "DELAY SERVER", "SEND",
              "SPECTRUM", "CHARACTER", "MODULATION",
              "TEMPO SYNC", "CC MAP", "CC FEEDBACK", "MODE DEFAULTS", "RIG HOSTS", "TEMPO BUS",
