@@ -340,8 +340,19 @@ def harvested(listed) -> frozenset[str]:
     ⚠️ BOTH choosers. An effect off FX2 but still on FX1 is still wanted, and
     the DSP dispatch is one table shared by the menus -- overwriting its code
     would take it off FX1 too.
+
+    A selected module whose menu entry is `stock_dsp` runs the DSP of the
+    stock effect it `replaces` (SIDECHAIN_COMPRESSOR on COMPRESSOR), so that
+    effect's code is wanted and counts as listed.
     """
-    return frozenset(k for k in p_spans("A") if k not in listed)
+    from remix import registry
+    mods = registry.modules()
+    keep = set(listed)
+    for k in listed:
+        m = mods.get(k)
+        if m is not None and m.menu is not None and m.menu.stock_dsp and m.menu.replaces:
+            keep.add(m.menu.replaces)
+    return frozenset(k for k in p_spans("A") if k not in keep)
 
 
 def regions_of(harvest) -> tuple[tuple[str, ...], ...]:
