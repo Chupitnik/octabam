@@ -11,6 +11,7 @@ A remix is a named selection of modules; `make image REMIX=<name> BUILD=<n>` bui
 | remix | contains | proof |
 |---|---|---|
 | [`bottleservice`](bottleservice/README.md) | The delay and reverb bus (BusDelay on T1's FX2, BusVerb on T5's FX2, SEND on every other track's FX2, the stock DELAY on T8) + SPECTRUM, CHARACTER and MODULATION on FX1 + USB MIDI + USB AUDIO OUT MASTER (T8 to the computer) + KITS. | on hardware: Sam's MKII (image A6 with KITS, 6 Oct 2026; images A0-A3 with Octakit, 4 Oct 2026) |
+| [`octabam-bus`](octabam-bus/README.md) | CORE + the delay and reverb bus (BusDelay on T1's FX2, BusVerb on T5's FX2, SEND on every other track's FX2, the stock DELAY on T8) + SPECTRUM, CHARACTER and MODULATION on FX1. | port-gated |
 
 ## Effects
 
@@ -23,6 +24,7 @@ A remix is a named selection of modules; `make image REMIX=<name> BUILD=<n>` bui
 | remix | contains | proof |
 |---|---|---|
 | [`analog-bassdrum`](analog-bassdrum/README.md) | Analog BD source machine, switchable 808/909, stock AMP and FX. | port-gated: source/UI under the port; earlier ANALOGBD1 auditioned on MK1, current revision unflashed |
+| [`octabam-inserts`](octabam-inserts/README.md) | CORE + SPECTRUM, CHARACTER, MODULATION, SIDECHAIN_COMPRESSOR, VOCODER, TRANSIENT and EUCLID on FX1; SEND, SIDECHAIN_COMPRESSOR, VOCODER, TRANSIENT and EUCLID on FX2; REPITCH. | port-gated |
 | [`octatrick`](octatrick/README.md) | SYNTH MACHINE + SCALE QUANTIZER + DIRECT JUMP + TUNER + USB MIDI + USB AUDIO (20 channels out, 4 in onto A-D) on the stock effects less SPATIALIZER. | on hardware: Tim's MKI, test build 3.0 b40 (this selection at BUILD 40), 29 Sep 2026: USB AUDIO IN brings the Mac's audio onto the inputs in a one-minute check (long runs not yet tested). The same four modules with the 26 Sep USB AUDIO (out only) ran on the same MKI through the 2.9 test builds; the tuner works on test build 3.0 b40 (UP + TEMPO); the last two 2.9 fixes are not yet confirmed on hardware |
 | [`ok-ms`](ok-ms/README.md) | KITS + MIDI SCENES on the stock effects: the two mods alone. | port-gated: with Octakit on midisc's author's unit, 14 Sep 2026 (OKMS2); with KITS under the port |
 
