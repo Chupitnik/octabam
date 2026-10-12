@@ -88,7 +88,7 @@ as with it open (`verify_loadmeter` closed); the scrub runs every frame
 either way.
 
 Credit: the view and its rules (bounded reads, `-` and `?`, the refresh
-counter, the zero-cost close) follow Hamish Renton's ([hmsr](https://github.com/hmsr)) LOAD
+counter, the zero-cost close) follow Hamish Renton's ([SamplesAndSnacks](https://github.com/SamplesAndSnacks)) LOAD
 view design for the Machinedrum. The code here is octabam's.
 
 **Payload room.** 156 words on each payload. The only remix carrying LOAD
