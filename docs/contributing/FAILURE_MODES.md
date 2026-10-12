@@ -11,14 +11,13 @@ pattern-apply check", "Unattended halt in Octakit's Part-refresh wrapper",
 "A bank file written by the unit that the firmware then rejects", "A UAC2
 host stops audio setup", "A track button pressed within about 250 ms of a pattern
 change halts in Octakit's Part-refresh wrapper", "USB MIDI clock moves the
-sequencer and not the tempo", "A ten-character page-2 label faults the unit", "Eight LOFI2 in SHIFT: the audio cuts out with bursts of digital noise", "Armed from inside a recording page, REC THRESHOLD starts only sometimes", "Crackle on core B, then tracks 1-4 silent: a `rep` in an effect's proc", "A track output stuck left-only, right-only or silent, or a muted track leaking into MAIN: dense core work in a DMA's memory block", and every entry after the line "Entries from here to the end of the file (5 Oct 2026)".
+sequencer and not the tempo", "A ten-character page-2 label faults the unit", "Eight LOFI2 in SHIFT: the audio cuts out with bursts of digital noise", "❌ Retracted: armed from inside a recording page, REC THRESHOLD starts only sometimes", "Crackle on core B, then tracks 1-4 silent: a `rep` in an effect's proc", "A track output stuck left-only, right-only or silent, or a muted track leaking into MAIN: dense core work in a DMA's memory block", and every entry after the line "Entries from here to the end of the file (5 Oct 2026)".
 
-## Armed from inside a recording page, REC THRESHOLD starts only sometimes 🟡 seen on one MKII, cause inferred; left as stock's rule
+## ❌ Retracted: armed from inside a recording page, REC THRESHOLD starts only sometimes
 
-- **Seen:** Chupitnik's MKII, 11 Oct 2026, images THR3 and THR4 (`rec-threshold`): TRIG THR, armed with REC AB or TRACK + REC AB while RECORDING SETUP 1 or 2 is open, the take starts on some tries and not on others. Armed after closing the page, it starts every time.
-- **Stock does the same, harder:** on the same unit with TRIG ONE, REC AB and TRACK + REC AB record nothing while either page is open.
-- **Cause (inferred, not traced):** the press reaches the module's hook and arms; a crossing while the page is still open posts the start, which the open page drops, and the armed word is spent. A crossing after the page closes starts the take. The port cannot show it: there, TRACK + REC with the page open records, and REC AB alone does nothing at all.
-- **Fix:** none, by choice: the module keeps stock's rule, close the page, then arm (`modules/rec-threshold/README.md`). Falsified if a take armed inside the page with the input already over LEV fails every time, or one armed there in silence and closed before the input arrives fails.
+- **The claim (11 Oct 2026, THR1, THR3 and THR4 on Chupitnik's MKII):** with RECORDING SETUP 1 or 2 open, REC AB and TRACK + REC AB recorded nothing under TRIG ONE, and THR armed there started only sometimes.
+- **Retracted (12 Oct 2026, the same unit):** stock 1.40C, flashed from the card, records with either page open (TRIG ONE, TRACK 1 + REC AB and REC AB alone), and so do THR5 (the module's commit; ONE, and THR armed inside the page) and THR6. RLEN 16 and RLEN MAX alike.
+- **What the reading most likely was (inferred, not traced):** a take still running, which a press under ONE2 or THR stops, read as "nothing records". Under RLEN MAX a take never ends by itself, and nothing on the screen showed which tracks were recording or armed.
 
 ## Crackle on core B, then tracks 1-4 silent: a `rep` in an effect's proc ✅ measured on two units, fixed in their modules; octabam's 20 sites fixed in code, hardware open
 

@@ -117,8 +117,8 @@ THR5 is the module's commit.
 - THR1: REC THRESHOLD at a fixed −30 dB. THR shows on RECORDING SETUP; armed with TRACK 1 + REC AB, silence never records, the input starts the take, a second press cancels, a drum hit's attack is whole by ear.
 - THR2: LEV (−40 to −6 dB) and IN on RECORDING SETUP 2. Both work; the floor too high for quiet sources, IN too jittery.
 - THR3: LEV −58 to −7 dB, −40 when TRIG becomes THR; IN holds ~0.5 s and falls ~12 dB/s. The meter right; the range wanted −60 to 0.
-- THR4: LEV −60 to 0 dB (4 dB steps to −8, then 2 dB). Working; armed from inside a recording page it starts only sometimes (`docs/contributing/FAILURE_MODES.md`).
-- THR5: after review, a crossing fires at or over LEV and only for a track still on THR with its recorder idle. The THR4 checks again; LEV 0 dB, an ordinary source does not start it; TRIG moved from THR to ONE while armed, the input then records nothing, and the next press records at once as ONE.
+- THR4: LEV −60 to 0 dB (4 dB steps to −8, then 2 dB). Working. (Its "armed from inside a recording page it starts only sometimes" is retracted below.)
+- THR5: after review, a crossing fires at or over LEV and only for a track still on THR with its recorder idle. The THR4 checks again; LEV 0 dB, an ordinary source does not start it; TRIG moved from THR to ONE while armed, the input then records nothing, and the next press records at once as ONE. With RECORDING SETUP 1 or 2 open, TRIG ONE and THR record (12 Oct), as stock 1.40C does on the same unit: the THR1 to THR4 reading that the REC keys record nothing with a page open is retracted (`docs/contributing/FAILURE_MODES.md`).
 
 ## L1, C1 and C2 — 7 Oct 2026 (`usb-out-tracks-main-cue`, `cfmeter-tracks`, `cfmeter-post`, allmyfriendsaresynths's builds for #625)
 

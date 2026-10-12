@@ -17,8 +17,9 @@ track's threshold. The Digitakt 2's threshold recording, on an Octatrack.
    | QPL | **IN** | the live input level in dB: the loudest of inputs A–D, held ~0.5 s, then falling ~12 dB/s; `---` below −60. Its knob does nothing; QPL is left as it was. |
 
    Play the source, read IN, set LEV a few dB below it.
-3. Close the page with **NO**, then arm: hold **TRACK** and press **REC**
-   (or REC alone for the active track). Nothing shows that it is armed.
+3. Arm: hold **TRACK** and press **REC** (or REC alone for the active
+   track), with RECORDING SETUP open or closed: stock 1.40C records from
+   either page too. Nothing shows that it is armed.
 4. The take starts when the input reaches LEV, and ends at RLEN as usual
    (with RLEN MAX, a press stops it). Arm again for the next one.
 5. An arm is dropped, without a take, if the track's TRIG is no longer THR
@@ -27,10 +28,6 @@ track's threshold. The Digitakt 2's threshold recording, on an Octatrack.
 
 - A second press while armed cancels.
 - A press while recording stops the take (THR behaves as ONE2 there).
-- **Close RECORDING SETUP before arming.** On stock 1.40C the REC keys do
-  not record while either recording page is open, whatever TRIG is; armed
-  from inside one, THR starts only sometimes
-  (`docs/contributing/FAILURE_MODES.md`).
 - The start is immediate: QREC is not applied (its byte is LEV).
 - On a track not set to THR, nothing changes: RECORDING SETUP 2 shows QREC
   and QPL, and both edit as stock.
@@ -106,15 +103,18 @@ from the card, `CHANGELOG.md`):
   does not start it (full scale not tried on the unit); armed in silence,
   TRIG moved from THR to ONE, then the input: no take, and the next TRACK
   + REC AB records at once as ONE.
+- With RECORDING SETUP 1 or 2 open, stock 1.40C records (TRIG ONE, TRACK 1
+  + REC AB and REC AB alone), and so does THR5 (ONE, and THR armed inside
+  the page), RLEN 16 and MAX alike (12 Oct). ❌ Retracted: "the REC keys do
+  not record while a recording page is open" and "armed inside one, THR
+  starts only sometimes", read on THR1, THR3 and THR4 (11 Oct); most
+  likely a take still running (inferred; `docs/contributing/FAILURE_MODES.md`).
 - The first boot after the first flash ran 1.40C's own BOOTSTRAP UPGRADE.
   The bootstrap an octabam image carries is stock's, byte for byte (the
   entry's helper buffer moved to `0x41495de0`, above the platform reserve).
 
 ## Inferred
 
-- Why arming from inside RECORDING SETUP starts only sometimes on the
-  unit: `docs/contributing/FAILURE_MODES.md` has the entry, the inference
-  and what would falsify it.
 - That nothing overwrites the mailbox between the crossing and the
   dispatcher in the same interrupt. Falsified by a crossing (`armed`
   cleared) with no LIMIT write after it.
@@ -129,9 +129,10 @@ from the card, `CHANGELOG.md`):
 - An armed indicator: nothing on screen shows that a track is waiting.
 - Two other routines name TRIG values (`0x400828e0`, N/A past 2;
   `0x40068a94`, blank past 2); which screens draw them is not known.
-- The port's REC keys differ from the unit's: REC AB alone does nothing
-  there, and TRACK + REC records with RECORDING SETUP open. The gate uses
-  TRACK + REC with the page closed, as the unit does.
+- The port's REC keys differ from the unit's in one way: REC AB alone does
+  nothing there (on the unit it records on the active track). TRACK + REC
+  with RECORDING SETUP open records there, as on the unit. The gate uses
+  TRACK + REC with the page closed.
 - An earlier version kept the level in a BRAIN setting. As an Option with
   labels it crashed under the port after RECORDING SETUP and TRACK + REC
   (with every detour removed); as a Number it was clean. Not chased
