@@ -11,7 +11,7 @@
 ; block below.
 ;
 ; All three MODE positions are implemented: 0 runs the ring block, 1 and 2 run
-; the shifter with a per-block sign on Q. The two modulators are mutually
+; the shifter, DOWN with the carrier running backwards. The two modulators are mutually
 ; exclusive and each is skipped by a forward branch.
 ;
 ; Same contract as ripple_svf.asm / warp_fold.asm / character.asm: a per-track
@@ -41,45 +41,38 @@
 ;             field of r6+$e
 ;
 ; ---- r7 slots -------------------------------------------------------------
+; All below $40 (one-word displacements, about 2/3 the cost of the two-word
+; form on the chip: CHIP.md section 2, probe 57) except the Hilbert state.
+;   the glides lf_gset steps, in use then step, walked by r4/r3 each sample:
+;     $00/$01 MIX   $02/$03 GAIN/4   $04/$05 fdbk   $06/$07 amph offset
+;     $08/$09 LPF c   $0a/$0b LPF kd   $0c/$0d carrier step
+;   (per block, before the glide setup, the step slots hold the targets)
 ;   the MODE duck:
 ;     $10 running mode (PERSISTENT: the mode actually playing)
 ;     $11 duck depth e, 0 = none .. $7fffff = wet fully out (PERSISTENT)
-;     $12 ring GAIN / 4 (per block)   $13 duck step, signed (per block)
-;     $14 m*(1-e), the MIX the crossfade uses (per sample)
-;     $15 MODE as the knob has it (per block)
-;   persistent (Character's slots for the same jobs, so the two read alike):
+;     $13 duck step, signed (per block)   $15 MODE as the knob has it (per block)
+;   persistent:
 ;     $19 held L      $1a held R      $1b srr phase      $1c carrier phase
+;     $17 SRR rate in use (glided per sample toward $16, its per-block step)
+;     $29 BRR E in use (the one per-sample one-pole, toward $28, the target)
+;     $0e/$0f the shelf allpass's dropped bits, L/R
+;     $20/$12 the shelf's ap[n-1] and x[n-1], L    $38/$26 the same, R
+;     $39/$3a aPrev L/R (chain A delayed)   $3b/$3c lastwet L/R (the feedback tap)
+;     $37 the Hilbert chains' parity half, $40 or $60
 ;   per block:
-;     $20 m = MIX     $21 range       $22 mode
-;     $24 carrier step target   $25 ptable base   $26 amph offset  $27 ring flag
-;     $16 SRR rate target (per block)   $17 SRR rate in use (PERSISTENT)
-;     $28 BRR E target (per block)  $29 E in use (PERSISTENT)
-;     $2a m, $2b 1/(2m), $18 n -- BRR's step, per sample
-;     $1d LPF c target  $1e kd target (per block)
-;     $23 carrier step in use, glided toward $24 (PERSISTENT)
-;     $3f c in use  $1f kd in use -- glided per sample (PERSISTENT)
-;     $01/$02 the shelf allpass's dropped bits, L/R (PERSISTENT)
-;     $03 MIX  $04 GAIN/4  $05 fdbk  $06 amph offset -- in use, glided
-;         toward $20 / $12 / $38 / $26 (PERSISTENT)
-;     $2c sin  $2d cos  $2e I_L $2f Q_L $30 I_R $31 Q_R  $32 shift flag
-;     $37 sign  $38 fdbk  $39/$3a aPrev L/R  $3b/$3c lastwet L/R
-;     $3d/$3e chain inputs L/R
-;   the four Hilbert chains, 16 words each -- ALL above $3f, so all in the
-;   two-word long form, which is deliberate: they are the cold state and
-;   the hot scalars keep the short encodings below:
-;     $40 A-L   $50 B-L   $60 A-R   $70 B-R      (ends at $7f)
-;   the LPF shelf's persistent state, two words per channel:
-;     $80/$81 allpass ap[n-1] and x[n-1], L    $82/$83 the same, R
+;     $21 range   $22 mode   $25 ptable base   $27 ring flag   $32 shift flag
+;   per sample:
+;     $2a m, $2b 1/(2m) -- BRR's step pair   $2c sin  $2d cos
+;     $33 dry L   $34 dry R   $35 v L   $36 v R   $3d/$3e chain inputs L/R
+;   free: $14 $18 $1d-$1f $23 $24 $2e-$31 $3f $80-$83
+;   the four Hilbert chains: each section is an allpass in z^-2, so even and
+;   odd samples run independent state. $40-$5f is one parity's half, $60-$7f
+;   the other's, toggled each sample ($37); within a half, 16 sections x
+;   [y[n-2], x[n-2]] in chain order A-L, B-L, A-R, B-R. r1 reads each pair;
+;   r2 writes x[n-2] <- in in the sub's parallel slot, then y[n-2] <- y[n]
+;   and on to the next section's X slot (n2 = 3). Do not reorder.
 ;   $84..$8a is host-owned: nothing there survives across calls, and
 ;   LOFI2 uses none of it (CHIP.md section 5).
-;   Each section is y[n-2], y[n-1], x[n-2], x[n-1] IN THAT ORDER -- chosen so
-;   r1's read walk and r2's write walk are both monotonic. Do not reorder.
-;   per sample scratch:
-;     $33 dry L       $34 dry R       $35 v L            $36 v R
-; All below $40: a displacement past 63 assembles to the two-word long form.
-; The four Hilbert chains are 16 words each, 64 in total, and go above that
-; line for exactly that reason.
-;
 ; ---- boot garbage --------------------------------------------------------
 ; `init` zeroes $00..$83 from r7, as stock LO-FI's own init does
 ; (verify_dirtystate). Beyond that, the state tolerates garbage:
@@ -93,8 +86,9 @@
 ; (the SRR latch is branch-free, with Tccs). A backward one would be a loop
 ; the span counts once, which that declaration must never be used to hide.
 ;
-; Every mpy is `mpy x0,y1` or `mpy y0,x0` -- the two operand orders dsp_asm
-; is known to encode SIGNED. AND and ASL leave A2 STALE and a store would
+; Every mpy is `mpy x0,y1`, `mpy y0,x0` or `mpy y1,x1` -- the operand orders
+; dsp_asm encodes SIGNED (y1,x1 checked in the listing: 0x..f0, QQQ=111,
+; not 01278f mpysu; it is the Hilbert sections' only form). AND and ASL leave A2 STALE and a store would
 ; then saturate, so every value passing through one leaves via a1 into a
 ; clean register first.
 ; ---------------------------------------------------------------------------
@@ -120,6 +114,9 @@ lfiniz:
 ; SRR's rate starts at 1.0 (a latch every sample) and glides to the knob's
         move    #>$400000,x0
         move    x0,x:(r7+$17)
+; the Hilbert chains start on the even half
+        move    #>$40,x0
+        move    x0,x:(r7+$37)
         rts
 
 proc:
@@ -127,7 +124,7 @@ proc:
         move    x:(r6+$1),a             ; m = MIX, value<<16
         and     #>$7fff00,a             ; the knob AND its LFO fraction (bits 15-8)
         move    a1,x0
-        move    x0,x:(r7+$20)
+        move    x0,x:(r7+$01)
 
         move    x:(r6+$c),a             ; RANGE, slot 6, knob field
         and     #>$7f0000,a
@@ -171,22 +168,9 @@ lf_noshf:
 lf_shf:
         move    a,x:(r7+$32)
 
-; s: -1 for MODE 1 (DOWN), +1 for MODE 2 (UP). A per-block sign on Q, so
-; the direction never costs a branch in the sample loop.
-; Selector order is RING / DOWN / UP, so the encoder walks the sidebands in
-; pitch order with RING at one end. Nothing else reads MODE's value: the ring
-; flag tests it for zero and the shift flag for nonzero, so this compare is
-; the only place the two shift positions are told apart.
-        move    x:(r7+$22),a
-        move    #>$20000,x0
-        cmp     x0,a                    ; MODE 2?
-        beq     lf_up
-        move    #>$800000,x0            ; MODE 1 = DOWN
-        bra     lf_sgn
-lf_up:
-        move    #>$7fffff,x0            ; MODE 2 = UP
-lf_sgn:
-        move    x0,x:(r7+$37)
+; The direction (DOWN vs UP) is the carrier's: see "the shifter's
+; direction" below, after the step is known. Selector order is RING / DOWN /
+; UP, so the encoder walks the sidebands in pitch order with RING at one end.
 
 ; fdbk = FDBK * 0.45, BodeShift's cap. Inactive in RING by design: ring
 ; feedback is a harmonic-order generator, not a ladder, and was not wanted.
@@ -195,7 +179,7 @@ lf_sgn:
         move    a1,x0
         move    #>$39999a,y1
         mpy     x0,y1,a
-        move    a,x:(r7+$38)
+        move    a,x:(r7+$05)
 
 ; GAIN = 2^(k/64) on the same knob word, read only by the RING block. Stored
 ; as GAIN/4 (it reaches 3.96) and restored there with asl #2. k/64 = n + f:
@@ -223,7 +207,7 @@ lf_sgn:
         tst     b                       ; N: n = 1
         move    y0,a
         tmi     x0,a
-        move    a,x:(r7+$12)            ; GAIN/4
+        move    a,x:(r7+$03)            ; GAIN/4
 
 ; ring flag: 1 only in MODE 0. Resolved HERE, at block setup -- a dispatch
 ; inside the sample loop could not be priced by tools/cycle_count.py.
@@ -288,7 +272,7 @@ lf_ringf:
         move    y0,a
         sub     #>$7f,a
         teq     x0,b                    ; k = 127: out
-        move    b,x:(r7+$1e)            ; kd target; $1f glides to it
+        move    b,x:(r7+$0b)            ; kd target; $1f glides to it
         move    x1,a
         and     #>$00ff00,a
         asl     #$7,a,a
@@ -302,7 +286,7 @@ lf_ringf:
         move    b,y1
         mpy     x0,y1,a
         add     y0,a
-        move    a,x:(r7+$1d)            ; c target; $3f glides to it
+        move    a,x:(r7+$09)            ; c target; $3f glides to it
 
 ; ---- SRR -> the hold's rate, from our own table -------------------------
 ; A fractional sample-and-hold: a phase advances by `inc` a sample and the
@@ -379,7 +363,7 @@ lf_sbase:
 lf_slow:
         move    #>$0002f9,x0            ; LOW: 2 Hz
 lf_rdone:
-        move    x0,x:(r7+$24)           ; park the base step
+        move    x0,x:(r7+$0d)           ; park the base step
 
 ; t = 0.75 * knob, so the six octaves land in bits 22..20 (integer) and the
 ; rest is the fraction. The knob word IS knob/128, so t = 6*knob/128 / 8.
@@ -422,23 +406,23 @@ lf_rdone:
         move    a,y1                    ; h, in [0.5, 1.0)
 
 ; step = base * h, then shifted up (n+1) times: the +1 undoes h's halving.
-        move    x:(r7+$24),x0
+        move    x:(r7+$0d),x0
         mpy     x0,y1,a
         asl     #$1,a,a
         move    a1,x0
         move    x0,a
-        move    a,x:(r7+$24)
+        move    a,x:(r7+$0d)
         move    y0,b                    ; ⚠️ a `do` with a count of 0 runs
         tst     b                       ;  65536 times, so guard it
         beq     lf_noct
-        move    x:(r7+$24),a
+        move    x:(r7+$0d),a
         do      y0,>lf_octl
         asl     #$1,a,a
         move    a1,x0
         move    x0,a
 lf_octl:
         nop
-        move    a,x:(r7+$24)
+        move    a,x:(r7+$0d)
 lf_noct:
 
 ; ---- AMPH -> the L/R carrier phase offset --------------------------------
@@ -452,45 +436,130 @@ lf_noct:
         and     #>$7fff00,a             ; the knob AND its LFO fraction
         sub     #>$400000,a
         move    a1,x0
-        move    x0,x:(r7+$26)
+        move    x0,x:(r7+$07)
+
+; ---- the shifter's direction -------------------------------------------
+; DOWN runs the carrier backwards: sin(-t) = -sin(t) while cos is even, so
+; I*cos + Q*sin(-t) is I*cos - Q*sin(t), the lower sideband, with no sign
+; multiply in the sample loop. The target step is negated for DOWN, and the
+; step in use is given the same sign here, so a MODE change (made only once
+; the wet is fully ducked) never glides the carrier through 0 Hz. RING and
+; UP run forwards.
+        move    x:(r7+$0c),a
+        abs     a
+        move    a,x:(r7+$0c)
+        move    x:(r7+$22),a
+        move    #>$10000,x0
+        cmp     x0,a                    ; MODE 1 = DOWN?
+        bne     lf_fwd
+        move    x:(r7+$0d),a
+        neg     a
+        move    a,x:(r7+$0d)
+        move    x:(r7+$0c),a
+        neg     a
+        move    a,x:(r7+$0c)
+lf_fwd:
+
+; ---- the glides' per-block steps -----------------------------------------
+; Each continuous knob but BRR's E (which keeps the per-sample one-pole, in
+; the loop) glides toward its target as a one-pole at the block
+; rate (63/64 a sample over 16 samples, the per-sample glide's own rate),
+; spread over the block as a linear ramp: lf_gset works out the step once
+; per block and the loop only adds it (4 words a glide, no call). When the
+; step rounds to nothing the value snaps onto the target, so 0, unity and
+; the LPF bypass are still exact, as with the per-sample glide. The step is parked in the TARGET's slot: every
+; target is recomputed above at each block and read nowhere else.
+        move    x:(r7+$0d),y0
+        move    x:(r7+$0c),x0
+        bsr     lf_gset
+        move    x0,x:(r7+$0c)
+        move    x1,x:(r7+$0d)
+        move    x:(r7+$01),y0
+        move    x:(r7+$00),x0
+        bsr     lf_gset
+        move    x0,x:(r7+$00)
+        move    x1,x:(r7+$01)
+        move    x:(r7+$03),y0
+        move    x:(r7+$02),x0
+        bsr     lf_gset
+        move    x0,x:(r7+$02)
+        move    x1,x:(r7+$03)
+        move    x:(r7+$05),y0
+        move    x:(r7+$04),x0
+        bsr     lf_gset
+        move    x0,x:(r7+$04)
+        move    x1,x:(r7+$05)
+        move    x:(r7+$07),y0
+        move    x:(r7+$06),x0
+        bsr     lf_gset
+        move    x0,x:(r7+$06)
+        move    x1,x:(r7+$07)
+        move    x:(r7+$09),y0
+        move    x:(r7+$08),x0
+        bsr     lf_gset
+        move    x0,x:(r7+$08)
+        move    x1,x:(r7+$09)
+        move    x:(r7+$0b),y0
+        move    x:(r7+$0a),x0
+        bsr     lf_gset
+        move    x0,x:(r7+$0a)
+        move    x1,x:(r7+$0b)
+        move    x:(r7+$16),y0
+        move    x:(r7+$17),x0
+        bsr     lf_gset
+        move    x0,x:(r7+$17)
+        move    x1,x:(r7+$16)
 
 ; ---- sample loop ----------------------------------------------------------
         move    #>$1,n0
-        move    #$40,n1                 ; the Hilbert chains' base offset
+        move    x:(r7+$37),n1           ; the Hilbert chains' parity half, $40 or $60
+        move    #>$3,n2                 ; r2's stride: a section's Y slot to the next X slot
+        move    #>$ffffff,m1            ; r1/r2 walk linearly, whatever the
+        move    #>$ffffff,m2            ;  effect before us left in m1/m2
+        move    #>$2,n3                 ; r3: in-use slot to in-use slot
+        move    #>$ffffff,m3
+        move    #>$ffffff,m4
         do      n7,>lf_end
 
-; park the dry pair, and default v (the modulated signal) to it
+; park the dry pair (v, the modulated signal, is written by whichever
+; modulator runs: the ring and shift flags are exact complements)
         move    x:(r0),x1
         move    x1,x:(r7+$33)
-        move    x1,x:(r7+$35)
         move    x:(r0+n0),x1
         move    x1,x:(r7+$34)
-        move    x1,x:(r7+$36)
 
-; The continuous page-1 knobs glide to the block's values, 1/64 of the way a
-; sample (about 1.5 ms, lf_glide), so a turned knob or an LFO sweeps instead
-; of stepping at the block rate: FREQ's carrier step, MIX, GAIN, FDBK and
+; The continuous page-1 knobs glide to the block's values (lf_gset's
+; per-block step, added here each sample; about 1.5 ms), so a turned knob or
+; an LFO sweeps instead of stepping at the block rate: FREQ's carrier step, MIX, GAIN, FDBK and
 ; AMPH's offset. Here, before the fork, because both modulators read them.
-        move    x:(r7+$24),y0           ; carrier step target
-        move    x:(r7+$23),x0           ; in use
-        bsr     lf_glide
-        move    b,x:(r7+$23)
-        move    x:(r7+$20),y0           ; MIX
-        move    x:(r7+$03),x0           ; in use
-        bsr     lf_glide
-        move    b,x:(r7+$03)
-        move    x:(r7+$12),y0           ; GAIN/4
-        move    x:(r7+$04),x0           ; in use
-        bsr     lf_glide
-        move    b,x:(r7+$04)
-        move    x:(r7+$38),y0           ; fdbk
-        move    x:(r7+$05),x0           ; in use
-        bsr     lf_glide
-        move    b,x:(r7+$05)
-        move    x:(r7+$26),y0           ; amph offset
-        move    x:(r7+$06),x0           ; in use
-        bsr     lf_glide
-        move    b,x:(r7+$06)
+; The seven glides lf_gset steps (MIX, GAIN, FDBK, AMPH, LPF c and kd, the
+; carrier step) sit in pairs, in use then step, at $00..$0d: r4 walks the
+; pairs reading, r3 trails writing each new in-use value (n3 = 2), and every
+; store rides an add as a parallel move, alternating a and b.
+        move    r7,r4
+        move    r7,r3
+        move    x:(r4)+,b               ; MIX in use
+        move    x:(r4)+,x0              ; its step
+        add     x0,b      x:(r4)+,a     ; MIX'       ; a = GAIN in use
+        move    x:(r4)+,x0
+        add     x0,a      b,x:(r3)+n3   ; GAIN'      ; MIX' stored
+        move    x:(r4)+,b               ; FDBK in use
+        move    x:(r4)+,x0
+        add     x0,b      a,x:(r3)+n3   ; FDBK'      ; GAIN' stored
+        move    x:(r4)+,a               ; AMPH in use
+        move    x:(r4)+,x0
+        add     x0,a      b,x:(r3)+n3   ; AMPH'      ; FDBK' stored
+        move    x:(r4)+,b               ; LPF c in use
+        move    x:(r4)+,x0
+        add     x0,b      a,x:(r3)+n3   ; c'         ; AMPH' stored
+        move    x:(r4)+,a               ; LPF kd in use
+        move    x:(r4)+,x0
+        add     x0,a      b,x:(r3)+n3   ; kd'        ; c' stored
+        move    x:(r4)+,b               ; carrier step in use
+        move    x:(r4)+,x0
+        add     x0,b      a,x:(r3)+n3   ; carrier'   ; kd' stored
+        move    b,x:(r3)+n3             ; carrier' stored
+        move    b,y0                    ; the step in use, for whichever modulator
 
 ; MODEFORK_BEGIN -- cycle_count.py: RING and SHIFT are MUTUALLY EXCLUSIVE.
 ; Without these markers the tool sums both and prices a whole engine that
@@ -508,8 +577,7 @@ lf_noct:
 
 ; carrier: WarpFold's parabolic sine 4*p*(1-|p|) on a phase wrapped by A1
 ; extraction -- continuous at the wrap, exact +/-1 peaks.
-        move    x:(r7+$23),y0           ; step, glided
-        move    x:(r7+$1c),a            ; phase
+        move    x:(r7+$1c),a            ; phase; y0 = the step, glided
         add     y0,a
         move    a1,x0                   ; p, wrapped
         move    x0,x:(r7+$1c)
@@ -525,7 +593,7 @@ lf_noct:
         move    x:(r7+$33),x0           ; dry L
         mpy     x0,y1,a
         move    a,x0
-        move    x:(r7+$04),y1           ; GAIN/4, glided
+        move    x:(r7+$02),y1           ; GAIN/4, glided
         mpy     x0,y1,a
         asl     #$2,a,a                 ; x GAIN; the store limits
         move    a,x:(r7+$35)            ; v L
@@ -548,7 +616,7 @@ lf_noct:
         move    x:(r7+$34),x0           ; dry R
         mpy     x0,y1,a
         move    a,x0
-        move    x:(r7+$04),y1           ; GAIN/4, glided
+        move    x:(r7+$02),y1           ; GAIN/4, glided
         mpy     x0,y1,a
         asl     #$2,a,a
         move    a,x:(r7+$36)            ; v R
@@ -556,7 +624,7 @@ lf_nomod:
 
 
 ; MODEFORK_MID -- alternative 2: SHIFT (the expensive one: 16 allpass
-; sections and two calls into lf_sin, against the ring's single carrier)
+; sections and two sines, against the ring's single carrier)
 ; ---- MODULATOR: frequency shifter, MODE 1 (DOWN) and 2 (UP) --------------
 ; STEREO: two independent Hilbert pairs, one shared oscillator. BodeShift
 ; computes its analytic pair on (L+R)/4 and gets away with it because WIDE
@@ -575,297 +643,249 @@ lf_nomod:
         move    x:(r7+$33),a            ; dry L
         asr     #$1,a,a
         move    x:(r7+$3b),x0           ; lastwet L
-        move    x:(r7+$05),y1           ; fdbk, glided
+        move    x:(r7+$04),y1           ; fdbk, glided
         mac     x0,y1,a
         move    a,x:(r7+$3d)
         move    x:(r7+$34),a            ; dry R
         asr     #$1,a,a
         move    x:(r7+$3c),x0           ; lastwet R
-        move    x:(r7+$05),y1
-        mac     x0,y1,a
+        mac     x0,y1,a                 ; y1 = fdbk still
         move    a,x:(r7+$3e)
 
 ; ---- the oscillator, ONCE for both channels ------------------------------
-        move    x:(r7+$23),y0           ; step, glided
         move    x:(r7+$1c),a            ; phase (shared with the ring mod --
         add     y0,a                    ;  the two modes are exclusive)
         move    a1,x0
         move    x0,a
         move    a,x:(r7+$1c)
-        bsr     lf_sin
+        move    x0,b                    ; the phase, kept across the sine (a, x0, x1, y1)
+; ---- sin(pi*p) for p in [-1,1), inline: BodeShift's, from WarpFold's carrier,
+; the parabola 4p(1-|p|) refined by the 0.775/0.225 correction; p and the
+; result in A
+        move    a,x1
+        abs     a
+        move    #>$800000,x0
+        add     x0,a                    ; |p| - 1
+        neg     a                       ; t = 1 - |p|
+        move    a,y1
+        move    x1,x0
+        mpy     x0,y1,a                 ; p*t
+        asl     #$2,a,a                 ; y = 4p(1-|p|)
+        move    a,x1
+        move    a,x0
+        abs     a
+        move    a,y1                    ; |y|
+        mpy     x0,y1,a                 ; y*|y|
+        move    a,x0
+        move    #>$1ccccd,y1            ; 0.225
+        mpy     x0,y1,a
+        move    x1,x0
+        move    #>$633333,y1            ; 0.775
+        mac     x0,y1,a
         move    a,x:(r7+$2c)            ; sin
-        move    x:(r7+$1c),a
         move    #>$400000,x0
-        add     x0,a                    ; + a quarter turn
-        move    a1,x0
+        add     x0,b                    ; + a quarter turn
+        move    b1,x0
         move    x0,a
-        bsr     lf_sin
+; ---- the same sine, a quarter turn on: cos ----
+        move    a,x1
+        abs     a
+        move    #>$800000,x0
+        add     x0,a                    ; |p| - 1
+        neg     a                       ; t = 1 - |p|
+        move    a,y1
+        move    x1,x0
+        mpy     x0,y1,a                 ; p*t
+        asl     #$2,a,a                 ; y = 4p(1-|p|)
+        move    a,x1
+        move    a,x0
+        abs     a
+        move    a,y1                    ; |y|
+        mpy     x0,y1,a                 ; y*|y|
+        move    a,x0
+        move    #>$1ccccd,y1            ; 0.225
+        mpy     x0,y1,a
+        move    x1,x0
+        move    #>$633333,y1            ; 0.775
+        mac     x0,y1,a
         move    a,x:(r7+$2d)            ; cos
 
 ; ---- the four Hilbert chains ---------------------------------------------
-; POINTER-WALKED, not displacement-addressed. Each section is 12 words where
-; BodeShift's is 21, and the difference is PARALLEL MOVES: an ALU op can
-; carry a memory move in the same word, but only with (rn) addressing --
-; never with r7+displacement. That is the whole reason BodeShift's sections
-; cost what they do.
+; POINTER-WALKED, not displacement-addressed: an ALU op can carry a memory
+; move in the same word, but only with (rn) addressing -- never with
+; r7+displacement. That is the whole reason BodeShift's sections cost what
+; they do (21 words against 6 here).
 ;
-; The state is laid out y[n-2], y[n-1], x[n-2], x[n-1] so that BOTH the read
-; walk and the write walk are monotonic: r1 reads ascending, r2 writes
-; ascending one step behind, and no value is overwritten before its last
-; use.
+; PARITY-SPLIT STATE. Each section is H(z) = (c + z^-2)/(1 + c z^-2):
+;   y[n] = c*(x[n] + y[n-2]) - x[n-2]
+; Only the n-2 values are read, so even and odd samples are two independent
+; recursions. Each parity keeps its own [y[n-2], x[n-2]] per section, and a
+; sample overwrites its own pair with [y[n], x[n]], which are exactly what
+; the same parity reads two samples later. Half the state traffic of a
+; single shifting set, and the same arithmetic in the same order: the
+; output is bit-identical to the four-word layout it replaced (12 Oct 2026).
+; The halves are $40-$5f and $60-$7f; n1 holds this sample's ($37 across
+; blocks, since a block can be split to an odd length).
 ;
-; ONE setup pair covers all four chains: they sit at $40/$50/$60/$70
-; contiguously and run in that order, so the pointers walk $40 to $7f once
-; per sample and land exactly at the end. ⚠️ Anything inserted between the
-; chains must therefore leave r1 and r2 alone.
+; ONE setup covers all four chains: they sit contiguously within the half in
+; the order they run, so the pointers walk the half once per sample.
+; ⚠️ Anything inserted between the chains must therefore leave r1 and r2
+; alone.
 ; $40 is past lua's -64..63 displacement (`lua (r7+$40)` assembles to
-; r7-$40; AGENTS.md), so the base is r7 + n1, n1 = $40 set before the loop.
+; r7-$40; AGENTS.md), so the base is r7 + n1.
         move    r7,r1
-        move    (r1)+n1
+        move    (r1)+n1                 ; this sample's parity half
         move    r1,r2
+        move    (r2)+                   ; r2 writes from section 0's X slot
+        move    n1,a                    ; the other half next sample:
+        eor     #$20,a                  ;  $40 <-> $60
+        move    a1,n1
 
         move    x:(r7+$3d),x1          ; chain A-L input
 ; ---- chain A-L section 0: allpass, c = 0.6923877778065 ----
         move    #>$58a02a,y1
-        move    x1,x0
-        mpy     x0,y1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
-        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = y[n-1]
-        move    x0,x:(r2)+              ; y[n-2] <- y[n-1]
-        move    x:(r1)+,x0              ; x0 = x[n-2]
-        sub     x0,a      x:(r1)+,x0    ; a = y[n]       ; x0 = x[n-1]
-        move    a,x:(r2)+               ; y[n-1] <- y[n]
-        move    x0,x:(r2)+              ; x[n-2] <- x[n-1]
-        move    x1,x:(r2)+              ; x[n-1] <- in
+        mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
+        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
+        sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
+        move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
 ; ---- chain A-L section 1: allpass, c = 0.9360654322959 ----
         move    #>$77d0fe,y1
-        move    x1,x0
-        mpy     x0,y1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
-        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = y[n-1]
-        move    x0,x:(r2)+              ; y[n-2] <- y[n-1]
-        move    x:(r1)+,x0              ; x0 = x[n-2]
-        sub     x0,a      x:(r1)+,x0    ; a = y[n]       ; x0 = x[n-1]
-        move    a,x:(r2)+               ; y[n-1] <- y[n]
-        move    x0,x:(r2)+              ; x[n-2] <- x[n-1]
-        move    x1,x:(r2)+              ; x[n-1] <- in
+        mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
+        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
+        sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
+        move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
 ; ---- chain A-L section 2: allpass, c = 0.9882295226860 ----
         move    #>$7e7e4e,y1
-        move    x1,x0
-        mpy     x0,y1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
-        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = y[n-1]
-        move    x0,x:(r2)+              ; y[n-2] <- y[n-1]
-        move    x:(r1)+,x0              ; x0 = x[n-2]
-        sub     x0,a      x:(r1)+,x0    ; a = y[n]       ; x0 = x[n-1]
-        move    a,x:(r2)+               ; y[n-1] <- y[n]
-        move    x0,x:(r2)+              ; x[n-2] <- x[n-1]
-        move    x1,x:(r2)+              ; x[n-1] <- in
+        mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
+        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
+        sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
+        move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
 ; ---- chain A-L section 3: allpass, c = 0.9987488452737 ----
         move    #>$7fd701,y1
-        move    x1,x0
-        mpy     x0,y1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
-        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = y[n-1]
-        move    x0,x:(r2)+              ; y[n-2] <- y[n-1]
-        move    x:(r1)+,x0              ; x0 = x[n-2]
-        sub     x0,a      x:(r1)+,x0    ; a = y[n]       ; x0 = x[n-1]
-        move    a,x:(r2)+               ; y[n-1] <- y[n]
-        move    x0,x:(r2)+              ; x[n-2] <- x[n-1]
-        move    x1,x:(r2)+              ; x[n-1] <- in
+        mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
+        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
+        sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
+        move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
 ; I is chain A's output delayed one sample
-        move    x:(r7+$39),b            ; I_L = aPrev L
+        move    x:(r7+$39),x0           ; I_L = aPrev L
         move    x1,x:(r7+$39)
-        move    b,x:(r7+$2e)
-        move    x:(r7+$3d),x1          ; chain B-L input
+        move    x:(r7+$2d),y1           ; cos
+        mpy     x0,y1,b                 ; I*cos: b is free while the chains run,
+        move    b,y0                    ;  and y0 is untouched by them (limited, as
+        move    x:(r7+$3d),x1          ;  the old park was); chain B-L input
 ; ---- chain B-L section 0: allpass, c = 0.4021921162426 ----
         move    #>$337b08,y1
-        move    x1,x0
-        mpy     x0,y1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
-        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = y[n-1]
-        move    x0,x:(r2)+              ; y[n-2] <- y[n-1]
-        move    x:(r1)+,x0              ; x0 = x[n-2]
-        sub     x0,a      x:(r1)+,x0    ; a = y[n]       ; x0 = x[n-1]
-        move    a,x:(r2)+               ; y[n-1] <- y[n]
-        move    x0,x:(r2)+              ; x[n-2] <- x[n-1]
-        move    x1,x:(r2)+              ; x[n-1] <- in
+        mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
+        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
+        sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
+        move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
 ; ---- chain B-L section 1: allpass, c = 0.8561710882420 ----
         move    #>$6d9704,y1
-        move    x1,x0
-        mpy     x0,y1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
-        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = y[n-1]
-        move    x0,x:(r2)+              ; y[n-2] <- y[n-1]
-        move    x:(r1)+,x0              ; x0 = x[n-2]
-        sub     x0,a      x:(r1)+,x0    ; a = y[n]       ; x0 = x[n-1]
-        move    a,x:(r2)+               ; y[n-1] <- y[n]
-        move    x0,x:(r2)+              ; x[n-2] <- x[n-1]
-        move    x1,x:(r2)+              ; x[n-1] <- in
+        mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
+        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
+        sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
+        move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
 ; ---- chain B-L section 2: allpass, c = 0.9722909545651 ----
         move    #>$7c7408,y1
-        move    x1,x0
-        mpy     x0,y1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
-        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = y[n-1]
-        move    x0,x:(r2)+              ; y[n-2] <- y[n-1]
-        move    x:(r1)+,x0              ; x0 = x[n-2]
-        sub     x0,a      x:(r1)+,x0    ; a = y[n]       ; x0 = x[n-1]
-        move    a,x:(r2)+               ; y[n-1] <- y[n]
-        move    x0,x:(r2)+              ; x[n-2] <- x[n-1]
-        move    x1,x:(r2)+              ; x[n-1] <- in
+        mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
+        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
+        sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
+        move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
 ; ---- chain B-L section 3: allpass, c = 0.9952884791278 ----
         move    #>$7f659d,y1
-        move    x1,x0
-        mpy     x0,y1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
-        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = y[n-1]
-        move    x0,x:(r2)+              ; y[n-2] <- y[n-1]
-        move    x:(r1)+,x0              ; x0 = x[n-2]
-        sub     x0,a      x:(r1)+,x0    ; a = y[n]       ; x0 = x[n-1]
-        move    a,x:(r2)+               ; y[n-1] <- y[n]
-        move    x0,x:(r2)+              ; x[n-2] <- x[n-1]
-        move    x1,x:(r2)+              ; x[n-1] <- in
+        mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
+        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
+        sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
+        move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
-        move    x1,x:(r7+$2f)           ; Q_L
-
-        move    x:(r7+$3e),x1          ; chain A-R input
-; ---- chain A-R section 0: allpass, c = 0.6923877778065 ----
-        move    #>$58a02a,y1
-        move    x1,x0
-        mpy     x0,y1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
-        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = y[n-1]
-        move    x0,x:(r2)+              ; y[n-2] <- y[n-1]
-        move    x:(r1)+,x0              ; x0 = x[n-2]
-        sub     x0,a      x:(r1)+,x0    ; a = y[n]       ; x0 = x[n-1]
-        move    a,x:(r2)+               ; y[n-1] <- y[n]
-        move    x0,x:(r2)+              ; x[n-2] <- x[n-1]
-        move    x1,x:(r2)+              ; x[n-1] <- in
-        move    a,x1
-; ---- chain A-R section 1: allpass, c = 0.9360654322959 ----
-        move    #>$77d0fe,y1
-        move    x1,x0
-        mpy     x0,y1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
-        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = y[n-1]
-        move    x0,x:(r2)+              ; y[n-2] <- y[n-1]
-        move    x:(r1)+,x0              ; x0 = x[n-2]
-        sub     x0,a      x:(r1)+,x0    ; a = y[n]       ; x0 = x[n-1]
-        move    a,x:(r2)+               ; y[n-1] <- y[n]
-        move    x0,x:(r2)+              ; x[n-2] <- x[n-1]
-        move    x1,x:(r2)+              ; x[n-1] <- in
-        move    a,x1
-; ---- chain A-R section 2: allpass, c = 0.9882295226860 ----
-        move    #>$7e7e4e,y1
-        move    x1,x0
-        mpy     x0,y1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
-        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = y[n-1]
-        move    x0,x:(r2)+              ; y[n-2] <- y[n-1]
-        move    x:(r1)+,x0              ; x0 = x[n-2]
-        sub     x0,a      x:(r1)+,x0    ; a = y[n]       ; x0 = x[n-1]
-        move    a,x:(r2)+               ; y[n-1] <- y[n]
-        move    x0,x:(r2)+              ; x[n-2] <- x[n-1]
-        move    x1,x:(r2)+              ; x[n-1] <- in
-        move    a,x1
-; ---- chain A-R section 3: allpass, c = 0.9987488452737 ----
-        move    #>$7fd701,y1
-        move    x1,x0
-        mpy     x0,y1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
-        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = y[n-1]
-        move    x0,x:(r2)+              ; y[n-2] <- y[n-1]
-        move    x:(r1)+,x0              ; x0 = x[n-2]
-        sub     x0,a      x:(r1)+,x0    ; a = y[n]       ; x0 = x[n-1]
-        move    a,x:(r2)+               ; y[n-1] <- y[n]
-        move    x0,x:(r2)+              ; x[n-2] <- x[n-1]
-        move    x1,x:(r2)+              ; x[n-1] <- in
-        move    a,x1
-        move    x:(r7+$3a),b            ; I_R = aPrev R
-        move    x1,x:(r7+$3a)
-        move    b,x:(r7+$30)
-        move    x:(r7+$3e),x1          ; chain B-R input
-; ---- chain B-R section 0: allpass, c = 0.4021921162426 ----
-        move    #>$337b08,y1
-        move    x1,x0
-        mpy     x0,y1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
-        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = y[n-1]
-        move    x0,x:(r2)+              ; y[n-2] <- y[n-1]
-        move    x:(r1)+,x0              ; x0 = x[n-2]
-        sub     x0,a      x:(r1)+,x0    ; a = y[n]       ; x0 = x[n-1]
-        move    a,x:(r2)+               ; y[n-1] <- y[n]
-        move    x0,x:(r2)+              ; x[n-2] <- x[n-1]
-        move    x1,x:(r2)+              ; x[n-1] <- in
-        move    a,x1
-; ---- chain B-R section 1: allpass, c = 0.8561710882420 ----
-        move    #>$6d9704,y1
-        move    x1,x0
-        mpy     x0,y1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
-        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = y[n-1]
-        move    x0,x:(r2)+              ; y[n-2] <- y[n-1]
-        move    x:(r1)+,x0              ; x0 = x[n-2]
-        sub     x0,a      x:(r1)+,x0    ; a = y[n]       ; x0 = x[n-1]
-        move    a,x:(r2)+               ; y[n-1] <- y[n]
-        move    x0,x:(r2)+              ; x[n-2] <- x[n-1]
-        move    x1,x:(r2)+              ; x[n-1] <- in
-        move    a,x1
-; ---- chain B-R section 2: allpass, c = 0.9722909545651 ----
-        move    #>$7c7408,y1
-        move    x1,x0
-        mpy     x0,y1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
-        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = y[n-1]
-        move    x0,x:(r2)+              ; y[n-2] <- y[n-1]
-        move    x:(r1)+,x0              ; x0 = x[n-2]
-        sub     x0,a      x:(r1)+,x0    ; a = y[n]       ; x0 = x[n-1]
-        move    a,x:(r2)+               ; y[n-1] <- y[n]
-        move    x0,x:(r2)+              ; x[n-2] <- x[n-1]
-        move    x1,x:(r2)+              ; x[n-1] <- in
-        move    a,x1
-; ---- chain B-R section 3: allpass, c = 0.9952884791278 ----
-        move    #>$7f659d,y1
-        move    x1,x0
-        mpy     x0,y1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
-        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = y[n-1]
-        move    x0,x:(r2)+              ; y[n-2] <- y[n-1]
-        move    x:(r1)+,x0              ; x0 = x[n-2]
-        sub     x0,a      x:(r1)+,x0    ; a = y[n]       ; x0 = x[n-1]
-        move    a,x:(r2)+               ; y[n-1] <- y[n]
-        move    x0,x:(r2)+              ; x[n-2] <- x[n-1]
-        move    x1,x:(r2)+              ; x[n-1] <- in
-        move    a,x1
-        move    x1,x:(r7+$31)           ; Q_R
-
-; ---- the sidebands: wet = 2*(I*cos + s*(Q*sin)) --------------------------
-; s is a per-block SIGN, +1 for UP and -1 for DOWN, so the direction costs
-; no branch in the loop. Both channels share it: WIDE, which is where the
-; two signs would differ, was dropped by design.
-        move    x:(r7+$2e),x0           ; I_L
-        move    x:(r7+$2d),y1           ; cos
-        mpy     x0,y1,a
-        move    a,x:(r7+$35)            ; park I*cos
-        move    x:(r7+$2f),x0           ; Q_L
+        move    x1,x0                   ; Q_L
         move    x:(r7+$2c),y1           ; sin
-        mpy     x0,y1,a
-        move    a,x0
-        move    x:(r7+$37),y1           ; s
-        mpy     x0,y1,a
-        move    x:(r7+$35),b
-        add     b,a
+        mpy     x0,y1,a                 ; Q*sin, the direction already in sin
+        add     y0,a                    ; + I*cos
         asl     #$1,a,a                 ; the x2 undoing the input halving
         move    a,x:(r7+$3b)            ; lastwet L, the feedback tap
         move    a,x:(r7+$35)            ; v L
 
-        move    x:(r7+$30),x0           ; I_R
-        move    x:(r7+$2d),y1
-        mpy     x0,y1,a
-        move    a,x:(r7+$36)
-        move    x:(r7+$31),x0           ; Q_R
+        move    x:(r7+$3e),x1          ; chain A-R input
+; ---- chain A-R section 0: allpass, c = 0.6923877778065 ----
+        move    #>$58a02a,y1
+        mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
+        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
+        sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
+        move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
+        move    a,x1
+; ---- chain A-R section 1: allpass, c = 0.9360654322959 ----
+        move    #>$77d0fe,y1
+        mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
+        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
+        sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
+        move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
+        move    a,x1
+; ---- chain A-R section 2: allpass, c = 0.9882295226860 ----
+        move    #>$7e7e4e,y1
+        mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
+        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
+        sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
+        move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
+        move    a,x1
+; ---- chain A-R section 3: allpass, c = 0.9987488452737 ----
+        move    #>$7fd701,y1
+        mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
+        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
+        sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
+        move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
+        move    a,x1
+        move    x:(r7+$3a),x0           ; I_R = aPrev R
+        move    x1,x:(r7+$3a)
+        move    x:(r7+$2d),y1           ; cos
+        mpy     x0,y1,b
+        move    b,y0
+        move    x:(r7+$3e),x1          ; chain B-R input
+; ---- chain B-R section 0: allpass, c = 0.4021921162426 ----
+        move    #>$337b08,y1
+        mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
+        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
+        sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
+        move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
+        move    a,x1
+; ---- chain B-R section 1: allpass, c = 0.8561710882420 ----
+        move    #>$6d9704,y1
+        mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
+        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
+        sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
+        move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
+        move    a,x1
+; ---- chain B-R section 2: allpass, c = 0.9722909545651 ----
+        move    #>$7c7408,y1
+        mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
+        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
+        sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
+        move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
+        move    a,x1
+; ---- chain B-R section 3: allpass, c = 0.9952884791278 ----
+        move    #>$7f659d,y1
+        mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
+        mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
+        sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
+        move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
+        move    a,x1
+        move    x1,x0                   ; Q_R
         move    x:(r7+$2c),y1
         mpy     x0,y1,a
-        move    a,x0
-        move    x:(r7+$37),y1
-        mpy     x0,y1,a
-        move    x:(r7+$36),b
-        add     b,a
+        add     y0,a
         asl     #$1,a,a
         move    a,x:(r7+$3c)            ; lastwet R
         move    a,x:(r7+$36)            ; v R
+
+; (the sidebands, wet = 2*(I*cos + Q*sin), are formed right after each
+; channel's B chain above)
 lf_noshift:
 ; MODEFORK_END
 
@@ -875,14 +895,7 @@ lf_noshift:
 ; reloaded through a register before the test (AGENTS.md: asr leaves a
 ; remainder in a0, and Z needs all 56 bits clear). HERE, after MODEFORK_END,
 ; so it runs in every mode; a, b, x0, x1 and y0 are all free at this point.
-        move    x:(r7+$1d),y0           ; c target
-        move    x:(r7+$3f),x0           ; c in use
-        bsr     lf_glide
-        move    b,x:(r7+$3f)
-        move    x:(r7+$1e),y0           ; kd target
-        move    x:(r7+$1f),x0           ; kd in use
-        bsr     lf_glide
-        move    b,x:(r7+$1f)
+; (c and kd glide with the others, in the walk before the fork)
 
 ; ---- the MODE duck, per sample: e moves one step toward its target -------
 ; Floored at 0 by tmi, capped near 1 by the store's limiter.
@@ -892,12 +905,13 @@ lf_noshift:
         move    #>$0,x0
         tmi     x0,a
         move    a,x:(r7+$11)
-        move    x:(r7+$11),x0           ; e as stored
-        move    x:(r7+$03),y1           ; m, glided
+        move    a,x0                    ; e as stored (the same limiting)
+        move    x:(r7+$00),y1           ; m, glided
         mpy     x0,y1,b                 ; m*e
-        move    x:(r7+$03),a
+        move    y1,a
         sub     b,a                     ; m*(1-e): exactly m at e = 0
-        move    a,x:(r7+$14)
+        move    a,y1                    ; held in y1 for both channels (limited,
+                                        ;  as the old park in $14 was)
 
 ; ---- MIX: crossfade the MODULATOR against the dry, HERE ------------------
 ; MIX is the modulator's depth, NOT a global wet/dry -- it sits between the
@@ -914,8 +928,7 @@ lf_noshift:
         sub     b,a
         asr     #$1,a,a
         move    a,x0
-        move    x:(r7+$14),y1           ; m*(1-e)
-        mpy     x0,y1,a
+        mpy     x0,y1,a                 ; y1 = m*(1-e)
         asl     #$1,a,a
         add     b,a
         move    a,x:(r7+$35)
@@ -925,8 +938,7 @@ lf_noshift:
         sub     b,a
         asr     #$1,a,a
         move    a,x0
-        move    x:(r7+$14),y1
-        mpy     x0,y1,a
+        mpy     x0,y1,a                 ; y1 = m*(1-e) still
         asl     #$1,a,a
         add     b,a
         move    a,x:(r7+$36)
@@ -934,11 +946,11 @@ lf_noshift:
 ; ---- SRR: glide the rate, advance the phase, latch the MODULATED pair ---
 ; The rate moves 1/64 of the way to its target every sample (a ~1.5 ms
 ; time constant), so a turned knob never steps at the block rate.
-        move    x:(r7+$16),y0           ; target
-        move    x:(r7+$17),x0           ; the rate in use
-        bsr     lf_glide
+        move    x:(r7+$17),b           ; the rate in use
+        move    x:(r7+$16),x0           ; this block's step (target)
+        add     x0,b
         move    b,x:(r7+$17)
-        move    x:(r7+$17),x0           ; inc
+        move    b,x0                    ; inc (the same limiting as the store)
         move    x:(r7+$1b),b            ; phase, 0 .. < $400000
         add     x0,b                    ; phase + inc
         move    #>$400000,x1
@@ -963,14 +975,22 @@ lf_noshift:
 ; that step rounds to nothing (Modulation's mo_glide). The step is reloaded
 ; through a register before the test: `asr` leaves a remainder in a0 and Z
 ; needs all 56 bits clear (AGENTS.md).
-        move    x:(r7+$28),y0           ; target
+; Inline, and the one glide NOT on lf_gset's per-block ramp: E is the
+; exponent of a step that is mostly noise, so its trajectory is kept exactly
+; as it was (verify_lofi2's BRR turn is measured against it).
+        move    x:(r7+$28),y0           ; E target
         move    x:(r7+$29),x0           ; E in use
-        bsr     lf_glide
+        move    y0,a
+        sub     x0,a
+        asr     #$6,a,a
+        move    a,x1
+        move    x0,b
+        add     x1,b
+        move    x1,a                    ; reloaded: Z needs all 56 bits clear
+        tst     a
+        teq     y0,b
         move    b,x:(r7+$29)
 ; n = whole bits (a variable shift), j = the fraction to 1/128 bit
-        move    b,a
-        asr     #$11,a,a
-        move    a1,x:(r7+$18)           ; n
         move    b,a
         asr     #$a,a,a
         and     #>$7f,a
@@ -987,22 +1007,25 @@ lf_noshift:
         move    a1,r5
         move    p:(r5),y0               ; r = M[128-j] = 2^(j/128)/2 = 1/(2m)
         move    y0,x:(r7+$2b)
+        move    b,a                     ; b = E still
+        asr     #$11,a,a
+        move    a1,y0                   ; n, in y0 for both channels
 
 ; ---- L: quantise the held sample and write it out ------------------------
 ; out = dry + m*(wet - dry). The halve/double straddle keeps the difference
 ; inside the accumulator when wet and dry have opposite signs.
         move    x:(r7+$19),x0           ; held L
+        move    x0,x1                   ; kept for the E = 0 path
         move    x:(r7+$2a),y1           ; m
         mpy     x0,y1,a                 ; x * 2^-frac
-        move    x:(r7+$18),y0           ; n
-        asr     y0,a,a                  ; * 2^-n
+        asr     y0,a,a                  ; * 2^-n (y0 = n)
         rnd     a                       ; to the nearest step
         asl     y0,a,a
         move    a,x0
         move    x:(r7+$2b),y1           ; 1/(2m)
         mpy     x0,y1,b
         asl     #$1,b,b                 ; back by 2^frac: exactly unity gain
-        move    x:(r7+$19),x1           ; E = 0: the held sample, untouched
+                                        ; E = 0: the held sample (x1), untouched
         move    x:(r7+$29),a
         tst     a
         teq     x1,b
@@ -1016,32 +1039,32 @@ lf_noshift:
 ; high-passed and cannot pile up into a dead band when c is near 1.
         move    b,x1                    ; x[n], the BRR output (limited)
         clr     a
-        move    x:(r7+$01),a0           ; last sample's dropped bits
-        move    x:(r7+$3f),y1           ; c, smoothed
+        move    x:(r7+$0e),a0           ; last sample's dropped bits
+        move    x:(r7+$08),y1           ; c, smoothed
         move    x1,x0
         mac     -x0,y1,a                ; - c*x[n]
-        move    x:(r7+$81),x0           ; x[n-1]
+        move    x:(r7+$12),x0           ; x[n-1]
         add     x0,a
-        move    x:(r7+$80),x0           ; ap[n-1]
+        move    x:(r7+$20),x0           ; ap[n-1]
         mac     x0,y1,a                 ; ap[n], 48 bits
-        move    a0,x:(r7+$01)
-        move    x1,x:(r7+$81)           ; x[n-1] <- x[n]
-        move    a,x:(r7+$80)            ; ap[n-1] <- ap[n] (limited)
+        move    a0,x:(r7+$0e)
+        move    x1,x:(r7+$12)           ; x[n-1] <- x[n]
+        move    a,x:(r7+$20)            ; ap[n-1] <- ap[n] (limited)
         move    a,x0
         move    x1,a
         sub     x0,a                    ; x - ap
         asr     a                       ; /2
         move    a,x0
-        move    x:(r7+$1f),y1           ; kd, smoothed
+        move    x:(r7+$0a),y1           ; kd, smoothed
         move    x1,a
         mac     -x0,y1,a
         move    a,x:(r0)
 
 ; ---- R: the same ---------------------------------------------------------
         move    x:(r7+$1a),x0           ; held R
+        move    x0,x1
         move    x:(r7+$2a),y1
         mpy     x0,y1,a
-        move    x:(r7+$18),y0
         asr     y0,a,a
         rnd     a
         asl     y0,a,a
@@ -1049,7 +1072,6 @@ lf_noshift:
         move    x:(r7+$2b),y1
         mpy     x0,y1,b
         asl     #$1,b,b
-        move    x:(r7+$1a),x1
         move    x:(r7+$29),a
         tst     a
         teq     x1,b
@@ -1057,23 +1079,23 @@ lf_noshift:
 ; ---- R: the same shelf, its own state ----------------------------------
         move    b,x1
         clr     a
-        move    x:(r7+$02),a0
-        move    x:(r7+$3f),y1
+        move    x:(r7+$0f),a0
+        move    x:(r7+$08),y1
         move    x1,x0
         mac     -x0,y1,a
-        move    x:(r7+$83),x0
+        move    x:(r7+$26),x0
         add     x0,a
-        move    x:(r7+$82),x0
+        move    x:(r7+$38),x0
         mac     x0,y1,a
-        move    a0,x:(r7+$02)
-        move    x1,x:(r7+$83)
-        move    a,x:(r7+$82)
+        move    a0,x:(r7+$0f)
+        move    x1,x:(r7+$26)
+        move    a,x:(r7+$38)
         move    a,x0
         move    x1,a
         sub     x0,a
         asr     a
         move    a,x0
-        move    x:(r7+$1f),y1
+        move    x:(r7+$0a),y1
         move    x1,a
         mac     -x0,y1,a
         move    a,x:(r0+n0)
@@ -1083,52 +1105,31 @@ lf_noshift:
         move    #>$1,n0
 lf_end:
         nop
+        move    n1,x:(r7+$37)           ; the parity carries into the next block
         rts
 
 ; ---------------------------------------------------------------------------
-; lf_glide: one step of every glide in the loop. In: y0 = target, x0 = the
-; value in use. Out: b = in use + (target - in use)/64, or exactly the
-; target when that step rounds to nothing (so a glide lands on 0, unity or
-; a bypass exactly). The step is reloaded through x1 before the test:
-; `asr` leaves a remainder in a0, and Z needs all 56 bits clear (AGENTS.md).
-; Uses a, b, x1.
+; lf_gset: one glide's step for this block. In: y0 = target, x0 = the value
+; in use. Out: x1 = the per-sample step, (target - in use) * K with
+; K = (1 - (63/64)^16) / 16, so a full block moves it as far as sixteen
+; samples of the 1/64 one-pole would; x0 = the value in use, snapped onto
+; the target when the step rounds to nothing (within about 72 LSB below it;
+; from above the step is at least -1, so it walks down and snaps once it
+; lands under). Uses a, b, x0, x1, y1.
 ; ---------------------------------------------------------------------------
-lf_glide:
+lf_gset:
+        move    x0,b                    ; in use
         move    y0,a
-        sub     x0,a
-        asr     #$6,a,a
-        move    a,x1
-        move    x0,b
-        add     x1,b
-        move    x1,a
-        tst     a
-        teq     y0,b
-        rts
-
-; ---------------------------------------------------------------------------
-; lf_sin -- sin(pi*p) for p in [-1,1), from BodeShift, which took it from
-; WarpFold's carrier: the parabola 4p(1-|p|) refined by the standard
-; 0.775/0.225 correction. Argument and result both in A.
-; ---------------------------------------------------------------------------
-lf_sin:
-        move    a,x1
-        abs     a
-        move    #>$800000,x0
-        add     x0,a                    ; |p| - 1
-        neg     a                       ; t = 1 - |p|
-        move    a,y1
-        move    x1,x0
-        mpy     x0,y1,a                 ; p*t
-        asl     #$2,a,a                 ; y = 4p(1-|p|)
-        move    a,x1
+        sub     x0,a                    ; target - in use: up to +-2 (c is
+        asr     a                       ;  signed), so halved, and K doubled
         move    a,x0
-        abs     a
-        move    a,y1                    ; |y|
-        mpy     x0,y1,a                 ; y*|y|
-        move    a,x0
-        move    #>$1ccccd,y1            ; 0.225
+        move    #>$39052,y1             ; 2K
         mpy     x0,y1,a
-        move    x1,x0
-        move    #>$633333,y1            ; 0.775
-        mac     x0,y1,a
+        move    a,x1                    ; the step
+        move    x1,a                    ; reloaded: Z needs all 56 bits clear
+        tst     a
+        bne     lf_gdone
+        move    y0,b                    ; the step rounds to nothing: snap
+lf_gdone:
+        move    b,x0
         rts

@@ -115,7 +115,7 @@ MODULE = Module(
     kind=Kind.DSP_EFFECT,
     category=Category.TRACK, author="Bryan T", author_url="https://github.com/bryantysinger",
     proof=Proof.HARDWARE,
-    proof_note="Bryan T's MKII, images 96-99 (Oct 2026, this tree): tracks 1 and 5, five instances at once",
+    proof_note="Bryan T's MKII, images 96-99 (Oct 2026, this tree): tracks 1 and 5, five instances at once; `_bt_oct` build 11 (12 Oct 2026, the 414-cycle loop): eight in SHIFT at once, four per core, UP/DOWN switched while playing",
     doc="Ring mod or frequency shifter, then sample-rate and bit reduction.",
 
     menu=MenuEntry(
