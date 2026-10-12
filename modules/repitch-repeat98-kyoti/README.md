@@ -21,5 +21,4 @@ Built from [Zac-Kyoti/octatrack-kyoti-fw](https://github.com/Zac-Kyoti/octatrack
 
 ## Notes
 
-- Not with `REPITCH`: both grow the same Repitch (the same detour sites and TSTR words). The module declares the conflict.
 - TSTR uses stock's 5-position select at `0x40046ab4`, which nothing in stock 1.40C references, patched in place to seven positions.

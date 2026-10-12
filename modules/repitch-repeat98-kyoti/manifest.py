@@ -21,7 +21,8 @@ _UPSTREAM = pathlib.Path(__file__).resolve().parent / "upstream" / "octabam-modu
 
 MODULE = runpy.run_path(str(_UPSTREAM), run_name="remix_manifest_repitch_repeat98_kyoti")["MODULE"]
 # The module table's fields are octabam's (README.md, `make docs`), so they
-# are added here rather than in the author's manifest.
+# are added here rather than in the author's manifest. The author's conflict
+# with repeat98's REPITCH is dropped: that module is no longer in octabam.
 MODULE = dataclasses.replace(
-    MODULE, category=Category.MACHINES, author="Zac-Kyoti/octatrack-kyoti-fw", author_url="https://github.com/Zac-Kyoti/octatrack-kyoti-fw",
+    MODULE, conflicts=(), category=Category.MACHINES, author="Zac-Kyoti/octatrack-kyoti-fw", author_url="https://github.com/Zac-Kyoti/octatrack-kyoti-fw",
     proof=Proof.HARDWARE, proof_note="the author's MKI, 5-8 Oct 2026, octabam images with every KYOTI module, REC_TRIG_MUTE and SIDECHAIN_COMPRESSOR, only SPRING REV given up: RPCH/QUAN, RPS9/RPSP, on T5-T8 beside SIDECHAIN, TSTR across a Part reload; four RPSP tracks per core with DARK REV, and up to three DJ EQs on T5-T8")

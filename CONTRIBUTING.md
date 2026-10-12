@@ -89,7 +89,7 @@ Two skeletons and two worked examples:
 
 | you are writing | copy | then read |
 |---|---|---|
-| a ColdFire modification (parts, kits, menus, MIDI, fixes) | `modules/_template_cf/` | `modules/repitch/` (one linked DRAM unit, detours and pokes), then `modules/midi-scenes/` (built from its author's repo as a submodule) |
+| a ColdFire modification (parts, kits, menus, MIDI, fixes) | `modules/_template_cf/` | `modules/direct-jump-kyoti/` (one linked DRAM unit and detours), then `modules/midi-scenes/` (built from its author's repo as a submodule) |
 | a DSP effect | `modules/_template/` | `modules/character/` (an in-place insert, its own render gate `verify_character`) |
 
 `docs/contributing/MODULES.md` is the full guide; `docs/contributing/PLACEMENT.md` says

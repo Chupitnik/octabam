@@ -18,6 +18,7 @@ The full text before this rewrite: `git show 666b6154:CHANGELOG.md`.
 
 ## Unreleased
 
+- Removed repeat98's REPITCH module (`modules/repitch/`) and `remixes/test/repitch/`; REPITCH_REPEAT98_KYOTI is the repitch. `remixes/test/mods` no longer carries a repitch. `docs/firmware/REPITCH.md` (stock facts) and the `verify_repitch*` fixtures stay.
 - BRAIN: TOOLS > MIDI MONITOR (the last three messages, live) and TOOLS > LOAD (the frame interrupt's share, live; FUNC + LEVEL push on an MKII); LOAD METER (new) measures it (11 Oct, port: `verify_brain`).
 - BRAIN: SETTINGS list (PROJ, BRAIN, SETTINGS) with card-stored settings, a run-time value table and `remix.brain.read_macro` for modules; MIDI LOG and DEFAULTS are BRAIN's first two settings. Measured under the port only.
 - BRAIN: project pair (`brain.work`/`brain.strd` in the project folder), the project record written at SAVE PROJECT and compared at each load, TOOLS > PROJECT CHECK. Measured under the port only.
