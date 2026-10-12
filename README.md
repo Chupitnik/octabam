@@ -259,7 +259,7 @@ parameter tables made any of this reachable; the upstream history is in
 this repository's log.
 
 BRAIN's LOAD view (`modules/load-meter`) follows the LOAD view design for the
-Machinedrum by [SamplesAndSnacks](https://github.com/SamplesAndSnacks): the bounded
+Machinedrum by Hamish Renton ([SamplesAndSnacks](https://github.com/SamplesAndSnacks)): the bounded
 reads, the `-` and `?` states, the refresh counter and the zero-cost close.
 
 `vendor/` pulls in [dsp56300](https://github.com/dsp56300/dsp56300),
