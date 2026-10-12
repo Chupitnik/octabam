@@ -27,5 +27,4 @@ REMIX = Remix(
     locked=("REVERB SERVER", "DELAY SERVER"),
     fx1=("SPECTRUM", "CHARACTER", "MODULATION"),
     settings={("octabam.usb-audio-out", "LAYOUT"): Pin("MASTER")},
-    templates=("amp-short", "midi-drums"),
 )

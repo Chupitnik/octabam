@@ -125,7 +125,6 @@ REMIX = Remix(...,
     settings={("octabam.usb-audio", "OUT"): Pin("MASTER"),
               ("octabam.usb-audio", "IN"): "CD"},
     defaults={("DELAY SERVER", "GRAIN", "PTCH"): 96},
-    templates=("rytm", "digitone"),
 )
 ```
 
@@ -133,8 +132,8 @@ REMIX = Remix(...,
   (a new default). An Option takes a label or an index.
 - `defaults`: `(module key, mode label or None, knob name)` to a byte;
   it replaces `Param.default` or the `ModeView` entry in this image.
-- `templates`: names of JSON files in the top-level `templates/`
-  directory. A module may also ship templates for its own targets.
+- Image templates (`templates=`, JSON files in `templates/`) were built 11 Oct 2026
+  and removed 12 Oct 2026: templates are the user's, on the card.
 
 ### 4.3 What the build refuses
 
@@ -433,8 +432,6 @@ the effect has none).
 - A card moved to an image without a module keeps that module's records
   (7.7 rule 1). A card in a stock OS keeps the files as written; stock
   ignores the `BRAIN` directory.
-- A card file wins over an image template of the same name and target;
-  the list shows one entry.
 - A template or default for a target the image does not carry is hidden
   and its file untouched.
 - **The project record.** FX ids are assigned per remix and a Part stores
@@ -471,10 +468,11 @@ with a name editor, copy, paste and clear (✅ on the unit, image A6).
 - **TEMPLATES**: a list per target type, built like the KITS lists: name,
   apply, copy, clear, rename.
 
-  Built (11 Oct 2026, port): one sub-list, a heading per target and its
-  templates, the image's first (marked IMG). A card template takes RENAME
-  (the stock name editor) and DELETE, an image template COPY TO CARD.
-  Apply stays on the page shortcut, where the track and page are known.
+  Built (11 Oct 2026, port; reworked 12 Oct 2026): SAVE TEMPLATE, then a
+  section per target (the effect's name or the stock page's) with its card
+  templates, alphabetical. A template takes LOAD (onto the page in view),
+  RENAME (the stock name editor) and DELETE; SAVE TEMPLATE asks for a name.
+  The page shortcut keeps its own SAVE, LOAD and DELETE TEMPLATE.
 - On an FX page, a MIDI track page or an audio track page, one key
   combination opens a short list for the current page: SAVE AS DEFAULT,
   LOAD TEMPLATE, SAVE TEMPLATE.
@@ -507,8 +505,7 @@ with a name editor, copy, paste and clear (✅ on the unit, image A6).
 - `tools/remix/brain.py`: the declarations resolved through layers 1 and
   2 for a remix, the refusals of 4.3, the lock file.
 - `tools/hw/ot_brain.py`: card store, project store and template files to
-  JSON and back; templates onto a card; a template saved on the unit back
-  to JSON for `templates/`; the resolved value of every setting and
+  JSON and back; templates onto a card; the resolved value of every setting and
   default for a remix with the layer it came from.
 - The build report prints the resolved value table.
 - Template JSON uses the vocabulary of `tools/hw/ot_spec.py`: knobs by

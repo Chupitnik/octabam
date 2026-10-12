@@ -1,5 +1,0 @@
-{
-  "name": "DRUMS",
-  "target": "stock.midi",
-  "knobs": {"NOTE.CHAN": 10, "NOTE.NOTE": 36, "NOTE.VEL": 110}
-}

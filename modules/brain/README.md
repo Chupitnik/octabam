@@ -17,7 +17,7 @@ PROJ (MAIN MENU), then BRAIN, the fifth category. Its pane:
 | DEFAULTS | its sub-list in two sections: FX DEFAULTS (CLR FX DEFAULT, SAVE FX DEFAULT) and NEW PROJECT (CLR NEW PROJ, SAVE NEW PROJ) |
 | REMIXES | its sub-list: REMIX SWITCH's rows (`modules/remix-switch`, sanderlegit): each `.RMX` in `/BRAIN/REMIXES/`, sorted; after a switch a `FLASHED` separator and the image a power-cycle returns to |
 | SETTINGS | its sub-list: a heading row per module and a value row per setting (below), both alphabetical |
-| TEMPLATES | its sub-list: per target with templates a heading (its store id after the first `.`, upper case) and its templates by name, the image's first and marked `IMAGE` |
+| TEMPLATES | SAVE TEMPLATE (the page in view, asking for a name), then a section per target with card templates (the effect's name, AMP, LFO, MIDI TRACK, SRC and its machine type); sections and templates alphabetical. YES on a template: LOAD, RENAME, DELETE |
 | TOOLS | its sub-list: IMAGE CHECK, LOAD, MIDI MONITOR, WRITE DEBUG LOG |
 
 The rows are alphabetical and carry no arrows. YES or RIGHT on a row opens its sub-list; LEFT inside a sub-list goes back to this list (the cursor on the row it came from), and LEFT again moves to the root, as in a stock category (`brain_on_left`, `0x40064e98`).
@@ -29,8 +29,8 @@ The rows are alphabetical and carry no arrows. YES or RIGHT on a row opens its s
 | SAVE NEW PROJ | the current project's settings (the stock PROJECT menu's bytes, TEMPO left out) become the card's settings for new projects: a `stock.project` default in `card.work` |
 | CLR NEW PROJ | that record leaves `card.work`; new projects take stock's settings |
 | a setting row | `NAME  VALUE` (a Binary reads ON or OFF); YES steps the value (a Binary toggles; an Option steps by one and a Number by its step, each wrapping to its minimum past the maximum) and writes it to `card.work` through an engine-task job |
-| a card template | YES: a list with RENAME (the stock name editor, eight characters) and DELETE; either runs as an engine-task job and the pane returns to its top |
-| an image template | YES: COPY TO CARD, which adds it to `card.work` under its name (refused when a card template of the target has that name) |
+| SAVE TEMPLATE | the page in view (track, page, current Part): the stock name editor opens on `TPL nn` (the lowest free number for the target), eight characters; YES saves it, replacing a template of that name on the target |
+| a template | YES: a list with LOAD (onto the page in view when it is that target's, else a popup "OPEN A PAGE FOR <target>"), RENAME (the name editor) and DELETE; each runs as an engine-task job and the pane returns to its top |
 | an image | [YES]: `SWITCH TO <NAME>?`; YES boots it without writing the flash (REMIX SWITCH) |
 | WRITE DEBUG LOG | the last 256 MIDI messages (clock and active sensing left out), each with the sync flags, the playing pattern and the next pattern after its handler ran, written to `/BRAIN/debug.txt` by the engine task |
 | MIDI MONITOR | a dialog (the stock dialog's OK mode) with the last three MIDI messages decoded (`CH01 CC 7= 20`, `CH01 PC 2 P3`: the pattern the program change queued, `CH02 NOTE 36 100`), redrawn every half second; it reads the debug log's ring; with SETTINGS > MIDI LOG off it says so |
@@ -129,8 +129,8 @@ and their setup pages); over SRC they say to open an LFO, AMP or FX page.
   handlers)`): YES stores the row, closes it and calls the row's handler.
 - **Templates** are records of kind 3 in `card.work` (BRAIN.md section
   7.3): target 0, no mode, the target's layout word, an 8-byte name, its
-  slots as Part bytes by key. SAVE TEMPLATE names it `TPL nn`, the lowest
-  free number for that target; DELETE TEMPLATE and LOAD TEMPLATE list the
+  slots as Part bytes by key. SAVE TEMPLATE asks for the name (the stock name
+  editor, `TPL nn` filled in); DELETE TEMPLATE and LOAD TEMPLATE list the
   target's templates by name. The targets:
 
   | target | store id | slots and keys | range per slot |
@@ -162,20 +162,11 @@ and their setup pages); over SRC they say to open an LFO, AMP or FX page.
   CHAN changed and `0x4009ec70(bank, part)` (bank and program out), then
   its page-1 values. A template carries MODE with the other knobs, so MODE
   DEFAULTS' re-default is not called.
-- **Templates from the image.** A remix's `templates=` names files in
-  the top-level `templates/` (format in `templates/README.md`).
-  `tools/remix/brain.py` `compile_templates` turns each into a template
-  record at build (knobs by name to keys; the stock targets' names and
-  ranges come from the stock image's page descriptors) and `manifest.py`
-  `tpl_inc` puts the records in BRAIN's read-only data (`brain_img_tpl`,
-  at most 4096 bytes). LOAD TEMPLATE lists them before the card's;
-  DELETE TEMPLATE lists the card's alone.
 - **Rename** opens the stock name editor (`0x4007e664(max, title,
   buffer, 1, done(confirmed))`, the call KITS' SAVE KIT makes); on
   confirm the engine task rewrites the record's name field and payload
   CRC, every other byte kept.
-- Not built yet: template files on the card for sharing, templates for
-  the SRC page (phase 4).
+- Not built yet: template files on the card for sharing.
 
 ## Project settings for new projects
 
@@ -284,7 +275,7 @@ with T2's FX2 chooser select (SEND -> stock DELAY) and FX1 select
 | `card.work` with MIDI LOG and APPLY DFLTS off and an unknown key 99 | values (0,0); no default record applied; the unknown key kept on write | card.work |
 | a settings record with an out-of-bounds Binary and a wrong type | values stay (1,1); 2 skipped | card.work |
 | the panel: PROJ, DOWN x4, RIGHT, DOWN x2, YES on SETTINGS, DOWN, YES on MIDI LOG | `card.work` holds one settings record {1:1, 2:1, 99:1}; screens rendered under `ot_emu --lcd` | card.work |
-| the shortcut on T1's FX1 page: SAVE TEMPLATE, knob A +10, LOAD TEMPLATE `TPL 01` | one template record of CHARACTER with the saved page; the page moves with the knob and comes back to the saved values on LOAD; screens rendered under `ot_emu --lcd` | card.work |
+| the shortcut on T1's FX1 page: SAVE TEMPLATE (YES on the name editor), knob A +10, LOAD TEMPLATE `TPL 01` | one template record of CHARACTER with the saved page; the page moves with the knob and comes back to the saved values on LOAD; screens rendered under `ot_emu --lcd` | card.work |
 | a GRAIN record for BusDelay (FDBK, SCTR, GLEN listed by the view; DEL not), then MODE CLEAN -> GRAIN through the FX2 page-2 editor on T1 | the view with the card's three values; DEL skipped and untouched | card.work |
 
 Both hooks run during one LOAD PROJECT under the port (2 calls a load). A power-up with no LOAD PROJECT post

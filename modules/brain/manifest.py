@@ -22,9 +22,9 @@ SOURCE = "modules/brain/brain.s"
 
 
 def fx_inc(modules):
-    """The `remix.inc` brain.s includes: brain_fx[], one 36-byte entry per
+    """The `remix.inc` brain.s includes: brain_fx[], one 40-byte entry per
     selected effect with knobs (brain.fx_targets): layout hash, store id
-    pointer, twelve keys, fx id, id length."""
+    pointer, twelve keys, fx id, id length, name (the module's key)."""
     sys.path.insert(0, str(pathlib.Path(schema.__file__).resolve().parents[1]))
     from remix import brain
     mods = modules if isinstance(modules, dict) else {}
@@ -37,28 +37,14 @@ def fx_inc(modules):
         out += [f"        .long   0x{brain.fx_layout(m):08x}, brain_id_{i}",
                 f"        .word   {keys}",
                 f"        .byte   0x{m.menu.fx2_id:02x}, {len(brain.fx_store_id(m))}",
-                "        .word   0"]
+                f"        .word   0",
+                f"        .long   brain_nm_{i}"]
     for i, m in enumerate(targets):
         out.append(f'brain_id_{i}: .ascii "{brain.fx_store_id(m)}"')
-    return ("\n".join(out) + "\n" + tpl_inc(mods) + "\n" + menu_inc() + "\n" + settings_inc(mods)
+        out.append(f'brain_nm_{i}: .asciz "{m.key[:PANE_W - 2]}"')
+    return ("\n".join(out) + "\n" + menu_inc() + "\n" + settings_inc(mods)
             + "\n" + page_keys_inc() + "\n" + func_keys_inc()
             + "\n        .text\n")
-
-
-def tpl_inc(mods):
-    """The image's templates (Remix.templates, docs/proposals/BRAIN.md section
-    4.2): brain_img_tpl, the records tools/remix/brain.py compile_templates
-    makes from templates/*.json, and brain_img_tpl_len, their bytes."""
-    from remix import brain, registry
-    remix = registry.remix(os.environ.get("REMIX")) if os.environ.get("REMIX") else None
-    stock = pathlib.Path(schema.__file__).resolve().parents[2] / "out/raw/section_3_MAIN_OS.bin"
-    data = brain.compile_templates(remix, mods, stock.read_bytes()) if remix is not None and remix.templates else b""
-    out = ["        .section .rodata", "        .balign 4", "        .globl  brain_img_tpl, brain_img_tpl_len",
-           f"brain_img_tpl_len: .long {len(data)}", "brain_img_tpl:"]
-    for i in range(0, len(data), 16):
-        out.append("        .byte   " + ", ".join(f"0x{b:02x}" for b in data[i:i + 16]))
-    out.append("        .byte   0")
-    return "\n".join(out)
 
 
 PAGE_LAYER_KEYS, PAGE_KEYS, PAGE_RECORDS, KEY_RECORD = 0x400bab72, 0x400baad2, 5, 0x1a
