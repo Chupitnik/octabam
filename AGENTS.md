@@ -291,7 +291,7 @@ fixed both. Separately, core work that hammers the memory partition a DMA
 channel uses stalls the DMA (core 0: `X:$0000-$1cf`, `$2000` and `$4000`
 host buffers, `$8000` ESAI): a muted track leaking into MAIN, outputs stuck
 one-sided. The port models neither. `docs/contributing/FAILURE_MODES.md`
-has both entries and octabam's open `rep` sites.
+has both entries; `tools/build/norep.py` makes the build refuse a `rep` in any DSP source.
 
 **`SPEC=1` requires `XBUS=1`.** Without it the accumulators stay in core-private
 memory and each half of the tracks can reach only its own core's server — worse
