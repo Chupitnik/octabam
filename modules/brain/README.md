@@ -14,7 +14,7 @@ PROJ (MAIN MENU), then BRAIN, the fifth category. Its pane:
 
 | row | does |
 |---|---|
-| DEFAULTS | its sub-list: CLR FX DEFAULT, CLR NEW PROJ, SAVE FX DEFAULT, SAVE NEW PROJ |
+| DEFAULTS | its sub-list in two sections: FX DEFAULTS (CLR FX DEFAULT, SAVE FX DEFAULT) and NEW PROJECT (CLR NEW PROJ, SAVE NEW PROJ) |
 | REMIXES | its sub-list: REMIX SWITCH's rows (`modules/remix-switch`, sanderlegit): each `.RMX` in `/BRAIN/REMIXES/`, sorted; after a switch a `FLASHED` separator and the image a power-cycle returns to |
 | SETTINGS | its sub-list: a heading row per module and a value row per setting (below), both alphabetical |
 | TEMPLATES | its sub-list: per target with templates a heading (its store id after the first `.`, upper case) and its templates by name, the image's first and marked `IMAGE` |

@@ -32,8 +32,8 @@ lane at the end:
                 card.work; a second boot of that card puts the saved values
                 on both descriptors
   menu          the BRAIN category on the panel: T1, the FX2 page, PROJ,
-                DOWN x4, RIGHT, YES on DEFAULTS, DOWN x2, YES on SAVE FX DEFAULT: card.work
-                holds T1's FX2 page; then OK, UP x2, YES on CLR FX DEFAULT: no
+                DOWN x4, RIGHT, YES on DEFAULTS, DOWN, YES on SAVE FX DEFAULT: card.work
+                holds T1's FX2 page; then OK, UP, YES on CLR FX DEFAULT: no
                 BusDelay record left
   mode          a GRAIN record for BusDelay (T1): the FX2 page-2 editor moves
                 MODE CLEAN -> GRAIN (verify_modedefaults' call) and MODE
@@ -506,9 +506,9 @@ def main():
         lines.append(f"{tt} quit")
         return "\n".join(lines) + "\n"
     nav = [("no", 400), ("t1", 600), ("fx2", 1500), ("proj", 1200)] + [("down", 400)] * 4 + [("right", 800)]
-    nav += [("yes", 800), ("down", 400), ("down", 400)]     # DEFAULTS (the first row): its sub-list, down to SAVE FX DEFAULT
+    nav += [("yes", 800), ("down", 400)]     # DEFAULTS (the first row): its sub-list on CLR FX DEFAULT, down to SAVE FX DEFAULT
     runs = {"menu_save": nav + [("yes", 2500)],
-            "menu_clear": nav + [("yes", 2500), ("yes", 800), ("up", 400), ("up", 400), ("yes", 2500)]}
+            "menu_clear": nav + [("yes", 2500), ("yes", 800), ("up", 400), ("yes", 2500)]}
     for name, keys in runs.items():
         mc, mafter, mlog, mlanes = OUT / f"{name}.img", OUT / f"{name}_after.img", OUT / f"{name}.txt", OUT / f"{name}_lanes.bin"
         r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,

@@ -1455,7 +1455,7 @@ void brain_open_defaults(u32 unused)
 {
 	(void)unused;
 	brain_from = 0;
-	show(brain_def_rows, 4, 0);
+	show(brain_def_rows, 6, 1);
 }
 
 void brain_open_remixes(u32 unused)

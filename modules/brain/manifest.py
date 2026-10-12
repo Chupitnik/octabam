@@ -205,10 +205,13 @@ def menu_inc():
             "        .long   brain_lbl_settings, 0, brain_open_settings, 0, 0, 0",
             "        .long   brain_lbl_templates, 0, brain_open_templates, 0, 0, 0",
             "        .long   brain_lbl_tools, 0, brain_open_tools, 0, 0, 0",
+            # DEFAULTS in two sections, a heading row (no action) over each
             "brain_def_rows:",
+            "        .long   brain_lbl_hfx, 0, 0, 0, 0, 0",
             "        .long   brain_lbl_clear, 0, brain_menu_clear, 0, 0, 0",
-            "        .long   brain_lbl_pclear, 0, brain_menu_pclear, 0, 0, 0",
             "        .long   brain_lbl_save, 0, brain_menu_save, 0, 0, 0",
+            "        .long   brain_lbl_hnew, 0, 0, 0, 0, 0",
+            "        .long   brain_lbl_pclear, 0, brain_menu_pclear, 0, 0, 0",
             "        .long   brain_lbl_psave, 0, brain_menu_psave, 0, 0, 0",
             "brain_tool_rows:",
             "        .long   brain_lbl_pcheck, 0, brain_menu_pcheck, 0, 0, 0",
@@ -234,6 +237,10 @@ def menu_inc():
             'brain_lbl_templates: .asciz "TEMPLATES"',
             'brain_lbl_remixes: .asciz "REMIXES"',
             'brain_lbl_tools: .asciz "TOOLS"',
+            # a heading is the module-heading form: \027 (the separator dot)
+            # round the text, PANE_W - 1 characters
+            'brain_lbl_hfx: .asciz "\\027FX DEFAULTS\\027\\027\\027"',
+            'brain_lbl_hnew: .asciz "\\027NEW PROJECT\\027\\027\\027"',
             'brain_lbl_save: .asciz "SAVE FX DEFAULT"',
             'brain_lbl_clear: .asciz "CLR FX DEFAULT"',
             'brain_lbl_psave: .asciz "SAVE NEW PROJ"',
