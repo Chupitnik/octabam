@@ -17,7 +17,6 @@ SIDECHAIN_COMPRESSOR runs it).
 | CHARACTER | ✓ | | fold, saturation, tilt, compressor, width | [`character`](../../modules/character/README.md) |
 | MODULATION | ✓ | | Juno, Dimension, flanger, phaser, comb | [`modulation`](../../modules/modulation/README.md) |
 | SIDECHAIN_COMPRESSOR | ✓ | ✓ | stock COMPRESSOR with a side-chain KEY from any track (Zac-Kyoti) | [`sidechain-compressor`](../../modules/sidechain-compressor/README.md) |
-| VOCODER | ✓ | ✓ | ten-band vocoder after the Roland VP-330 (Ignorato); FX2 of tracks 2, 3, 6 and 7 | [`vocoder`](../../modules/vocoder/README.md) |
 | TRANSIENT | ✓ | ✓ | transient shaper (Ignorato) | [`transient`](../../modules/transient/README.md) |
 | EUCLID | ✓ | ✓ | Euclidean filter / amp sequencer (repeat98) | [`euclid`](../../modules/euclid/README.md) |
 | SEND | | ✓ | the default FX2: DEL and REV at 0 is no effect | [`send`](../../modules/send/README.md) |
@@ -53,7 +52,7 @@ The same set is in [`octabam-bus`](../octabam-bus/README.md).
 | | stock | octabam-inserts |
 |---|---|---|
 | sample and recorder memory | 14,602 pages | 12,895 pages (the platform reserve) |
-| DSP words free, payload A / B | | 173 / 213 |
+| DSP words free, payload A / B | | 465 / 505 |
 
 ## Where it has run
 
