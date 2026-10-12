@@ -5,7 +5,7 @@ Tempo-locked varispeed for STATIC and FLEX tracks, as three TSTR positions after
 Credit: Jannik Aßfalg ([repeat98](https://github.com/repeat98)) wrote the basic Repitch (`modules/repitch`). Zac Kyoti wrote the S900/S950 and SP-1200 repitch emulations and the Quantizer.
 
 Built from [Zac-Kyoti/octatrack-kyoti-fw](https://github.com/Zac-Kyoti/octatrack-kyoti-fw)
-(submodule `upstream/`, pinned to `329b801`). `Kind.HYBRID`. Three DRAM units (`Linked(dram=True)`), 14 `jmp` detours, 7 symbol refs, 5 pokes, and a DSP section reached from two hooks: the voice kernel's prologue, and each payload's one-time memory clear at boot, which copies the tables into Y outside every audio pass (the test remix gives up SPRING REV only: its P run holds the code, 412 words, its own X data the two table blocks, 81 + 384 words). A remix with this module carries the platform loader and its 10 MiB arena reserve, unless another DRAM module already brings them.
+(submodule `upstream/`, fork `sambanks/octatrack-kyoti-fw`, pinned to `bf5bfc0`). `Kind.HYBRID`. Three DRAM units (`Linked(dram=True)`), 14 `jmp` detours, 7 symbol refs, 5 pokes, and a DSP section reached from two hooks: the voice kernel's prologue, and each payload's one-time memory clear at boot, which copies the tables into Y outside every audio pass (the test remix gives up SPRING REV only: its P run holds the code, 412 words, its own X data the two table blocks, 81 + 384 words). A remix with this module carries the platform loader and its 10 MiB arena reserve, unless another DRAM module already brings them.
 `upstream/octabam-modules/repitch-repeat98-kyoti/README.md` is the full description, with what was measured and what was inferred.
 
 ## Measured
