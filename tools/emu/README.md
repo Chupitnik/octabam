@@ -535,17 +535,34 @@ that third.
    All five memory dumps the gate reads (`strand_st`, `_img`, `_b3`, `_trk`,
    `_eng`) are byte-identical to lockstep in all three JIT runs, and the log
    has no halt word; `clean("strand")` reads only those, so its verdict is the
-   same. The JIT cannot be used by a gate that forks: `--scenario` forks the
-   children after one load, a fork keeps only the forking thread, and the
-   JIT's worker threads are not in the children; `verify_scenesp2`,
-   `verify_plocksp2` and `verify_kits`' main fork (the long gates) use
-   `--scenario`. The gates that run the cores in one process without an
-   instrument are `verify_kits`' strand boot (106 s, already beside the fork
-   since #670, so it saves CPU and not wall time), `verify_boottrace`,
-   `verify_analog_bassdrum_ui`, `stems_panel` and `verify_usb_post`
-   (not measured). Making the JIT usable in the forked gates would mean
-   starting the workers in each child after the fork (not tried). Lockstep
-   stays the default and the reference.
+   same.
+
+   **Forked gates (measured later the same day, scratch build).** A fork
+   keeps only the forking thread, so a `--scenario` child of a `--dsp-rt`
+   parent has no worker threads: its cores do not run (host words in 26,570
+   against 192,890, 1 host command against 720) and the scenario still exits
+   0. With each core's mutex and condition variable re-initialised in the
+   child and two fresh worker threads started there (about 25 lines:
+   `DspPair::rtAfterFork`, called in the child after `fork()`), the children's
+   host-port traffic equals lockstep's (192,890 words in, 61,660 out, 720
+   commands) and the JIT's code ran in the child without trouble on the M3.
+   `verify_scenesp2`, whose one load and forked scenarios use `--dsp`, gave
+   the same verdict twice (28 ok, 0 fail) in 15-16 s against 29-30 s in
+   lockstep. `verify_plocksp2` gave no change (98 s either way): it runs
+   `--dsp` in one `play` scenario only, and its time is ColdFire-bound loads
+   and power cycles. `verify_kits`' main fork runs without the cores at all
+   (`--dsp` is only on its strand boot), so the JIT does nothing there.
+   Not done: the parent is not quiesced before the fork; the interrupt trace
+   timestamps differ from lockstep's by fractions of a sample (the JIT is
+   functional, not byte-identical, outside the one fixture of O17c); no run
+   repeated enough to call it deterministic; nothing but arm64 macOS. The
+   gates that run the cores in one process without an instrument are
+   `verify_kits`' strand boot (106 s, already beside the fork since #670, so
+   it saves CPU and not wall time), `verify_boottrace`,
+   `verify_analog_bassdrum_ui`, `stems_panel` and `verify_usb_post` (not
+   measured). The whole-gate wall gain is about 15 s on `verify_scenesp2`
+   (a 39-48 s job beside `verify_plocksp2`'s 98-147 s). Lockstep stays the
+   default and the reference.
 2. **A PGO build in the port store** (`tools/emu/port_store.py`). Done 12 Oct:
    `make emu-pgo` (or `python3 tools/emu/port_store.py pgo`) builds it once
    per source state (306 s: the instrumented build, three training runs on a
@@ -562,10 +579,39 @@ that third.
    DSP-write census, memory dumps and command log are byte-identical, and the
    oracle's 25 checks agree (the render's `cpu` line differs only in its
    wall-clock figures).
-3. **Re-pin `vendor/dsp56300` to the 9 Oct tip.** Drops the AGU hunk, takes
-   the JIT fixes. Needs the 581-line patch rebased and the gates of the 22 Sep
-   re-pin (`scripts/refhash.sh check`, `verify-bus`, `verify-twocore`,
-   `make check` with a real project).
+3. **Re-pin `vendor/dsp56300` to the 9 Oct tip (7a5390e7, 49 commits past
+   8ccdd843).** Scoped 12 Oct in scratch trees; not done.
+   - By title: timers 6, JIT fixes 8, ESAI 7, DMA 5, host interface (HDI08,
+     SHI, the host-command queue) 7, interpreter semantics 8 (undefined
+     opcodes run as ILLEGAL, MOVEP, the DO-loop end, the signed modulo bounds,
+     scale-up limits), interrupts 2, memory, GPIO and build 6.
+   - Our patch (59 hunks) on the tip: 51 hunks apply, 8 are rejected in six
+     files. The AGU hunk is covered by upstream's signed compare (`fdd98fc5`;
+     equal for the base-0 pre-decrement, not tested over the whole space).
+     The masked-interrupt peripheral hunk is `823e697c`. Our unmapped-register
+     hooks are upstream's `setIoExtension`; `ot_emu`'s one call changes name.
+     Three hunks only need new context (`pendingInterruptCount`,
+     `peekStatusRegister`, `m_txFifoDepth`).
+   - `ot_emu` builds against the tip with those fix-ups and nothing else; the
+     `dsp_host`/`dsp_asm` build and upstream's `dsp56kTestRunner` were not
+     tried.
+   - Speed: none. The load phase of the gate command (853,049,038 ColdFire
+     instructions in both) took 22.4 s on the tip against 22.9 s on the pin,
+     the same flags, three paired runs.
+   - Behaviour: the first run after the load halts the firmware at frame 8
+     (`halt` at `0x4000ab40`; core 0 spins 3.88 G instructions on 53 host
+     commands). Bisected over the 49 commits (patch re-applied with the same
+     fix-ups at each): good to `2afc1c4f`, first bad `3cee91c9` ("DMA: a
+     channel enabled together with a new request source waits for the next
+     request"), which reworks the request semantics our DMA hunks also
+     change (the ESAI input feed, DCR2 rewritten every idle pass). The port
+     is to reconcile our DMA hunks with it.
+   - Estimate (not measured): half a day to a day to reconcile the DMA
+     hunks and pass the gate command, then the gates of the 22 Sep re-pin
+     (`scripts/refhash.sh check`, `verify-bus`, `verify-twocore`, every DSP
+     gate) and `ci-dsp` from the main checkout. The gain is a smaller patch
+     (about 60 lines fewer) and eight JIT fixes that matter to `--dsp-rt`
+     only.
 4. **Snapshot the machine after LOAD PROJECT** and restore it per gate.
    Removes about 23 s per boot of the same image and project; a bottleservice
    half boots at least seven times (`set`, `verify_scenesp2`,
