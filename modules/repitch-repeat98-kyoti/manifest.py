@@ -1,7 +1,7 @@
 """REPITCH_REPEAT98_KYOTI -- TSTR RPCH / RPS9 / RPSP: tempo-locked varispeed with S900/S950 and SP-1200 repitch emulations, and QUAN ratios on PTCH.
 
 Source: `upstream/` is Zac Kyoti's repository (Zac-Kyoti/octatrack-kyoti-fw,
-submodule, pinned to `329b801`). The declaration is
+submodule, fork `sambanks/octatrack-kyoti-fw`, pinned to `bf5bfc0`). The declaration is
 `upstream/octabam-modules/repitch-repeat98-kyoti/manifest.py`: three DRAM units
 (`patch_repitch_kyoti.s`, `rpk_glyphs.s`, `patch_repitch_reload.s`), the first
 two re-linked and compared with the author's own bytes (`reference`) every
