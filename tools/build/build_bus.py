@@ -36,6 +36,7 @@ from remix.schema import (DEFAULT_HARVEST, NO_FALLBACK, BusRole,  # noqa: E402
 from remix.state import fx1_hazard  # noqa: E402
 from remix import stock as stock_mod  # noqa: E402
 import label_fmt  # noqa: E402
+from norep import refuse_rep  # noqa: E402
 import mode_names  # noqa: E402
 import wide_dial  # noqa: E402
 from remix import dsp_ranges, ledger  # noqa: E402
@@ -657,6 +658,7 @@ def _roundtrip(list_out, blob, org, label):
 
 def assemble_syms(src_text, org, label=""):
     global _SCRATCH
+    refuse_rep(src_text, label)
     if _SCRATCH is None:
         import tempfile
         _SCRATCH = pathlib.Path(tempfile.mkdtemp(prefix="build_bus."))
