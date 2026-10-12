@@ -282,6 +282,9 @@ def decode(raw, st=0):
     while i < len(raw):
         if raw[i] & 0x80:
             st = raw[i]; i += 1
+        elif st >= 0xf8 or st == 0:
+            i += 1                       # a data byte with no running status to carry it: dropped
+            continue
         if st >= 0xf8 or st == 0:
             out.append(f"{st:02x}"); continue
         n = 2 if st & 0xf0 in (0x80, 0x90, 0xa0, 0xb0, 0xe0) else 1 if st & 0xf0 in (0xc0, 0xd0) else 0
