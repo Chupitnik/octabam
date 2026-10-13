@@ -1,29 +1,32 @@
 # octabam-inserts
 
 A remix of Octatrack OS 1.40C, built from your own copy of it, that adds the
-core modules (below) and a set of effects that run on any track: five new FX1
-effects, two more on both FX1 and FX2, and SEND on FX2. It has no bus: every
-effect is an insert on its own track. See [Where it has run](#where-it-has-run).
+core modules (below) and a set of effects that run on any track, on FX1
+and FX2, with the stock DELAY. It has no bus and no SEND: every effect is an
+insert on its own track. See [Where it has run](#where-it-has-run).
 
 ## The effects
 
-Every track can host any of these; the build gives up the stock effects' DSP
-words to hold them (all 14, except that COMPRESSOR's code stays, because
-SIDECHAIN_COMPRESSOR runs it).
+Every effect below is an insert: it runs on any track, on the menus marked.
+The stock DELAY stays; the other stock effects give up their DSP words
+(SIDECHAIN_COMPRESSOR keeps COMPRESSOR's code, which it runs).
 
 | effect | FX1 | FX2 | what it is | module |
 |---|---|---|---|---|
-| SPECTRUM | ✓ | | filter: Moog ladder, SEM, Capacitor2, formants | [`spectrum`](../../modules/spectrum/README.md) |
-| CHARACTER | ✓ | | fold, saturation, tilt, compressor, width | [`character`](../../modules/character/README.md) |
-| MODULATION | ✓ | | Juno, Dimension, flanger, phaser, comb | [`modulation`](../../modules/modulation/README.md) |
+| SPECTRUM | ✓ | ✓ | filter: Moog ladder, SEM, Capacitor2, formants | [`spectrum`](../../modules/spectrum/README.md) |
+| CHARACTER | ✓ | ✓ | fold, saturation, tilt, compressor, width | [`character`](../../modules/character/README.md) |
+| MODULATION | ✓ | ✓ | Juno, Dimension, flanger, phaser, comb | [`modulation`](../../modules/modulation/README.md) |
 | SIDECHAIN_COMPRESSOR | ✓ | ✓ | stock COMPRESSOR with a side-chain KEY from any track (Zac-Kyoti) | [`sidechain-compressor`](../../modules/sidechain-compressor/README.md) |
 | TRANSIENT | ✓ | ✓ | transient shaper (Ignorato) | [`transient`](../../modules/transient/README.md) |
 | EUCLID | ✓ | ✓ | Euclidean filter / amp sequencer (repeat98) | [`euclid`](../../modules/euclid/README.md) |
-| SEND | | ✓ | the default FX2: DEL and REV at 0 is no effect | [`send`](../../modules/send/README.md) |
+| DELAY | | ✓ | stock | |
 
-The FX1 chooser lists NONE and the effects marked FX1; the FX2 chooser lists
-SEND and the effects marked FX2. A MODE turned on the panel re-defaults the knobs around it
-([`mode-defaults`](../../modules/mode-defaults/README.md)).
+The three stations are FX1-only in the bus remix; here each has its `SLOTS`
+build setting at `FX1+FX2`, so an FX2 instance runs live. CHARACTER's KEY
+= T1 needs a BusDelay host, so in this remix it keys on the track's own
+input. The FX1 chooser lists NONE and the effects marked FX1; the FX2
+chooser lists the effects marked FX2. A MODE turned on the panel re-defaults
+the knobs around it ([`mode-defaults`](../../modules/mode-defaults/README.md)).
 
 Also in it: **TSTR RPCH / RPS9 / RPSP**, tempo-locked varispeed with S900/S950
 and SP-1200 repitch emulations ([`repitch-repeat98-kyoti`](../../modules/repitch-repeat98-kyoti/README.md)).
@@ -52,7 +55,7 @@ The same set is in [`octabam-bus`](../octabam-bus/README.md).
 | | stock | octabam-inserts |
 |---|---|---|
 | sample and recorder memory | 14,602 pages | 12,895 pages (the platform reserve) |
-| DSP words free, payload A / B | | 465 / 505 |
+| DSP words free, payload A / B | | 729 / 729 |
 
 ## Where it has run
 

@@ -264,9 +264,12 @@ def remix(name: str | None):
     # `hidden` mechanism already removes a row while keeping the names of a
     # module that is on FX1 (schema.Remix.blanked). Derived here, once, so
     # every remix that lists a station gets it without spelling it out.
+    # The claim is read from the module bound to the remix's settings: a
+    # station's SLOTS = FX1+FX2 lifts fx1_only (tools/remix/stations.py).
+    live = bound(r)
     auto = tuple(k for k in r.modules
                  if k in r.fx1 and k not in r.hidden
-                 and known[k].claims is not None and known[k].claims.fx1_only)
+                 and live[k].claims is not None and live[k].claims.fx1_only)
     if auto:
         r = dataclasses.replace(r, hidden=r.hidden + auto)
     # REMIX SWITCH WITH EVERY BRAIN: the BRAIN pane lists the card's images in

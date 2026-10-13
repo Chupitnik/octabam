@@ -23,7 +23,8 @@ Every mpy is `mpy x0,y1`, the audited-signed form, but the VOWL decode's
 store limiter.
 """
 
-from remix.schema import (Gate, Category, Proof, ModeView, BusRole, Claims, DspSection, Formatter,
+from remix import stations
+from remix.schema import (Store, Gate, Category, Proof, ModeView, BusRole, Claims, DspSection, Formatter,
                           FormatterReg, Harness, Kind, Linked, MenuEntry, Module, Param, YBase)
 
 _PLAIN = Formatter.PLAIN
@@ -121,6 +122,8 @@ MODULE = Module(
         ybase=YBase.NEVER,
         gate_label=None,              # no housekeeping, so no XBUS gate
     ),
+    # The default; the build setting SLOTS = FX1+FX2 lifts fx1_only and the
+    # dry flag (tools/remix/stations.py, verify_stations_fx2).
     # FX1 only: the rig's cycle envelope closes only with the stations on
     # FX1. The FX2 chooser hides the row; verify_spectrum proves the dry pass.
     claims=Claims(fx1_only=True),
@@ -134,6 +137,10 @@ MODULE = Module(
                    registers_formatter=FormatterReg(module="SPECTRUM", slot=7,
                                                     symbol="shpe_fmt")),),
     harness=Harness(layout_char="1", is_server=False, bus_client=False),
-    gates=(Gate('tools/verify/verify_spectrum.py', remix_arg=False),),
+    store=Store("octabam.spectrum"),
+    settings=(stations.setting(),),
+    variant=stations.variant(lambda: MODULE),
+    gates=(Gate('tools/verify/verify_spectrum.py', remix_arg=False),
+           Gate('tools/verify/verify_stations_fx2.py', remix_arg=False),),
     dear={'RES': 127, 'MODE': 3, 'ENV': 127, 'LDP': 127},   # MODE 3 = VOWL, the dearest loop (main, 27 Sep 2026)
 )

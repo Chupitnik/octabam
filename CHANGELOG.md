@@ -18,6 +18,7 @@ The full text before this rewrite: `git show 666b6154:CHANGELOG.md`.
 
 ## Unreleased
 
+- Stations: a `SLOTS` build setting on SPECTRUM, CHARACTER and MODULATION (`FX1`, the default, or `FX1+FX2`); `FX1+FX2` runs an FX2 instance live and lists the FX2 row. `tools/verify/verify_stations_fx2.py` (remix `stations-fx2`) renders FX2 against FX1, bit for bit. CHARACTER is a bus reader (`Harness.bus_reader`), not a client: a remix with CHARACTER and no server uses fallback NONE with no SEND, and the build turns its KEY = T1 into SELF there. `octabam-inserts`: stations on both menus, the stock DELAY, no SEND.
 - Removed `remixes/test/brain` and the example image templates `templates/amp-short.json` and `templates/midi-drums.json`. `verify_brain` and `verify_loadmeter` default to `octabam-bus`; `verify_brain` skips its image-template checks on a remix with no `templates`.
 - Remixes: `octabam-bus` and `octabam-inserts` (the core ColdFire modules with the bus, and with the inserts; port gates only, not flashed). `bottleservice` and `ok-ms` retired. `octatrick`, `analog-bassdrum` and `wave` moved to `remixes/test/` with their selections.
 - Ledger: LOAD METER (declared range `X:0x37F10..0x37F2F`, no FX2 buffers) no longer refuses the FX2 rows of the buffered stock effects. Measured under the port, none writes at or above `0x37F00` (highest in the slot: DARK REV `0x37DA2`; `docs/firmware/DSP.md` section 5, `stock.SLOT_EXTENT`). A module with no declared range (SEND) still refuses them.
