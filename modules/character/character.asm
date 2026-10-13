@@ -315,6 +315,7 @@ ch_pos3:
         and     #>$00ff00,a
         cmp     #>$000100,a
         bne     ch_kself
+; NOBUS_KEY
         move    x:(r7+$25),a
         tst     a
         bne     ch_kself                ; the master keys on its own input

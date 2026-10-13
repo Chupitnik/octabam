@@ -2720,8 +2720,22 @@ mkgo:""",
                     print(f"  SUBST: {_k} payload {tag} -- "
                           + ", ".join(f"{a} -> {b}" for a, b
                                       in sorted(_mk.dsp.subst[tag].items())))
+                if (_mk is not None and _mk.harness is not None
+                        and _mk.harness.bus_reader and _src_k.count("; NOBUS_KEY\n") != 1):
+                    sys.exit(f"{_k}: a bus reader carries exactly one '; NOBUS_KEY' line")
+                if (_mk is not None and _mk.harness is not None and _mk.harness.bus_reader):
+                    # No server in the remix means no delay host to publish the
+                    # level: KEY = T1 keys on the track's own input. Without this
+                    # the literals below would read whatever a stock effect's
+                    # buffer holds at that address.
+                    _has_server = any(getattr(_MODS.get(_m), "harness", None) is not None
+                                      and _MODS[_m].harness.is_server for _m in REMIX.modules)
+                    _src_k = _src_k.replace(
+                        "; NOBUS_KEY\n",
+                        "" if _has_server else
+                        "        bra     ch_kself                ; no bus server in this remix: KEY T1 is SELF\n")
                 if (_x and _mk is not None and _mk.harness is not None
-                        and _mk.harness.bus_client):
+                        and (_mk.harness.bus_client or _mk.harness.bus_reader)):
                     _n9 = len(re.findall(r"\$9[0-9a-f]{2}\b", _src_k))
                     if not _n9:
                         sys.exit(f"XBUS: {_k} is a bus client with no bus scratch "

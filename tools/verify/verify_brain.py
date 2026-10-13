@@ -3,7 +3,7 @@
 
     python3 tools/verify/verify_brain.py [REMIX] [--project DIR]
 
-Builds REMIX (default `brain`: bottleservice plus BRAIN), stages
+Builds REMIX (default `octabam-bus`), stages
 the project with BRAIN/card.work and card.strd written by
 tools/hw/ot_brain.py, and under the port selects T2's effect through the
 FX2 chooser (SEND -> stock DELAY) and the FX1 chooser (SPECTRUM ->
@@ -88,7 +88,7 @@ def symbol(name):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("remix", nargs="?", default="brain")
+    ap.add_argument("remix", nargs="?", default="octabam-bus")
     ap.add_argument("--project", default=os.environ.get("OT_PROJECT", ""))
     ap.add_argument("--set-name", default="BRAINSET")       # not BRAIN: that is the store's directory
     ap.add_argument("--name", default="BRAINPRJ")

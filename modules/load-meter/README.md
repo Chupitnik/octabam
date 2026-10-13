@@ -120,11 +120,10 @@ Credit: the view and its rules (bounded reads, `-` and `?`, the refresh
 counter, the zero-cost close) follow Hamish Renton's ([SamplesAndSnacks](https://github.com/SamplesAndSnacks)) LOAD
 view design for the Machinedrum. The code here is octabam's.
 
-**Payload room.** 257 words on each payload (156 before OTOP). The only remix
-carrying LOAD METER is the test remix `brain`, without MODULATION since
-12 Oct 2026: payload A 1,361 words free, payload B 1,922. With MODULATION
-(bottleservice's set) payload A overruns by 50 words (6,208 > 6,158), which
-the build refuses by name.
+**Payload room.** 156 words on each payload. The only remix carrying LOAD
+METER is `octabam-bus`: payload A 44 words free, payload B 605
+(plan figures, 13 Oct 2026; `brain`, 11 Oct: 61 / 623). A remix it does not fit is refused by the build's region
+fit, by name.
 
 **Calibration.** `LM_BURN=N` builds put a DO loop of N one-cycle `nop`s
 at each core's frame end, before the busy stamp: N core cycles plus the
@@ -180,6 +179,6 @@ the chip's; the numbers on a unit are a hardware-round item.
   zero loop, and an injected burn (`LM_BURN` builds) raises each core's
   busy by N/2 counts.
 - `tools/verify/verify_brain.py` (BRAIN's gate) runs the PERFORMANCE screen on the
-  `brain` remix, which carries this module.
+  `octabam-bus` remix, which carries this module.
 - `tools/verify/verify_dspvectors.py`, `verify_twocore` and `make
   verify-bus` (audio bit-identity) for the DSP section.

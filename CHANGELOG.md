@@ -18,6 +18,10 @@ The full text before this rewrite: `git show 666b6154:CHANGELOG.md`.
 
 ## Unreleased
 
+- CLOUDS VERB (`modules/clouds-verb`): the reverb stage of Mutable Instruments Clouds, ported to fixed point on PLATE REV's id, five knobs, one FX2 slot per instance; in `octabam-inserts` (DSP words free 361 / 361, worst core still 2,640 cycles). Under `dsp_host` only: a float model agrees to 58 dB, no write outside its 16,120-word ring. Not heard, not on a unit.
+- Stations: a `SLOTS` build setting on SPECTRUM, CHARACTER and MODULATION (`FX1`, the default, or `FX1+FX2`); `FX1+FX2` runs an FX2 instance live and lists the FX2 row. `tools/verify/verify_stations_fx2.py` (remix `stations-fx2`) renders FX2 against FX1, bit for bit. CHARACTER is a bus reader (`Harness.bus_reader`), not a client: a remix with CHARACTER and no server uses fallback NONE with no SEND, and the build turns its KEY = T1 into SELF there. `octabam-inserts`: stations on both menus, the stock DELAY, no SEND.
+- Removed `remixes/test/brain` and the example image templates `templates/amp-short.json` and `templates/midi-drums.json`. `verify_brain` and `verify_loadmeter` default to `octabam-bus`; `verify_brain` skips its image-template checks on a remix with no `templates`.
+- Remixes: `octabam-bus` and `octabam-inserts` (the core ColdFire modules with the bus, and with the inserts; port gates only, not flashed). `bottleservice` and `ok-ms` retired. `octatrick`, `analog-bassdrum` and `wave` moved to `remixes/test/` with their selections.
 - Ledger: LOAD METER (declared range `X:0x37F10..0x37F2F`, no FX2 buffers) no longer refuses the FX2 rows of the buffered stock effects. Measured under the port, none writes at or above `0x37F00` (highest in the slot: DARK REV `0x37DA2`; `docs/firmware/DSP.md` section 5, `stock.SLOT_EXTENT`). A module with no declared range (SEND) still refuses them.
 - Removed repeat98's REPITCH module (`modules/repitch/`) and `remixes/test/repitch/`; REPITCH_REPEAT98_KYOTI is the repitch. `remixes/test/mods` no longer carries a repitch. `docs/firmware/REPITCH.md` (stock facts) and the `verify_repitch*` fixtures stay.
 - Build: a selected module whose menu entry is `stock_dsp` keeps the stock effect it replaces out of the harvest (`stock.harvested`). SIDECHAIN_COMPRESSOR with COMPRESSOR on neither chooser wrote over its own `scdet` hook and the build refused. No existing remix changes (refhash 24/24; `sidechain-compressor` and `kyoti-mute-sidechain` list COMPRESSOR and build identical).
@@ -33,6 +37,7 @@ The full text before this rewrite: `git show 666b6154:CHANGELOG.md`.
   three output instructions; the 909 adds four instructions per sample.
 
 Remixes
+- `remixes/test/rec-threshold`: REC THRESHOLD on the stock effects (11-12 Oct, THR1 to THR5 above).
 - `remixes/test/brain`: bottleservice + BRAIN (7 Oct, port only).
 - Every remix that carried a USB AUDIO OUT or IN variant selects USB AUDIO OUT / USB AUDIO IN and pins LAYOUT / INPUTS; each image byte-identical to before (6 Oct, `make identity`).
 - KITS replaces OCTAKIT, SCENES KITS, SCENES P2 KITS and KITS RELOAD in bottleservice, ok-ms, mods and character-txtr; mods also carries DIRECT_JUMP_KYOTI and RELOAD_FROM_PROJECT; `remixes/test/octakit` removed, `remixes/test/kits` added (6 Oct, port only).
@@ -105,6 +110,19 @@ Docs
 - `docs/contributing/TESTING.md`: every gate, how to write one, what it costs (29 Sep).
 - ColdFire load on a unit: Bryan T's CF METER takes (4 Oct; `docs/firmware/ARCHITECTURE.md` section 6): ~16.5 µs per playing voice at CPI ~4.4 against the port, no first-voice premium (the morning's +37 µs retracted the same evening), the USB stack ~14 µs idle / ~25 µs playing, no crossbar contention; OUT TRACKS MAIN CUE costs 27–50 µs of frame interrupt over OUT MAIN CUE, most of it with no host connected; TSTR and the stock DELAY not measurable; interrupt levels from the ICR writes in `KERNEL.md`.
 - Removed: `PLAN.md`, `docs/TIMESTRETCH_PIPELINE.md` (27 Sep).
+
+## THR1 to THR5 — 11-12 Oct 2026 (`rec-threshold`, Chupitnik's builds)
+
+On Chupitnik's MKII, each flashed from the card; the first boot of THR1 ran
+1.40C's own BOOTSTRAP UPGRADE. Built from his branch before it was squashed
+into this module's commit (`make image REMIX=rec-threshold BUILD=N
+VERSION=THRN`, the remix then named `rec-threshold-fixed` for THR1 to THR4).
+THR5 is the module's commit.
+- THR1: REC THRESHOLD at a fixed −30 dB. THR shows on RECORDING SETUP; armed with TRACK 1 + REC AB, silence never records, the input starts the take, a second press cancels, a drum hit's attack is whole by ear.
+- THR2: LEV (−40 to −6 dB) and IN on RECORDING SETUP 2. Both work; the floor too high for quiet sources, IN too jittery.
+- THR3: LEV −58 to −7 dB, −40 when TRIG becomes THR; IN holds ~0.5 s and falls ~12 dB/s. The meter right; the range wanted −60 to 0.
+- THR4: LEV −60 to 0 dB (4 dB steps to −8, then 2 dB). Working. (Its "armed from inside a recording page it starts only sometimes" is retracted below.)
+- THR5: after review, a crossing fires at or over LEV and only for a track still on THR with its recorder idle. The THR4 checks again; LEV 0 dB, an ordinary source does not start it; TRIG moved from THR to ONE while armed, the input then records nothing, and the next press records at once as ONE. With RECORDING SETUP 1 or 2 open, TRIG ONE and THR record (12 Oct), as stock 1.40C does on the same unit: the THR1 to THR4 reading that the REC keys record nothing with a page open is retracted (`docs/contributing/FAILURE_MODES.md`).
 
 ## L1, C1 and C2 — 7 Oct 2026 (`usb-out-tracks-main-cue`, `cfmeter-tracks`, `cfmeter-post`, allmyfriendsaresynths's builds for #625)
 

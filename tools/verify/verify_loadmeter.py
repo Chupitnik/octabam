@@ -3,8 +3,8 @@
 
     python3 tools/verify/verify_loadmeter.py [remix] [--project DIR]
 
-The remix (default `brain`) carries BRAIN and LOAD METER. Each run loads the
-project, opens BRAIN > OTOP (or leaves it closed) and dumps LOAD METER's
+The remix (default `octabam-bus`) carries BRAIN and LOAD METER. Each run loads the
+project, opens BRAIN > PERFORMANCE (or leaves it closed) and dumps LOAD METER's
 lm_dsp and lm_ot (modules/load-meter/meter.s) and the screen's figures.
 
   publish     with the screen open: records arrive every frame (seq close to
@@ -98,7 +98,7 @@ def syms():
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("remix", nargs="?", default="brain")
+    ap.add_argument("remix", nargs="?", default="octabam-bus")
     ap.add_argument("--project", default=os.environ.get("OT_PROJECT", ""))
     ap.add_argument("--set-name", default="BRAINSET")
     ap.add_argument("--name", default="BRAINPRJ")

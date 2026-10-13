@@ -498,7 +498,8 @@ def check(selected) -> list[str]:
     # ours pins starts at 0x4000 or in the shared window.
     # A module that holds no FX2 buffers and declares its shared-window words
     # (LOAD METER: Claims.dsp_ranges) clashes only with a stock effect whose
-    # measured extent (stock.SLOT_EXTENT) reaches one of them.
+    # extent reaches one of them: stock.SLOT_EXTENT (measured) for a stock effect,
+    # Claims.buffer_words (declared) for a module's own.
     def _outside_extent(a, b):
         c = getattr(b, "claims", None)
         if c is None or c.owns_fx2_buffers or not c.dsp_ranges:
@@ -507,6 +508,8 @@ def check(selected) -> list[str]:
             return False
         from remix import stock
         ext = stock.SLOT_EXTENT.get(a.key)
+        if ext is None and a.claims.buffer_words:
+            ext = a.claims.buffer_words - 1       # a module's own declared buffer
         if ext is None:
             return False
         return not any(r.start < base + ext + 1 and r.start + r.length > base
