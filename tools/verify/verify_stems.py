@@ -76,12 +76,12 @@ ST_IDLE, ST_ARMED, ST_RECORDING, ST_FINISHING = 0, 1, 2, 3   # stems.s
 STACK_SIZE, STACK_FILL = 0x2000, 0x5354454d                   # stems.s: DramRegion stems_stack, "STEM"
 STACK_LIMIT = 6 * 1024     # above this, the plan raises the stack to 16 KB before a flash
 RING_SIZE = 0x800000               # stems.s: the ring region, 8 MiB (piece 5)
-ZC_SLACK = 2048                    # stems.s: per file, off the region before the capacity (19.7)
+ZC_SLACK = 2048                    # stems.s: per file, off the region before the capacity (20.7)
 
 
 def ring_frames(nf, fbytes):
     """The rings' capacity in frames for nf files of fbytes a frame in all
-    (stems_layout, zero copy: STEM_REC.md 19.7)."""
+    (stems_layout, zero copy: STEM_REC.md 20.7)."""
     return (RING_SIZE - nf * ZC_SLACK) // fbytes
 
 
@@ -345,7 +345,7 @@ def gains(s):
 def layout(s):
     """The file table the hook latches at the start edge, for each case: the
     files in order, a frame of every file, and the rings' capacity
-    (ring_frames: zero copy, STEM_REC.md 19.7)."""
+    (ring_frames: zero copy, STEM_REC.md 20.7)."""
     for src, fmt, names, fb in LAYOUT_CASES:
         tag = f"layout{src:03x}{fmt}"
         log, _, _, _, _ = port(s, 120, stop_at=80, tag=tag, mask=None, dump_blocks=False,
@@ -870,7 +870,7 @@ def tap(s):
     check("the stop moved RECORDING on", nfr > 0 and st in (ST_IDLE, ST_FINISHING),
           f"state {st}, status {status}")
     # The ring holds the file's bytes, little-endian, since STEMS5; since zero copy
-    # (STEM_REC.md 19.7) at their place in the file, past its 44-byte header.
+    # (STEM_REC.md 20.7) at their place in the file, past its 44-byte header.
     got = [[int.from_bytes(raw[f * 64 + 2 * k:f * 64 + 2 * k + 2], "little", signed=True)
             for k in range(32)] for f in range(nfr)]
     peaks = core1_slot_peaks(dump)
@@ -1065,7 +1065,7 @@ def cap(s):
     the take by itself, with no error, 50 frames on. The file holds every
     frame the hook published, its own count (stems_tfr): zero copy writes
     each file's own bytes, where the copy took the 50 frames wr - rd
-    counted from the ring's start (STEM_REC.md 19.7)."""
+    counted from the ring's start (STEM_REC.md 20.7)."""
     v = MAX_FRAMES - 50
     pokes = [(s[w] + i, (v >> (24 - 8 * i)) & 0xff) for w in ("stems_wr", "stems_rd") for i in range(4)]
     log, _, card, words, _ = port(s, 300, tag="cap", pokes=pokes, dump_blocks=False, extra=watched(s),
@@ -1102,7 +1102,7 @@ def cut(s):
     # started setting the length during the take.
     # Two chunks streamed: since zero copy rd counts the whole frames in the
     # sectors written, and the header takes 44 bytes of the first, so two
-    # chunks of T1 (128 sectors) hold 1,023 frames (STEM_REC.md 19.7).
+    # chunks of T1 (128 sectors) hold 1,023 frames (STEM_REC.md 20.7).
     check("cut: a take cut off mid-way is a 0-byte T1.wav, its streamed audio unreachable (known)",
           st == ST_RECORDING and rd >= (2 * CHUNK_FRAMES * 64 - 44) // 64 and data is not None and len(data) == 0,
           f"state {st}, {nfr} frames recorded, {rd} streamed, T1.wav {None if data is None else len(data)} bytes")
@@ -1192,7 +1192,7 @@ HOOK_SIDE = ("stems_frame_hook", "stems_mirror", "stems_emac_in", "stems_emac_ou
              "stems_bus16", "stems_bus24", "stems_stage", "stems_bus_frame", "stems_layout",
              "stems_trace_frame", "stems_m8check")
 HOOK_CEILING = 4972   # the measured worst case, everything at 24 bits, since zero copy (5,012 in STEMS5)
-                      # (7 Oct 2026; STEM_REC.md 19.1); 7,415 before it, and 5,000 until
+                      # (7 Oct 2026; STEM_REC.md 20.1); 7,415 before it, and 5,000 until
                       # Yves's decision of 4 Oct 2026 to test the cost on the unit (spec 4.6)
 
 
@@ -1535,7 +1535,7 @@ def limit(s):
     """A 20-second take, stopped by STOP: past the old 15-second cap. T1's
     ring (131,040 frames) does not wrap in 20 s, so the file's data must equal
     the ring's bytes past its header byte for byte: since zero copy the ring
-    holds the file's own bytes at their place (STEM_REC.md 19.7; STEMS5 had
+    holds the file's own bytes at their place (STEM_REC.md 20.7; STEMS5 had
     them in the file's byte order, big-endian before). A sector sent twice
     or lost keeps the size and fails this."""
     frames = PRE_ROLL + LIMIT_FRAMES + 200
@@ -1589,7 +1589,7 @@ def overflow(s):
     capacity behind wr (131,040 frames of 64 bytes at T1). The hook stops
     with ERR_OVERFLOW once 100 frames are in. FINISHING ignores the hold,
     so the task writes what the hook published, the 100 frames (zero copy:
-    the writer reads each file's own place, not rd, STEM_REC.md 19.7; the
+    the writer reads each file's own place, not rd, STEM_REC.md 20.7; the
     copy wrote the whole ring), and closes a playable file. A STOP, then
     the row, arms again: the task came back to IDLE."""
     used = RING_FRAMES_T1 - 100

@@ -35,7 +35,7 @@ GQ_N = 4
 GQ_SLOT, GQ_FRAME = 0x80, 0x400                         # stems.s: a slot is its largest gain, then 16
 LIM_FREE = 0x200000                                     # stems.s: gains in 0..this never limit (design 1.3)
 RING_SIZE, UNCACHED = 0x800000, 0x08000000              # stems.s: the ring region; the uncached alias
-ZC_SLACK, ZC_MARGIN = 2048, 512                         # stems.s: zero copy (STEM_REC.md 19.7)
+ZC_SLACK, ZC_MARGIN = 2048, 512                         # stems.s: zero copy (STEM_REC.md 20.7)
 SRC_BITS = 0xfff                                        # stems.s: every source (Task 8)
 GAIN_LAG, TRACK_HALF, TRACK_DELAY = 1, 1, 0             # stems.s: staged a frame early (perf design 1.1)
 IN_RING, IN_IDX = 0x80005660, 0x46104d00                # STEM_REC.md 18.7: eight frame pages, the index
@@ -226,7 +226,7 @@ def layout_ref(src, fmt):
 
 
 def rings_ref(files, rframes, ring, zlead=0):
-    """Each file's ring (STEM_REC.md 19.7): (base through the uncached alias,
+    """Each file's ring (STEM_REC.md 20.7): (base through the uncached alias,
     size, the hook's place, the writer's place), one after another with a
     margin between, sector 0 at the ring's start or zlead sectors before
     its end."""

@@ -7377,7 +7377,7 @@ flash D). Yves reported it and copied the take's folder off the card.
   cycles" (section 6.4.4.2.1). At 24 bits the copy reordered every
   sample's bytes and stored them one byte at a time: 14.3 M stores, each
   waiting for the SDRAM. The port models neither the cache nor bus
-  timing (19.1 counts instructions), so it could not show this.
+  timing (20.1 counts instructions), so it could not show this.
 - 🟡 **But the stalls alone don't add up to 8.5 s** (corrected 8 Oct
   2026, the same day). Bryan T's USB AUDIO OUT TRACKS MAIN CUE copies
   320 longs a frame into buffers addressed the same way (the uncached
@@ -7391,7 +7391,7 @@ flash D). Yves reported it and copied the take's folder off the card.
   either time the copy wasn't running (the audio interrupt, and the
   tasks at the writer's priority, which include the one streaming the
   eight Static voices), or stores far slower under this project's load
-  than under Bryan's. Neither is measured. STEMS5 (19.5) cuts the stores
+  than under Bryan's. Neither is measured. STEMS5 (20.5) cuts the stores
   to a quarter and the instructions to about a third either way, and its
   readout adds the copy's fastest frame and the card's fastest write,
   which separate the work from the waiting.
@@ -7452,7 +7452,7 @@ T8 Static, one bell each), copied off the card as `261008-1856` and
   21% (flash D filled it in 6.75 s, flash E in 18 s). The writer needs
   2.12 MB/s there and the card took 3.0 while recording.
 - ✅ **The hook's uncached stores cost less than estimated**: 29 µs a
-  frame against flash E's 25 at T1–T8, 24 bits (19.7 estimated about
+  frame against flash E's 25 at T1–T8, 24 bits (20.7 estimated about
   37).
 - ✅ **The files are whole** (read by `zcheck.py` and `zsum.py`, scripts
   in the session, not in the tree): in take 1858 MAIN minus the sum of T1
@@ -7913,14 +7913,91 @@ writer 2,446 frames behind, the seconds rise).
   the port's boot order isn't the unit's (18.3).
 - **MASTER TRACK's stems** are whole and aligned only (18.8).
 
-## 19. The perf round (7 Oct 2026)
+## 19. BuMa's MKI recorder, against this design (9 Oct 2026)
+
+BuMa sent notes from their own recorder on a MKI (OS 1.40C): MAIN plus an
+input pair or CUE, two to four channels of 24-bit PCM into one WAV on the
+card, written while it records. Their markers are kept: **MKI** measured on
+their unit, **code** read in their disassembly. Their tip for testing:
+a project with many sample locks on Static tracks.
+
+### 19.1 New here
+
+- **MKI card write rate** (MKI): 4.7–5.7 MB/s with the sequencer stopped,
+  1.4–2.1 MB/s under load (Static tracks streaming). Single writes took
+  1.2–2.6 s under load, with the ring peaking at 81 %, while another
+  recorder of theirs posted to the same storage queue. STEMS3's busy take
+  needed 2.91 MB/s (17.3) and its light one peaked at 13–16 %; their
+  under-load rate is below the busy take's.
+- **The stock `memset` (`0x40020984`) writes one zero long past any length
+  that is a multiple of 16** (code; read here too: the tail loop
+  `clrl %a0@+ / subql #4,%d1 / bgts` runs once with nothing left, and also
+  rounds a length that is not a multiple of 4 up). The arena clear
+  (`memset(0x40a955e0, 0x05590800)` at `0x40097006`) therefore zeroes the
+  long at `0x46025de0`, the first above the arena, and so does the
+  project-load clear of the arena's top pages, which ends at the same
+  address (`docs/contributing/PLACEMENT.md`); BuMa saw it on every LOAD
+  PROJECT. A reservation at the arena's top starts at that long and
+  needs a guard there. octabam's reserve is at the bottom
+  (`docs/contributing/PLACEMENT.md`); STEM REC's ring is inside it.
+- **Writer under FS_MUTEX** (hypothesis, never measured): a priority-1
+  writer holds `0x461079c0` while a Static read waits for it, and the UI
+  and key repeat (priorities 3–4) preempt the writer. BuMa writes in
+  pieces of at most 16 KiB and gives the mutex back between pieces. STEM
+  REC's writer is also priority 1 (`modules/stems/README.md`) and writes a
+  512-frame chunk per file per raw call (12.0): 32 KiB at 16 bits, 48 KiB
+  at 24 bits, each call holding the lock across its body (7.2).
+- **Stray jobs.** Their writer runs as job messages on the stock engine
+  queue; a late message once opened a new file and ran the finish again,
+  and the close set a 114 MB length on a 44-byte file, extending the
+  cluster chain without writing it (stale card data in the file). STEM REC
+  has its own task and no job messages; the close behaviour is 7.10's
+  "close sets the file's length to `+16`, shorter as well as longer",
+  measured under the port.
+- **Playback of PCM24** (code): preview and STATIC play a 16-bit cache
+  (the high 16 bits, no dither); the file stays 24-bit. PCM24 reaches the
+  DSP as two 16-bit halves rebuilt there.
+- Their FS write-back of the FAT during a take, for power loss, exists
+  and is unproven; power-loss behaviour is unknown. STEM REC's files are
+  0 bytes after a cut (12.3).
+
+### 19.2 Agrees with what is here
+
+- MAIN L/R at `0x80005e60`, CUE at `+0x80` (18.6).
+- The inputs: eight `0x100` pages from `0x80005660`, page from the frame
+  clock `0x46104d00 & 7`, read `(clock − 2) & 7`; `+0x80` A/B (MKI: a
+  signal on A/B alone came out on the expected channels), `+0x00` C/D
+  (18.7).
+- Per-track blocks at `0x80003190`, bank `0x800000e4`, 128 bytes a track,
+  pre-fader for LEVEL and MUTE (section 9; their reading is from an
+  earlier octabam 20-channel image; STEM REC applies the fader itself,
+  18.2). Which bank is fresh at the end of the
+  frame interrupt is their open question; STEM REC reads at `0x40004b12`,
+  not at the USB modules' `0x4000d9a0` they hook.
+- DTCN3 (`0xfc07c00c`) at 132 MHz agrees with the frame count to 1 % on
+  their MKI; `modules/cfmeter/README.md` has 132 MHz from the frame period
+  on a MKII.
+- The engine queue: priority 1, `0x4008445c`, mailbox `0x460d17ce`; FAT/ATA
+  task priority 5, `0x4001ee30` (`docs/firmware/KERNEL.md`). The task that
+  refills STATIC during playback is unknown to them too.
+- The buffered file calls `0x40016864` / `0x40016564` / `0x400166b8` /
+  `0x4001660c` / `0x4001677c`, and the logical length as word 4 (`+16`) of
+  the handle, set before the one close (7.10, 12.0).
+- A FAT32 directory record's first cluster is the long at `+0x11e`, `+0x120`
+  its low half (`docs/firmware/STORAGE.md`). Their card is FAT32 with
+  512-byte clusters; the 64 GB card in 14.2 has 32 KB clusters, so the
+  cluster size is the card's format.
+- The emulator runs storage instantly and cannot show starvation or late
+  jobs (15.4, 18.9).
+
+## 20. The perf round (7 Oct 2026)
 
 Branch `stems-perf`; the design is
 `git show 15703f7a:docs/superpowers/specs/2026-10-07-stem-rec-perf-design.md`. Every number
 here is from the port unless marked; the files are unchanged sample for
 sample, which the take checks of 18.9 prove again.
 
-### 19.1 The frame hook ✅ under the port
+### 20.1 The frame hook ✅ under the port
 
 - **Tracks staged a frame early.** MAIN at frame f is mixed from the half
   `PING` doesn't name as it read at f−1, with the gains of the page sent
@@ -7949,7 +8026,7 @@ Before and after on one port binary, the same fixture and method
 (the perf design's appendix: `verify_stems --only=cost`, the eight-track costs,
 a 2,000-frame take with `--coverage` for the writer, then `stems_sweep.py
 --counts 8 --latencies 8,16`; logs `/home/yvez/xcheck/perf-baseline.log`
-and `perf-after.log`, 7 Oct 2026; STEMS5 (19.5) the same way,
+and `perf-after.log`, 7 Oct 2026; STEMS5 (20.5) the same way,
 `perf-after5.log`, 8 Oct 2026):
 
 | Instructions a frame | `6f9e5bc9` | After the round (STEMS4) | STEMS5 |
@@ -7964,7 +8041,7 @@ and `perf-after.log`, 7 Oct 2026; STEMS5 (19.5) the same way,
 
 The writer's counts are its instructions over the take's frames, so
 they leave out what each store costs on the unit: STEMS4 stored a byte
-at a time at 24 bits, STEMS5 a long (19.5).
+at a time at 24 bits, STEMS5 a long (20.5).
 
 | Eight tracks, card delay | Fill growth before | After |
 |---|---|---|
@@ -7976,7 +8053,7 @@ mechanism: one sector a frame while the frame interrupt runs), less
 than before. 🟡 A DMA card, as on Yves's unit, takes a command's sectors
 with no processor work between them (11.8).
 
-### 19.2 What the card takes, per write ✅ under the port
+### 20.2 What the card takes, per write ✅ under the port
 
 `ot_emu --cmd-log-end` (new) logs every ATA command of a run. On the THRU
 fixture card (FAT16, 4 sectors a cluster), a 3,028-frame take at T1 to T8,
@@ -7995,7 +8072,7 @@ start. A T1 take: 97 commands of 4 sectors, 4 FAT writes.
   16 times fewer, 16 times larger commands than the fixture's 2 KB, for
   STEM REC's writes and the Static tracks' reads alike.
 
-### 19.3 The readout ✅ under the port
+### 20.3 The readout ✅ under the port
 
 `STATS.TXT` in each take's folder (`modules/stems/README.md`): the take,
 the ring's peak, the card writes, the writer's copy and sleeps, the hook
@@ -8006,12 +8083,12 @@ writer's stack peaked at 1,560 of 8,192 bytes in `full` on 8 Oct 2026
 (1,060 in an earlier run of the same check: where the frame interrupt
 lands on the writer's stack varies), under the 6,144-byte limit.
 
-### 19.4 MASTER TRACK and T8
+### 20.4 MASTER TRACK and T8
 
 18.8: `T8.wav` equals `MAIN.wav`; T1 to T7 and CUE lead them by 32
 samples. T8 is no longer a source while MASTER TRACK is on.
 
-### 19.5 STEMS5: the ring in file byte order, the copy in whole longs
+### 20.5 STEMS5: the ring in file byte order, the copy in whole longs
 
 Flash D's readout (17.4) put the limit in the writer's copy: precise-mode
 stores to the uncached stream buffers, one a byte at 24 bits, and
@@ -8027,7 +8104,7 @@ however much of its time the writer spent not running.
   pair (3 before), 8 a 24-bit pair (8 before; a first draft with three
   word stores a pair took 12 and put the hook at 5,764 instructions a
   frame with everything at 24 bits, over the 5,188 ceiling). Measured
-  (19.1's table): 3,427 a frame at T1 to T8, 16 bits (+128), 3,995 at
+  (20.1's table): 3,427 a frame at T1 to T8, 16 bits (+128), 3,995 at
   24 bits (−64), 5,012 with everything at 24 bits (−176), the new
   `HOOK_CEILING`.
 - **The writer copies whole longs**, frame by frame in ring order, 16
@@ -8077,13 +8154,13 @@ ISA, `byterev` in ISA_A+ (the V4e's) and `movem`'s memory operand at
 from the same copy: its packet build stores 320 longs a frame uncached
 inside the frame interrupt (14 to 25 µs a frame on Bryan T's unit).
 
-### 19.6 The writer at priority 2: kept as a fallback
+### 20.6 The writer at priority 2: kept as a fallback
 
 Flash E (17.5) showed the writer's own work small and its time spent
 waiting for the processor at priority 1. Raising it to priority 2 is one
 constant; it was built (STEMS6, branch `stems-prio2`, `f53117b4`: the
 units 71 PASS, the scheduling-reached port checks 111 PASS) and not
-flashed. Yves chose zero copy first (19.7), which keeps priority 1.
+flashed. Yves chose zero copy first (20.7), which keeps priority 1.
 
 **Who the writer would outrank, and who it would take turns with.** 🟡
 Read from each task's entry, not measured (`KERNEL.md`'s table has the
@@ -8107,7 +8184,7 @@ the action's state-last order already makes safe (3.5); and the card's
 lock is shared as before. A flash of it must listen to the Static voices
 and try the keys during a take.
 
-### 19.7 Zero copy: each file's ring is what the card reads
+### 20.7 Zero copy: each file's ring is what the card reads
 
 **Why.** At priority 1 the writer gets the processor only when every
 higher task is idle, in turn with three stock tasks, and flash E's copy
@@ -8205,7 +8282,7 @@ most capacity × its frame's bytes + 44 ≤ its ring's size.
   writer's share of the processor. Flash G's `STATS.TXT` reads both: the
   hook line, and `card rec` against `card fastest write`.
 
-### 19.8 For later
+### 20.8 For later
 
 Ideas from the perf round that weren't needed for its goal (eight tracks
 at 24 bits on a busy project), with what each would buy and its size.
@@ -8213,88 +8290,12 @@ None is measured.
 
 | Idea | What it would buy | Size |
 |---|---|---|
-| The writer at priority 2 (`stems-prio2`, 19.6) | Twelve files at 24 bits on a busy project: flash G's writer still waited 4.8 times its fastest write there | One constant; built, not flashed. A flash must listen to the Static voices and try the keys during a take |
+| The writer at priority 2 (`stems-prio2`, 20.6) | Twelve files at 24 bits on a busy project: flash G's writer still waited 4.8 times its fastest write there | One constant; built, not flashed. A flash must listen to the Static voices and try the keys during a take |
 | Bigger writes per file when the writer is behind | Fewer switches between the files' streams on the card: its fastest write fell from 28 to 10 MB/s with twelve files (17.6), cause unknown | Small: the per-pass cap in `stems_zwrite` |
-| One card command for a run of contiguous clusters | The file layer sends one command a cluster (19.2); a run of clusters in one WRITE DMA cuts the per-command cost | Large: a write path beside the file layer's, keeping its FAT right |
-| The hook's stores cached, then one `cpushl` a line | About a quarter of the uncached stores' time in the audio interrupt (one burst a 16-byte line); the hook runs in supervisor mode, so the instruction is allowed there | Medium: a hardware probe first (19.5); USB AUDIO OUT's packet build would gain the same |
+| One card command for a run of contiguous clusters | The file layer sends one command a cluster (20.2); a run of clusters in one WRITE DMA cuts the per-command cost | Large: a write path beside the file layer's, keeping its FAT right |
+| The hook's stores cached, then one `cpushl` a line | About a quarter of the uncached stores' time in the audio interrupt (one burst a 16-byte line); the hook runs in supervisor mode, so the instruction is allowed there | Medium: a hardware probe first (20.5); USB AUDIO OUT's packet build would gain the same |
 | A bounded wait on the card | A card that stops answering would end the take with an error instead of hanging the writer on the PIO path (11.4) | Medium |
 | WRITE MULTIPLE (`0xC5`) for PIO cards | One interrupt a block of sectors instead of one a sector | Medium: PIO cards only; Yves's card writes by DMA |
 | Pre-shifted gains | The mirror stores `g << 8`, saving one shift a sample in the track loops: 128 instructions a frame at T1–T8 | Small |
 | The stems from the audio processor | Core 0 already computes each track's share of MAIN; reading it back would remove the hook's multiplies | Large: DSP work, both payloads |
 | A CAPTURE-style menu page | A clearer STEMS menu (octalab's page-drawing calls; TUNER is the in-tree precedent) | Medium: menu work, deferred this round |
-## 19. BuMa's MKI recorder, against this design (9 Oct 2026)
-
-BuMa sent notes from their own recorder on a MKI (OS 1.40C): MAIN plus an
-input pair or CUE, two to four channels of 24-bit PCM into one WAV on the
-card, written while it records. Their markers are kept: **MKI** measured on
-their unit, **code** read in their disassembly. Their tip for testing:
-a project with many sample locks on Static tracks.
-
-### 19.1 New here
-
-- **MKI card write rate** (MKI): 4.7–5.7 MB/s with the sequencer stopped,
-  1.4–2.1 MB/s under load (Static tracks streaming). Single writes took
-  1.2–2.6 s under load, with the ring peaking at 81 %, while another
-  recorder of theirs posted to the same storage queue. STEMS3's busy take
-  needed 2.91 MB/s (17.3) and its light one peaked at 13–16 %; their
-  under-load rate is below the busy take's.
-- **The stock `memset` (`0x40020984`) writes one zero long past any length
-  that is a multiple of 16** (code; read here too: the tail loop
-  `clrl %a0@+ / subql #4,%d1 / bgts` runs once with nothing left, and also
-  rounds a length that is not a multiple of 4 up). The arena clear
-  (`memset(0x40a955e0, 0x05590800)` at `0x40097006`) therefore zeroes the
-  long at `0x46025de0`, the first above the arena, and so does the
-  project-load clear of the arena's top pages, which ends at the same
-  address (`docs/contributing/PLACEMENT.md`); BuMa saw it on every LOAD
-  PROJECT. A reservation at the arena's top starts at that long and
-  needs a guard there. octabam's reserve is at the bottom
-  (`docs/contributing/PLACEMENT.md`); STEM REC's ring is inside it.
-- **Writer under FS_MUTEX** (hypothesis, never measured): a priority-1
-  writer holds `0x461079c0` while a Static read waits for it, and the UI
-  and key repeat (priorities 3–4) preempt the writer. BuMa writes in
-  pieces of at most 16 KiB and gives the mutex back between pieces. STEM
-  REC's writer is also priority 1 (`modules/stems/README.md`) and writes a
-  512-frame chunk per file per raw call (12.0): 32 KiB at 16 bits, 48 KiB
-  at 24 bits, each call holding the lock across its body (7.2).
-- **Stray jobs.** Their writer runs as job messages on the stock engine
-  queue; a late message once opened a new file and ran the finish again,
-  and the close set a 114 MB length on a 44-byte file, extending the
-  cluster chain without writing it (stale card data in the file). STEM REC
-  has its own task and no job messages; the close behaviour is 7.10's
-  "close sets the file's length to `+16`, shorter as well as longer",
-  measured under the port.
-- **Playback of PCM24** (code): preview and STATIC play a 16-bit cache
-  (the high 16 bits, no dither); the file stays 24-bit. PCM24 reaches the
-  DSP as two 16-bit halves rebuilt there.
-- Their FS write-back of the FAT during a take, for power loss, exists
-  and is unproven; power-loss behaviour is unknown. STEM REC's files are
-  0 bytes after a cut (12.3).
-
-### 19.2 Agrees with what is here
-
-- MAIN L/R at `0x80005e60`, CUE at `+0x80` (18.6).
-- The inputs: eight `0x100` pages from `0x80005660`, page from the frame
-  clock `0x46104d00 & 7`, read `(clock − 2) & 7`; `+0x80` A/B (MKI: a
-  signal on A/B alone came out on the expected channels), `+0x00` C/D
-  (18.7).
-- Per-track blocks at `0x80003190`, bank `0x800000e4`, 128 bytes a track,
-  pre-fader for LEVEL and MUTE (section 9; their reading is from an
-  earlier octabam 20-channel image; STEM REC applies the fader itself,
-  18.2). Which bank is fresh at the end of the
-  frame interrupt is their open question; STEM REC reads at `0x40004b12`,
-  not at the USB modules' `0x4000d9a0` they hook.
-- DTCN3 (`0xfc07c00c`) at 132 MHz agrees with the frame count to 1 % on
-  their MKI; `modules/cfmeter/README.md` has 132 MHz from the frame period
-  on a MKII.
-- The engine queue: priority 1, `0x4008445c`, mailbox `0x460d17ce`; FAT/ATA
-  task priority 5, `0x4001ee30` (`docs/firmware/KERNEL.md`). The task that
-  refills STATIC during playback is unknown to them too.
-- The buffered file calls `0x40016864` / `0x40016564` / `0x400166b8` /
-  `0x4001660c` / `0x4001677c`, and the logical length as word 4 (`+16`) of
-  the handle, set before the one close (7.10, 12.0).
-- A FAT32 directory record's first cluster is the long at `+0x11e`, `+0x120`
-  its low half (`docs/firmware/STORAGE.md`). Their card is FAT32 with
-  512-byte clusters; the 64 GB card in 14.2 has 32 KB clusters, so the
-  cluster size is the card's format.
-- The emulator runs storage instantly and cannot show starvation or late
-  jobs (15.4, 18.9).

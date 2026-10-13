@@ -100,14 +100,14 @@ measures the ring against the emulated card's speed (STEM_REC.md 15.4).
 
 | Measured under the port | Since the perf round | Before it | STEM_REC.md |
 |---|---|---|---|
-| The frame hook, not recording (the gain mirror) | 394 instructions per frame | 1,001 | 19.1 |
-| The frame hook, eight tracks at 16 bits | 3,401 instructions per frame | 5,579 | 19.7 |
-| The frame hook, eight tracks at 24 bits | 3,969 instructions per frame | 6,219 | 19.7 |
-| The frame hook, everything at 24 bits | 4,972 instructions per frame | 7,415 | 19.7 |
-| The writer's copy | none: the card reads each file's ring (zero copy) | 737 a frame at eight tracks, 16 bits; 1,067 everything at 24 bits | 19.7 |
-| The writer task's stack peak | 1,560 of 8,192 bytes (the most seen; `full`, 8 Oct 2026) | 1,244 | 19.3 |
+| The frame hook, not recording (the gain mirror) | 394 instructions per frame | 1,001 | 20.1 |
+| The frame hook, eight tracks at 16 bits | 3,401 instructions per frame | 5,579 | 20.7 |
+| The frame hook, eight tracks at 24 bits | 3,969 instructions per frame | 6,219 | 20.7 |
+| The frame hook, everything at 24 bits | 4,972 instructions per frame | 7,415 | 20.7 |
+| The writer's copy | none: the card reads each file's ring (zero copy) | 737 a frame at eight tracks, 16 bits; 1,067 everything at 24 bits | 20.7 |
+| The writer task's stack peak | 1,560 of 8,192 bytes (the most seen; `full`, 8 Oct 2026) | 1,244 | 20.3 |
 
-The figures are zero copy's (STEM_REC.md 19.7; STEMS5 had 3,427, 3,995
+The figures are zero copy's (STEM_REC.md 20.7; STEMS5 had 3,427, 3,995
 and 5,012 for the hook and a copy of 206 and 284; STEMS4, flash D,
 3,299, 4,059, 5,188, 502 and 807). The hook's figures are instruction
 counts. On the unit, `STATS.TXT` measures its time in every take: flash
@@ -222,11 +222,11 @@ card udma 4 mwdma 0, cluster 64 sectors
 - **The writer's longest sleep** far above the 10 ms it asks for: it
   waited for the processor. It runs at priority 1, in turn with the engine,
   the UI and one more stock task, below three tasks that by their code most
-  likely include the Static machines' card reader (STEM_REC.md 19.6).
+  likely include the Static machines' card reader (STEM_REC.md 20.6).
 - **Card rec and card save** split the card's writes into the take
   (recording) and the rest after STOP (saving), each in ms, KB and µs a
   KB. There is no copy to time: the card reads each file's ring where the
-  hook wrote it (zero copy, STEM_REC.md 19.7).
+  hook wrote it (zero copy, STEM_REC.md 20.7).
 - **The fastest write** is a write that nothing interrupted: the card's
   own speed. A mean far below it (1,024 over the µs a KB, in KB/s) spent
   its time waiting for the processor, not for the card.
@@ -287,7 +287,7 @@ timestamps with (7.58 ns a count).
   2.1 MB/s while the writer, at priority 1, waited for the processor. A
   lighter project leaves the writer more of it (not measured with zero
   copy). The writer at priority 2 is built and kept as the next step
-  (`stems-prio2`, STEM_REC.md 19.6).
+  (`stems-prio2`, STEM_REC.md 20.6).
 - A power cut or a card pull before the end loses the take: each file is
   left at 0 bytes, because its length is set only at the end
   (STEM_REC.md 12.3).
@@ -349,7 +349,7 @@ effects. [BUILDING.md](../../docs/guide/BUILDING.md) has every step.
     16 bits; at 24 bits all of them. Each file has its own ring, holding
     the file's bytes in order from its header on, written through the
     uncached alias, so the card reads them where they are: zero copy
-    (STEM_REC.md 19.7). A frame that crosses a ring's end has its tail
+    (STEM_REC.md 20.7). A frame that crosses a ring's end has its tail
     moved to the ring's start before it's published. When a take starts
     it latches the file table (the sources, the format, each file's bytes
     per frame and routine), cuts the 8 MiB into the files' rings, and

@@ -12,7 +12,7 @@ Flash E's `STATS.TXT` (STEM_REC.md 17.5) showed the writer waiting for
 the processor at priority 1, and about half its time was the copy. STEMS7
 drops the copy: the frame hook writes each file's bytes into that file's
 own ring, through the uncached alias, and the writer hands the card whole
-sectors straight from the rings (STEM_REC.md 19.7). The writer stays at
+sectors straight from the rings (STEM_REC.md 20.7). The writer stays at
 priority 1. Flash F (STEMS6, the writer at priority 2, branch
 `stems-prio2`) is built and kept as the fallback; it isn't flashed.
 
@@ -30,7 +30,7 @@ Both are built from your own 1.40C and never enter the repository. Copies
 are in `/home/yvez/xcheck/stems7`. The checks on that code: the unit
 tests 79 PASS; `verify_stems --long --fat32` 451 PASS, its two FAILs
 `cut`'s threshold (corrected in the same commit and passing alone);
-`verify_docs` 0 problems (STEM_REC.md 19.7).
+`verify_docs` 0 problems (STEM_REC.md 20.7).
 
 **Before you flash.** As flash E: power cycle first if REC was pressed
 since power-on, the stock `.syx` and a DIN MIDI interface at hand, the
@@ -64,7 +64,7 @@ copy into its uncached buffers: 8.5 s to copy 6.75 s of audio, one
 stall a byte at 24 bits, plus time the writer wasn't running (how much
 is not measured). STEMS5 writes every sample into the ring in its file's
 byte order and copies whole longs: a quarter of the stores and about a
-third of the instructions (STEM_REC.md 19.5). `STATS.TXT` splits the
+third of the instructions (STEM_REC.md 20.5). `STATS.TXT` splits the
 copy into recording and saving and adds the copy's fastest frame and the
 card's fastest write, which tell the work from the waiting.
 
@@ -113,7 +113,7 @@ the audio interrupt (STEM_REC.md 17.4). Flash E is the fix.
 
 The perf round (PR #644; the design:
 `git show 15703f7a:docs/superpowers/specs/2026-10-07-stem-rec-perf-design.md`;
-`docs/firmware/STEM_REC.md` section 19). A take's files are what the code
+`docs/firmware/STEM_REC.md` section 20). A take's files are what the code
 before the round wrote, sample for sample, with two exceptions by design:
 REC pressed while the sequencer plays starts one frame (0.36 ms) later,
 and T8 isn't recorded while MASTER TRACK is on. New for the unit: less work in the audio

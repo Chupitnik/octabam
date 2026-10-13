@@ -84,7 +84,7 @@
         .equ    MAX_FRAMES,    9922500      | 60 minutes
         .equ    CHUNK_FRAMES,  512          | frames per write while recording: a file writes up to
                                             | CHUNK_FRAMES x its frame's bytes / 512 sectors a pass
-| Zero copy (STEM_REC.md 19.7): each file has its own ring, the file's
+| Zero copy (STEM_REC.md 20.7): each file has its own ring, the file's
 | bytes from its header on, at file byte p's place (p + phase) mod its size,
 | a multiple of 512, so the card writes whole sectors straight from it. The
 | hook writes through the uncached alias; a frame that crosses the ring's
@@ -706,7 +706,7 @@ stems_switch_action:
 | it: a take stops when the next frame doesn't fit, at the last whole
 | frame. A staged frame of a take that stops is never published. Every
 | ring is written through the uncached alias, so the card reads the hook's
-| bytes where they are (zero copy, STEM_REC.md 19.7).
+| bytes where they are (zero copy, STEM_REC.md 20.7).
 |
 | A recording frame is timed on DTCN3 for the readout: the hook from its
 | entry, and the hook with the stock frame routine after it (stems_st_on).
@@ -988,7 +988,7 @@ stems_layout:
 | aligned and followed by its margin:
 | the capacity's bytes of the file and its header, in whole sectors, so
 | that rframes x bytes a frame <= size - 44 and the hook never reaches a
-| byte the card hasn't taken (STEM_REC.md 19.7). Sector 0 sits at the
+| byte the card hasn't taken (STEM_REC.md 20.7). Sector 0 sits at the
 | ring's start, or stems_zlead sectors before its end (a test seam: the
 | take wraps soon). The writer's place is sector 0's; the hook's is past
 | the header. Uses d0-d4 and a0-a1.
@@ -2126,7 +2126,7 @@ stems_start:
         clr.l   (%a0,%d3.l*4)
         lea     stems_rbase,%a0     | the placeholder header at sector 0's place in the
         movea.l (%a0,%d3.l*4),%a2   | file's ring: the hook writes only past it until
-        lea     stems_rpos,%a0      | the card has taken sector 0 (STEM_REC.md 19.7)
+        lea     stems_rpos,%a0      | the card has taken sector 0 (STEM_REC.md 20.7)
         adda.l  (%a0,%d3.l*4),%a2
         bsr.w   stems_hdr_fill
         addq.l  #1,stems_nopen
@@ -2178,7 +2178,7 @@ stems_close_all:
 | whole sector (the finish). A pass writes each file's waiting sectors, a
 | chunk's at most, then takes stems_rd from what the card has; passes run
 | until one writes nothing. No copy: the card takes the sectors where the
-| hook wrote them (STEM_REC.md 19.7). d0 = 0, or -1 with ERR_WRITE set
+| hook wrote them (STEM_REC.md 20.7). d0 = 0, or -1 with ERR_WRITE set
 | and stems_wfail = 1.
 stems_drain:
         lea     -16(%sp),%sp
