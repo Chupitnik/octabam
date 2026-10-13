@@ -33,7 +33,7 @@ stock words on each, and core 0's publish on payload A alone):
 | hook | A | B | stock | does |
 |---|---|---|---|---|
 | frame start | `P:$8c` | `P:$74` | `move r5,x:>$206`, just after the frame wait | timer 0 (CLK/2) stamped; period = the advance since the last start; timer 0 armed the first time (TRM, TE; no interrupt enable) |
-| frame end | `P:$54b` | `P:$340` | `move #>$421,r6`, before the jump back to the wait | busy = the advance since this frame's start; core 0 also counts ESAI TUE/ROE frames (SAISR read once a frame) |
+| frame end | `P:$54b` | `P:$340` | `move #>$421,r6`, before the jump back to the wait | busy = the advance since this frame's start |
 | publish | `P:$2ec` | none | `move x:>$205,r0`, just after the MAIN pack | core 0 writes the 17 bytes below |
 
 The figures live in the shared window at `X:$37F10-$37F2F` (`Claims.dsp_ranges`;
@@ -62,7 +62,7 @@ the last finished frame's:
 | 1 | core 0's frame count, low byte |
 | 2-4, 5-7 | core 0 busy, period (timer-0 counts, high byte first) |
 | 8-10, 11-13 | core 1 busy, period |
-| 14, 15 | core 0 ESAI TUE frames, ROE frames (mod 256) |
+| 14, 15 | reserved, zero (core 0's ESAI TUE and ROE frame counts until 13 Oct 2026: the words went to OTOP, which `octabam-bus` could not hold otherwise) |
 | 16 | the sum of bytes 0-15, mod 256 |
 
 `meter.s`'s `lm_scrub` (a detour at `0x4000d310`, the `tstl` before the
@@ -82,8 +82,7 @@ a slot, which this meter must not.
 per processor: `CFIRE` the frame interrupt's share now with its peak since open
 as a mark, `DSP0` and `DSP1` each core's busy over its frame now with the
 peak mark; then `WORST FRAME` (the longest single run of the frame interrupt
-as a share of the 362.8 µs frame, `OVER` at 100%) and `DROPS` (the ESAI
-underrun and overrun frames since open); then the cost of each effect call
+as a share of the 362.8 µs frame, `OVER` at 100%); then the cost of each effect call
 (below), sorted. `-` = no sample yet, `?` = only bad records since the last
 refresh. While the screen is closed nothing draws and the DSPs and the host
 port carry the same traffic as with it open (`verify_loadmeter` closed); the
@@ -96,8 +95,8 @@ id and the process call) stamp timer 0 before and after each slot's calls:
 the start at `move a,x:>$20a` (A `P:$4b2` FX1, `$4e8` FX2; B `$2a7`, `$2dd`),
 the end after the process call at `move x:>$213,b` (A `$4d8`, B `$2cd`) and
 `move x:>$206,r0` (A `$50e`, B `$303`). Each core keeps the cost of the
-frame's eight calls in dispatch order in X:`$37F40` (core 0) and `$37F50`
-(core 1) (the frame start hook resets the pointer); core 0 publishes one slot
+frame's eight calls in dispatch order in X:`$37F40` (core 0) and `$37F48`
+(core 1), its block + `$30` (the frame start hook resets the pointer, kept in the block's +4; the start stamp in +3); core 0 publishes one slot
 a frame, round robin over the 16, as a second record after the meter's
 (`$b4`, the slot, three cost bytes, their sum: bytes 17-22 of MAIN's low
 bytes). The ColdFire keeps per slot `{last, sum, count, max}` in `lm_ot`
@@ -120,10 +119,12 @@ Credit: the view and its rules (bounded reads, `-` and `?`, the refresh
 counter, the zero-cost close) follow Hamish Renton's ([SamplesAndSnacks](https://github.com/SamplesAndSnacks)) LOAD
 view design for the Machinedrum. The code here is octabam's.
 
-**Payload room.** 156 words on each payload. The only remix carrying LOAD
-METER is `octabam-bus`: payload A 44 words free, payload B 605
-(plan figures, 13 Oct 2026; `brain`, 11 Oct: 61 / 623). A remix it does not fit is refused by the build's region
-fit, by name.
+**Payload room.** 193 words on each payload (257 with OTOP before the cost cells
+were laid out from one per-core pointer and the ESAI counts dropped, 13 Oct
+2026; 156 without OTOP). The remixes carrying LOAD METER are `octabam-bus` and
+`octabam-inserts`: on `octabam-bus` payload A has 14 words free, payload B 575
+(the build report, 13 Oct 2026). A remix it does not fit is refused by the
+build's region fit, by name.
 
 **Calibration.** `LM_BURN=N` builds put a DO loop of N one-cycle `nop`s
 at each core's frame end, before the busy stamp: N core cycles plus the
@@ -145,7 +146,6 @@ Every % and µs here is from the port, whose cycle table and timer are not
 the chip's:
 - timer 0's rate (CLK/2) and the nominal period 36,256 counts;
 - busy and period per core against a known load (a burn, as `LM_BURN`);
-- the ESAI TUE/ROE counts at a forced underrun;
 - MAIN, CUE and USB audio bit-identical with the meter on (a recording of
   MAIN, the USB stream);
 - the view's text widths on the unit's LCD.

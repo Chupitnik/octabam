@@ -82,7 +82,7 @@ MODULE = Module(
                        "FX2 slot, after its process call: the cost")),
     ),
     claims=Claims(dsp_ranges=(DspRange("x", 0x37F10, 0x20, "both cores' meter figures and core 0's publish"),
-                              DspRange("x", 0x37F40, 0x20, "both cores' OTOP cost blocks"))),
+                              DspRange("x", 0x37F40, 0x10, "both cores' OTOP cost cells"))),
     detours=(
         Detour(0x4000AAD0, H("4fefff0448d77fff"), "loadmeter", "lm_in",
                "the frame interrupt's entry: its prologue replayed, then the entry stamp", pad_to=8),

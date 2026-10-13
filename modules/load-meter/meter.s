@@ -71,7 +71,7 @@ lm_out:
 | `tstl 0x800018fe` is replayed last: the `bne` after it reads its flags.
 | lm_dsp: seq (good records), bad, then per core {busy, period} now and at
 | the peak since lm_dsp_reset was last set (a busy/period ratio, compared by
-| cross-multiplying: both below 2^16), then the ESAI TUE and ROE bytes.
+| cross-multiplying: both below 2^16), then two reserved bytes (zero).
         .equ    MAIN_LO, 0x80005e63             | long 0's lowest byte
         .equ    PMIN,   20000                   | timer 0 (CLK/2) counts a frame: 36,256 nominal
         .equ    PMAX,   60000

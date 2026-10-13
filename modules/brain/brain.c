@@ -4420,9 +4420,8 @@ static void build_tpl(void)
 extern volatile u32 *const brain_lm;
 extern volatile u32 *const brain_lmd;
 static u32 load_peak_pct DATA, load_peak_us DATA;
-static u32 load_dseq DATA, load_dbad DATA, load_miss0 DATA, load_ticks DATA;
+static u32 load_dseq DATA, load_dbad DATA, load_ticks DATA;
 static int load_now[3] DATA, load_pk[3] DATA;	/* percent; -1 before a sample, -2 when the records were all bad */
-static int load_miss DATA;
 
 /* a core's frame in timer-0 counts, from LOAD METER's last record (nominal 36,256) */
 static u32 load_period(u32 core)
@@ -4434,7 +4433,6 @@ static u32 load_period(u32 core)
 static void load_update(void)
 {
 	load_now[0] = load_pk[0] = load_now[1] = load_pk[1] = load_now[2] = load_pk[2] = -1;
-	load_miss = -1;
 	if (!brain_lm)
 		return;
 	u32 seq = brain_lm[0], win = brain_lm[1], sum = brain_lm[2], cnt = brain_lm[3], max = brain_lm[4];
@@ -4461,8 +4459,6 @@ static void load_update(void)
 	}
 	load_dseq = brain_lmd[0];
 	load_dbad = brain_lmd[1];
-	if (brain_lmd[0])
-		load_miss = (int)(((brain_lmd[10] + brain_lmd[11]) - load_miss0) & 0x1ff);
 	load_ticks++;
 }
 
@@ -4530,7 +4526,7 @@ static void build_load(void)
 		add(K_BAR, names[r], 0, r)->val = ot_pct[r];
 	}
 	/* the worst single run of the frame interrupt since opening, as a share of the
-	 * frame (362.8 us), "OVER" at 100%; the ESAI underrun and overrun frames */
+	 * frame (362.8 us), "OVER" at 100% */
 	u32 n = put_s(ot_sum, "WORST FRAME ");
 	if (!load_peak_us)
 		n += put_s(ot_sum + n, "-");
@@ -4540,11 +4536,6 @@ static void build_load(void)
 		n += put_dec(ot_sum + n, load_peak_us * 100 / FRAME_US, 0);
 		ot_sum[n++] = '%';
 	}
-	n += put_s(ot_sum + n, "  DROPS ");
-	if (load_miss < 0)
-		n += put_s(ot_sum + n, "-");
-	else
-		n += put_dec(ot_sum + n, (u32)load_miss, 0);
 	ot_sum[n] = 0;
 	add(K_TEXT, ot_sum, 0, 0);
 }
@@ -4614,10 +4605,10 @@ static void build_procs(void)
  * time of an event is the tick count at 0.5 s a tick, the timer's nominal
  * period. */
 
-enum { EV_DROPS, EV_OVER, EV_FULL, EV_SLOW, EV_N };
+enum { EV_OVER, EV_FULL, EV_SLOW, EV_N };
 static u32 samples DATA;
 static int samp_timer DATA = -1;
-static u32 midi_prev DATA, midi_rate DATA, miss_prev DATA, over_flag DATA, full_flag DATA;
+static u32 midi_prev DATA, midi_rate DATA, over_flag DATA, full_flag DATA;
 
 #define EV_N_MAX 40
 struct ev_ent { u32 t; u16 arg; u8 type, pad; };
@@ -4715,12 +4706,6 @@ static void samp(void)
 		over_flag = 1;
 	} else {
 		over_flag = 0;
-	}
-	if (brain_lmd) {
-		u32 tot = brain_lmd[10] + brain_lmd[11], d = (tot - miss_prev) & 0x1ff;
-		miss_prev = tot;
-		if (d)
-			ev_add(EV_DROPS, d);
 	}
 	u32 mt = midi_cnt[0] + midi_cnt[1] + midi_cnt[2] + midi_cnt[3] + midi_cnt[4];
 	midi_rate = (mt - midi_prev) * 2;
@@ -4981,7 +4966,7 @@ static char log_lab[EV_N_MAX][24], log_val[EV_N_MAX][8];
 
 static void build_events(void)
 {
-	static const char *const what[EV_N] = { "AUDIO DROPS", "FRAME OVER", "CPU FULL", "CARD SLOW" };
+	static const char *const what[EV_N] = { "FRAME OVER", "CPU FULL", "CARD SLOW" };
 	add(K_TOGGLE, "EVENT LOG", tog_ev, 0)->on = (u8)brain_v_octabam_brain_3;
 	if (!ev_count) {
 		add(K_TEXT, "NO EVENTS YET", 0, 0);
@@ -4995,9 +4980,7 @@ static void build_events(void)
 		log_lab[i][k++] = ' ';
 		put_s(log_lab[i] + k, what[e->type]);
 		log_val[i][0] = 0;
-		if (e->type == EV_DROPS)
-			put_dec(log_val[i], e->arg, 0);
-		else if (e->type == EV_OVER)
+		if (e->type == EV_OVER)
 			put_s(log_val[i] + put_dec(log_val[i], e->arg, 0), "US");
 		else if (e->type == EV_SLOW)
 			put_s(log_val[i] + put_dec(log_val[i], e->arg, 0), "MS");
@@ -5227,7 +5210,6 @@ void brain_scr_enter(void)
 			brain_lmd[12] = 1;			/* the DSP peaks start again */
 			load_dseq = brain_lmd[0];
 			load_dbad = brain_lmd[1];
-			load_miss0 = brain_lmd[10] + brain_lmd[11];
 		}
 		load_update();
 	}
