@@ -11,7 +11,7 @@ trigs, the CHROMATIC keys, PTCH and its locks, the scale quantizer, LFOs,
 the AMP envelope.
 
 It is built to be extended (more tables, its own envelope, per-voice notes,
-a cheaper control path); [the module page](../../modules/wave/README.md)
+a cheaper control path); [the module page](../../../modules/wave/README.md)
 says what is in it and what is open.
 
 Not affiliated with or endorsed by CHOMPI Club or Chase Bliss, and not an official CHOMPI Club release; CHOMPI is CHOMPI Club's trademark (their `TRADEMARKS.md`), used here only to say where the code comes from.
@@ -26,8 +26,8 @@ flowchart LR
 
 ## What is in it
 
-- **Wave Synth** on the FX2 menu ([`modules/wave`](../../modules/wave/README.md)).
-- **SCALE QUANTIZER** ([`modules/quantizer`](../../modules/quantizer/README.md)): PROJECT > CONTROL > SEQUENCER > SCALE and ROOT snap the PTCH knob, its locks and the CHROMATIC keys to a scale.
+- **Wave Synth** on the FX2 menu ([`modules/wave`](../../../modules/wave/README.md)).
+- **SCALE QUANTIZER** ([`modules/quantizer`](../../../modules/quantizer/README.md)): PROJECT > CONTROL > SEQUENCER > SCALE and ROOT snap the PTCH knob, its locks and the CHROMATIC keys to a scale.
 - **CC MAP**, **SCENES P2**, **PLOCKS P2**: Wave Synth's page-2 knobs from MIDI CC, in scenes and as parameter locks.
 - **USB MIDI** and **USB AUDIO OUT TRACKS MAIN CUE**: the tracks to a computer over USB (track 1 on channels 1/2), for recording.
 - Every stock effect except **DARK REV** and **SPRING REV**: Wave Synth runs in their DSP program space, so they are not on the menus.
@@ -57,11 +57,11 @@ flowchart LR
 ## Where it has run
 
 - Sam's MKII, image 93 (3 Oct 2026): plays; PTCH and the CHROMATIC keys move the pitch; a looping sine with AMP at INF plays until the AMP envelope ends it.
-- Under the DSP emulator: pitch within 0.25 cents of the sine's, chords, the envelope, eight instances at once ([module page](../../modules/wave/README.md), Measured).
+- Under the DSP emulator: pitch within 0.25 cents of the sine's, chords, the envelope, eight instances at once ([module page](../../../modules/wave/README.md), Measured).
 
 ## Getting it on the unit
 
-1. Set up the repository and the stock OS: [BUILDING.md](../../docs/guide/BUILDING.md) sections 0–2.
+1. Set up the repository and the stock OS: [BUILDING.md](../../../docs/guide/BUILDING.md) sections 0–2.
 2. Build the image and the sine:
 
    ```bash

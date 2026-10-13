@@ -873,7 +873,7 @@ def main():
     _rig = ("FILTER", "SPATIALIZER", "EQUALIZER", "PHASER", "FLANGER", "CHORUS",
                  "PLATE REV", "SPRING REV", "DARK REV", "COMPRESSOR", "LO-FI",
                  "DJ EQ", "COMB FILTER")
-    _want = {"mods": (), "octabam-core": (), "ok-ms": (), "usb-out-tracks-main-cue": (), "usb-out-tracks": (), "usb-out-master": (),
+    _want = {"mods": (), "octabam-core": (), "usb-out-tracks-main-cue": (), "usb-out-tracks": (), "usb-out-master": (),
              "usb-out-tracks-post": (),
              "remix-switch": (), "remix-switch-trace": (),   # REMIX SWITCH's park in dead vectors, no region words
              "usb-out-main-cue": (), "usb-out-main": (), "usb-midi": (), "stems": (),     # stock effects + ColdFire modules, no DSP words
@@ -896,9 +896,8 @@ def main():
              "testgen": ("PLATE REV",),     # TESTGEN runs in its words; the other 13 stay
              "vocoder": ("PLATE REV", "DJ EQ"),   # VOCODER runs in PLATE's words; DJ EQ out so the tables sit in X
              "euclid": ("SPATIALIZER", "FLANGER", "CHORUS", "COMB FILTER"),
-             "rig": _rig, "bottleservice": _rig,
-             "character-txtr": _rig,   # bottleservice with the TXTR station
-             "brain": _rig,   # bottleservice with BRAIN (a ColdFire module)
+             "rig": _rig,
+             "character-txtr": _rig,   # octabam-bus with the TXTR station
              "octabam-bus": _rig,
              # every stock effect but COMPRESSOR, which SIDECHAIN_COMPRESSOR runs (stock_dsp)
              "octabam-inserts": tuple(_k for _k in _rig if _k != "COMPRESSOR")}

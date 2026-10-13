@@ -19,7 +19,7 @@ class Page2(unittest.TestCase):
                                payload=brainfile.Value(2, brainfile.NUMBER, (80).to_bytes(2, "big")).encode())
         with tempfile.TemporaryDirectory() as d:
             (pathlib.Path(d) / "brain.work").write_bytes(brainfile.File(brainfile.PROJECT_WORK, [rec]).encode())
-            self.assertEqual(bcr2000.page2("brain", d), {"FX2": 62, "FX1": 80})
+            self.assertEqual(bcr2000.page2("octabam-bus", d), {"FX2": 62, "FX1": 80})
 
     def test_damaged_work_falls_back_to_strd(self):
         rec = brainfile.Record(brainfile.SETTINGS, "octabam.cc-map",

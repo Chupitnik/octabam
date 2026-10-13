@@ -3,7 +3,7 @@
 
     python3 tools/verify/verify_brain.py [REMIX] [--project DIR]
 
-Builds REMIX (default `brain`: bottleservice plus BRAIN), stages
+Builds REMIX (default `octabam-bus`), stages
 the project with BRAIN/card.work and card.strd written by
 tools/hw/ot_brain.py, and under the port selects T2's effect through the
 FX2 chooser (SEND -> stock DELAY) and the FX1 chooser (SPECTRUM ->
@@ -88,7 +88,7 @@ def symbol(name):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("remix", nargs="?", default="brain")
+    ap.add_argument("remix", nargs="?", default="octabam-bus")
     ap.add_argument("--project", default=os.environ.get("OT_PROJECT", ""))
     ap.add_argument("--set-name", default="BRAINSET")       # not BRAIN: that is the store's directory
     ap.add_argument("--name", default="BRAINPRJ")
@@ -692,7 +692,7 @@ def main():
         seed = brainfile.File(brainfile.CARD_WORK, [brainfile.Record(brainfile.TEMPLATE_REC, tg["id"],
             payload=brainfile.prefix_bytes(brainfile.TEMPLATE_REC, layout=tg["layout"], name="TPL 99") + vals)]).encode()
         moves = [i for i, (k, _) in enumerate(sl) if k and seedv[i] != part[i]]
-        # the image's template of the target (remixes/test/brain) is the list's first row
+        # the image's template of the target (the remix's `templates`) is the list's first row
         skip = (0x20,) * sum(brain.load_template(n)["target"] == tg["id"] for n in registry.remix(a.remix).templates)
         _, _, _, lp = tpl_run(f"tpl_{name}_load", (0x20, 0x20, 0x20, 0x31) + skip + (0x31,), seed, part_at,
                               tg["pre"], tg["hold"], tg["regions"])
@@ -707,68 +707,70 @@ def main():
             check(f"templates: the MIDI LOAD sends program {prog} on channel {chan} ({tx.hex(' ')[:60]})",
                   chan == 0 or prog >= 128 or pc in tx)
 
-    # ---- templates from the image (remixes/test/brain: templates/amp-short.json,
-    # midi-drums.json) -----------------------------------------------------
-    # LOAD TEMPLATE on T1's AMP page lists the image's SHORT first; LOAD
-    # writes its four knobs into the current Part.
-    amp = stock["amp"]
-    short = brain.load_template("amp-short")["knobs"]
+    # ---- templates from the image (a remix with `templates`; none of the shipping remixes carries one) ---
     rd_stock = (ROOT / "out/raw/section_3_MAIN_OS.bin").read_bytes()
-    _, _, _, lp = tpl_run("tpl_img_load", (0x20, 0x20, 0x20, 0x31, 0x31), None, part_at, amp["pre"],
-                          amp["hold"], amp["regions"])
-    names = [n for _k, n, _l, _c in brain.stock_slots("amp", rd_stock)]
-    got = {n: lp[i] for i, n in enumerate(("ATK", "HOLD", "REL", "VOL"))}
-    check(f"templates: LOAD TEMPLATE on T1's AMP lists the image's SHORT first and writes its knobs  {got}",
-          got == short and names[:4] == ["ATK", "HOLD", "REL", "VOL"])
+    if not registry.remix(a.remix).templates:
+        print("  [ -- ] templates: " + a.remix + " carries no image templates, so LOAD TEMPLATE and COPY TO CARD of an image template are not run")
+    else:
+        # LOAD TEMPLATE on T1's AMP page lists the image's SHORT first; LOAD
+        # writes its four knobs into the current Part.
+        amp = stock["amp"]
+        short = brain.load_template("amp-short")["knobs"]
+        _, _, _, lp = tpl_run("tpl_img_load", (0x20, 0x20, 0x20, 0x31, 0x31), None, part_at, amp["pre"],
+                              amp["hold"], amp["regions"])
+        names = [n for _k, n, _l, _c in brain.stock_slots("amp", rd_stock)]
+        got = {n: lp[i] for i, n in enumerate(("ATK", "HOLD", "REL", "VOL"))}
+        check(f"templates: LOAD TEMPLATE on T1's AMP lists the image's SHORT first and writes its knobs  {got}",
+              got == short and names[:4] == ["ATK", "HOLD", "REL", "VOL"])
 
-    # ---- BRAIN > TEMPLATES: COPY TO CARD, RENAME -----------------------------
-    # card.work seeded with one stock.amp template TPL 07. The pane: the back
-    # row, heading AMP, SHORT (image), TPL 07, heading MIDI, DRUMS (image);
-    # the cursor opens on SHORT. Run 1: YES, COPY TO CARD. Run 2: DOWN to
-    # TPL 07, YES, RENAME, the name editor (its cursor opens after the name);
-    # UP sets the character there ('0', measured under the port), YES.
-    seed = brainfile.File(brainfile.CARD_WORK, [brainfile.Record(brainfile.TEMPLATE_REC, amp["id"],
-        payload=brainfile.prefix_bytes(brainfile.TEMPLATE_REC, layout=amp["layout"], name="TPL 07")
-        + brainfile.Value(1, brainfile.BYTE, b"\x05").encode())]).encode()
-    into = [(0x32, 400), (0x1c, 1200)] + [(0x20, 400)] * 4 + [(0x21, 800), (0x20, 400), (0x20, 400), (0x31, 800)]
-    runs = {"tpl_pane_copy": into + [(0x31, 800), (0x31, 2500)],
-            "tpl_pane_rename": into + [(0x20, 400), (0x31, 800), (0x31, 1200),
-                                      (0x33, 300), (0x31, 2500)]}
-    for tag, keys in runs.items():
-        pc, pafter, plog = OUT / f"{tag}.img", OUT / f"{tag}_after.img", OUT / f"{tag}.txt"
-        (OUT / f"{tag}_seed.work").write_bytes(seed)
-        r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
-                            "--tree", str(OUT / f"tree_{tag}"), "--out", str(pc),
-                            "--root-file", f"{OUT / f'{tag}_seed.work'}:BRAIN/card.work"],
-                           cwd=ROOT, capture_output=True, text=True)
-        if r.returncode:
-            sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
-        t, lines = 1500, []
-        for item in keys:
-            if isinstance(item, str):
-                lines.append(f"{t} {item}"); t += 300
+        # ---- BRAIN > TEMPLATES: COPY TO CARD, RENAME -----------------------------
+        # card.work seeded with one stock.amp template TPL 07. The pane: the back
+        # row, heading AMP, SHORT (image), TPL 07, heading MIDI, DRUMS (image);
+        # the cursor opens on SHORT. Run 1: YES, COPY TO CARD. Run 2: DOWN to
+        # TPL 07, YES, RENAME, the name editor (its cursor opens after the name);
+        # UP sets the character there ('0', measured under the port), YES.
+        seed = brainfile.File(brainfile.CARD_WORK, [brainfile.Record(brainfile.TEMPLATE_REC, amp["id"],
+            payload=brainfile.prefix_bytes(brainfile.TEMPLATE_REC, layout=amp["layout"], name="TPL 07")
+            + brainfile.Value(1, brainfile.BYTE, b"\x05").encode())]).encode()
+        into = [(0x32, 400), (0x1c, 1200)] + [(0x20, 400)] * 4 + [(0x21, 800), (0x20, 400), (0x20, 400), (0x31, 800)]
+        runs = {"tpl_pane_copy": into + [(0x31, 800), (0x31, 2500)],
+                "tpl_pane_rename": into + [(0x20, 400), (0x31, 800), (0x31, 1200),
+                                          (0x33, 300), (0x31, 2500)]}
+        for tag, keys in runs.items():
+            pc, pafter, plog = OUT / f"{tag}.img", OUT / f"{tag}_after.img", OUT / f"{tag}.txt"
+            (OUT / f"{tag}_seed.work").write_bytes(seed)
+            r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
+                                "--tree", str(OUT / f"tree_{tag}"), "--out", str(pc),
+                                "--root-file", f"{OUT / f'{tag}_seed.work'}:BRAIN/card.work"],
+                               cwd=ROOT, capture_output=True, text=True)
+            if r.returncode:
+                sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
+            t, lines = 1500, []
+            for item in keys:
+                if isinstance(item, str):
+                    lines.append(f"{t} {item}"); t += 300
+                else:
+                    lines += [f"{t} key {item[0]:#x} down", f"{t + 30} key {item[0]:#x} up"]; t += item[1]
+            lines.append(f"{t + 1000} quit")
+            (OUT / f"{tag}.script").write_text("\n".join(lines) + "\n")
+            cmd = [EMU, "--image", image, "--card", pc, "--set", a.set_name, "--project", a.name, "--load-ms", "90000",
+                   "--mkii", "--live-script", OUT / f"{tag}.script", "--card-out", pafter]
+            with open(plog, "w") as fh:
+                r = subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
+            if r.returncode or "ended on quit" not in plog.read_text():
+                sys.exit(f"verify_brain: the {tag} run did not finish -- {plog}")
+            files = emu_card.extract_image(pafter.read_bytes())
+            work = next((v for k, v in files.items() if k.upper().endswith("BRAIN/CARD.WORK")), None)
+            recs = [(r.store_id, r.name(), {v.key: v.data[0] for v in r.values()})
+                    for r in brainfile.parse(work).records if r.kind == brainfile.TEMPLATE_REC] if work else []
+            if tag == "tpl_pane_copy":
+                want = sorted([(amp["id"], "TPL 07", {1: 5}),
+                               (amp["id"], "SHORT", {k: v for k, v in zip((1, 2, 3, 4), short.values())})])
+                check(f"templates: BRAIN > TEMPLATES, COPY TO CARD on the image's SHORT adds it to card.work  {recs}",
+                      sorted(recs) == want)
             else:
-                lines += [f"{t} key {item[0]:#x} down", f"{t + 30} key {item[0]:#x} up"]; t += item[1]
-        lines.append(f"{t + 1000} quit")
-        (OUT / f"{tag}.script").write_text("\n".join(lines) + "\n")
-        cmd = [EMU, "--image", image, "--card", pc, "--set", a.set_name, "--project", a.name, "--load-ms", "90000",
-               "--mkii", "--live-script", OUT / f"{tag}.script", "--card-out", pafter]
-        with open(plog, "w") as fh:
-            r = subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
-        if r.returncode or "ended on quit" not in plog.read_text():
-            sys.exit(f"verify_brain: the {tag} run did not finish -- {plog}")
-        files = emu_card.extract_image(pafter.read_bytes())
-        work = next((v for k, v in files.items() if k.upper().endswith("BRAIN/CARD.WORK")), None)
-        recs = [(r.store_id, r.name(), {v.key: v.data[0] for v in r.values()})
-                for r in brainfile.parse(work).records if r.kind == brainfile.TEMPLATE_REC] if work else []
-        if tag == "tpl_pane_copy":
-            want = sorted([(amp["id"], "TPL 07", {1: 5}),
-                           (amp["id"], "SHORT", {k: v for k, v in zip((1, 2, 3, 4), short.values())})])
-            check(f"templates: BRAIN > TEMPLATES, COPY TO CARD on the image's SHORT adds it to card.work  {recs}",
-                  sorted(recs) == want)
-        else:
-            check(f"templates: BRAIN > TEMPLATES, RENAME through the name editor (UP, YES) renames TPL 07 to "
-                  f"TPL 070, its value kept  {recs}", recs == [(amp["id"], "TPL 070", {1: 5})])
+                check(f"templates: BRAIN > TEMPLATES, RENAME through the name editor (UP, YES) renames TPL 07 to "
+                      f"TPL 070, its value kept  {recs}", recs == [(amp["id"], "TPL 070", {1: 5})])
 
     # ---- shared: one panel run on a staged card ---------------------------
     def ui_run(tag, keys, roots=(), dumps=(), extra=()):

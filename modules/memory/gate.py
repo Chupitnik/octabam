@@ -4,15 +4,14 @@
     python3 modules/memory/gate.py [carrier remix, ignored]
 
 A once-per-run gate (schema.Gate once=True): the shared half hands it one
-carrying remix; it checks bottleservice (535 pages reserved, the shipping
-rig) and bus (2 pages, the most given back) whatever that remix is.
+carrying remix; it checks octabam-bus (the shipping rig; bottleservice reserved 535 pages) and bus (2 pages, the most given back) whatever that remix is.
 """
 import pathlib
 import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-FIXTURES = ("bottleservice", "bus")
+FIXTURES = ("octabam-bus", "bus")
 
 rc = 0
 for remix in FIXTURES:

@@ -313,7 +313,7 @@ decodes the official file, validates its checksum and round-trips ours.
    the sequencer stalls on the first play. Re-selecting the effect on one
    track is not enough: the sequencer runs every track of the part. A
    project made on the unit after the flash needs no stamp.
-3. **The bus engines** (bottleservice): the delay runs on tracks 1–4, the
+3. **The bus engines** (octabam-bus): the delay runs on tracks 1–4, the
    reverb on tracks 5–8; a host on the wrong half falls back to a SEND
    (`stamp-defaults` warns per part). SEND's `DEL` and `REV` knobs are the
    two sends; each engine's wet comes out on the track that hosts it.

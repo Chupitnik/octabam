@@ -3,7 +3,7 @@
 
     python3 tools/verify/verify_loadmeter.py [remix] [--project DIR]
 
-The remix (default `brain`) carries BRAIN and LOAD METER. Each run loads the
+The remix (default `octabam-bus`) carries BRAIN and LOAD METER. Each run loads the
 project, opens TOOLS > LOAD (or leaves it closed) and dumps LOAD METER's
 lm_dsp (modules/load-meter/meter.s) and the dialog's lines and title.
 
@@ -85,7 +85,7 @@ def build(remix, burn, tag, nopub=False):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("remix", nargs="?", default="brain")
+    ap.add_argument("remix", nargs="?", default="octabam-bus")
     ap.add_argument("--project", default=os.environ.get("OT_PROJECT", ""))
     ap.add_argument("--set-name", default="BRAINSET")
     ap.add_argument("--name", default="BRAINPRJ")
