@@ -19,7 +19,7 @@ Decide first which kind you are writing.
 - A **ColdFire module** changes what the firmware does (parts, kits, menus,
   MIDI, bug fixes) and touches no audio; midisc (`modules/midi-scenes`)
   and Octakit (`modules/octakit`) are this shape. Skeleton
-  `modules/_template_cf/`, worked example `modules/repitch/`, section
+  `modules/_template_cf/`, worked example `modules/direct-jump-kyoti/`, section
   "Declaring a ColdFire module" below; `docs/contributing/PLACEMENT.md` says
   where the bytes land.
 
@@ -288,7 +288,8 @@ FX1 and FX2, so a module on a stock id replaces that effect's code wherever
 the id is selected, FX1 included, and a remix that omits the module then
 aliases the id to SEND, which takes the stock effect away from FX1 too.
 Free ids: `0x06 0x07 0x09 0x0a 0x0b 0x0e 0x0f 0x17 0x1a 0x1b 0x1d 0x1e
-0x1f`, of which `0x1d 0x1e 0x1f` are unclaimed.
+0x1f`. EUCLID holds `0x1d` and LOFI2 `0x1f`; the selftest's placement
+probes build scratch fixtures on `0x1e`, so a module there fails them.
 
 The registry is the arbiter: `registry.modules()` refuses two modules on
 one id at import, whether or not any remix selects both. `make modules`
@@ -503,7 +504,9 @@ dsp=DspSection(
   displaced instruction. `site` is one P address for every payload, or
   `{"A": addr, "B": addr}` naming exactly the section's payloads when the
   stock code sits at a different address on each (the payloads are linked
-  separately). A section with hooks and no `MenuEntry` is placed on
+  separately). `stock` is one word pair, or `{"A": (w0, w1), "B": (w0, w1)}`
+  with a per-payload `site` when the words themselves differ (a `do` or
+  branch target inside the instruction). A section with hooks and no `MenuEntry` is placed on
   `payloads` only and takes no dispatch entry: USB AUDIO IN's RX inject at
   the frame head, P:0x88, on payload A. The ledger refuses two hooks whose
   two-word spans share a word on one payload.
@@ -582,11 +585,12 @@ it places it. Symbols the unit `.global`s are what the detours name;
 cross-unit references resolve in the one link (a unit may name symbols of
 units before it). `dram=True` puts it in the platform runtime: every DRAM
 unit in the remix linked as one image at the base of the platform's arena
-reserve (1,707 pages, 10 MiB off the bottom of stock's audio page arena,
-the placement Octakit and octamax have both proven on hardware;
-`tools/remix/arena.py`, `docs/contributing/PLACEMENT.md`), packed, appended
-behind octabam's loader and depacked there at boot. The cost is 10 MB of
-the unit's 85.5 MB sample/recorder pool. `dram=False` places the unit in
+reserve (pages off the bottom of stock's audio page arena, the placement
+Octakit and octamax have both proven on hardware; sized per remix by
+MEMORY, `modules/memory/README.md`, `docs/contributing/PLACEMENT.md`),
+packed, appended behind octabam's loader and depacked there at boot. The
+cost is the pages the remix claims, off the unit's 85.5 MB
+sample/recorder pool. `dram=False` places the unit in
 one of the OS image's free zero runs (~8 KB, shared with everyone). Prefer
 DRAM unless the code has to run before the loader, or you are matching an
 author's ROM layout byte for byte. A unit's `.bss` (uninitialised; KITS's
@@ -651,8 +655,7 @@ A port is done when the author's build and this repo's build agree byte for byte
 address on every build, with its declared `defsyms` and this remix's
 `remix.inc`, and compares; a unit whose bytes depend on the remix gives
 `reference=fn` instead, `fn(modules) -> (addr, sha256)` naming the variant
-the author ratified for that selection. `tools/verify/verify_midiscenes.py`
-is the standing proof. When you port someone else's
+the author ratified for that selection. When you port someone else's
 mod, run their build against the shared stock image first and use its
 output as the oracle.
 
@@ -758,63 +761,78 @@ Three kinds of state, three homes:
 |---|---|---|
 | an effect's twelve parameters | the Part (`docs/firmware/PARAM_PAGES.md`); a saved Part feeds a new layout its old bytes, and a value outside its count stalls the sequencer (`tools/hw/ot_project.py stamp-defaults`) | the descriptor |
 | personal material: Kits, grooves, presets, anything a musician would copy to another project on its own | files the module owns, beside the stock project files | the module |
-| the module's settings: how it behaves or looks (a checkbox, a menu option, a USB profile) | today: nowhere, or a private file (Octakit's Kits carry their own; octalab writes `octalab_grooves.map` and `octalab_generators.map`, "OTGM" v1). Proposed: one shared store per project, OTX | the shared core |
+| the module's settings: how it behaves or looks (a checkbox, a menu option, a USB profile) | today: nowhere, or a private file (KITS keeps two in its `kits.work` header; octalab writes `octalab_grooves.map` and `octalab_generators.map`, "OTGM" v1). Designed: the brain | the core |
 
-OTX is specified in nordseele's
-[`docs/proposals/OTX_PROJECT_PROPOSAL.md`](../proposals/OTX_PROJECT_PROPOSAL.md)
-(draft 2, 26 Sep 2026; the format and the precedence) and
-[`docs/proposals/OTX_MODULE_GUIDELINES.md`](../proposals/OTX_MODULE_GUIDELINES.md)
-(what an author declares; the same texts are published in nordseele/octalab `docs/`). Nothing of it is implemented on 27 Sep 2026;
-the manifest API below is the proposal's illustration, not
-`tools/remix/schema.py`.
+The design is [`docs/proposals/BRAIN.md`](../proposals/BRAIN.md) (6 Oct
+2026): settings, defaults and templates in one registry, resolved through
+four layers (manifest, remix, card, project), kept in a `.work` / `.strd`
+pair at the card root and one in the project. The BRAIN module
+(`modules/brain`) reads the card layer of settings and shows them in
+PROJ, BRAIN, SETTINGS (10 Oct 2026; its own two settings are MIDI LOG and
+DEFAULTS, `modules/brain/README.md`). The project layer and the CS1 block
+are not built. It starts from nordseele's OTX proposal
+([`OTX_PROJECT_PROPOSAL.md`](../proposals/OTX_PROJECT_PROPOSAL.md),
+[`OTX_MODULE_GUIDELINES.md`](../proposals/OTX_MODULE_GUIDELINES.md)), and
+its section 14 lists what is taken from OTX and what differs.
 
-What it fixes: `<set>/<project>/otx.work` (working) and `otx.strd`
-(written by SAVE PROJECT, read by RELOAD) hold every module's record in
-one file, `OTX1` magic, big-endian, records of typed TLVs, CRC-32 over
-the file and each payload. A firmware without a module skips that
-module's record on load and writes it back byte for byte on save; a
-newer minor's unknown keys get the same. An optional card-root UNIT file
-takes card-wide settings (USB AUDIO's profile is the first). One
-generated MAIN MENU root category (working label MODULES, name open)
-lists a GENERAL module and the modules in the image. Writes run from the
-storage task, coalesced ~2 s after the last edit, deferred while a
-recorder, CAPTURE or tape capture writes; `open("w")`, write, close, as
-stock's `project.work`.
-
-What a module declares (the proposal's syntax):
+What a module declares (BRAIN.md section 4): a `Store` with a stable
+namespaced id; per setting a numeric `key` never reused, a kind (`Binary`,
+`Option` with append-only labels, `Number`, `Trigger`, `Blob`), a default,
+a scope (`CARD` or `PROJECT`) and an apply policy (`LIVE`, `CALLBACK`,
+`NEXT_BOOT`, `BUILD`); a `key` on each `Param`, so a stored default or
+template survives a renamed or moved knob. A remix pins or re-defaults a
+value in its `remix.py`. A module builds and runs without the core: a
+setting then resolves at build.
 
 ```python
-store=Store(id="org.octalab.usbaudio", scope=Scope.UNIT),
-settings=(
-    Setting(key=1, name="USB AUDIO", group="audio", values=("OFF", "LIGHT", "FULL"),
-            default=0, apply=Apply.NEXT_CONNECT),
-),
+from remix.schema import Apply, Option, Scope, Setting, Store
+
+MODULE = Module(...,
+    store=Store("octabam.<module directory>"),
+    settings=(Setting(1, "IN", Option("OFF", "AB", "CD", "ABCD"),
+                      scope=Scope.CARD, apply=Apply.NEXT_BOOT),),
+)
 ```
 
-- a stable namespaced module `id` (the build refuses a duplicate; a menu
-  label may change, the id may not);
-- per setting a numeric `key` never reused for another meaning, a type
-  (`Binary` 0/1, `Option` an append-only index, `Number` signed 16-bit
-  with min/max/step/unit, `Trigger` never saved, `Blob` with a declared
-  byte maximum and its own editor), a default, a `scope` (PROJECT or
-  UNIT), an apply policy (`LIVE`, `CALLBACK`, `NEXT_CONNECT`,
-  `NEXT_BOOT`), optionally a group id for the menu;
-- idempotent callbacks: after every load the core hands each one the
-  validated value or the default, and again after an edit; no card I/O
-  from an audio interrupt; never another module's record;
-- a compatibility test: with the module removed from the image, editing
-  another module's setting and saving leaves this module's record byte
-  for byte.
+A ColdFire module reads a setting at run time through a gas macro that
+`remix.brain.read_macro(remix, mods, store_id, name, macro)` returns; the
+manifest puts it in the unit's `include`:
 
-What a module does not do: invent a settings file, a save hook or a menu
-root of its own for these values (`MAINMENU.md` section 5: two modules that both
-grow one submenu cannot coexist). Its personal-material files stay its
-own.
+```python
+def settings_inc(remix, mods):
+    return brain.read_macro(remix, mods, "octabam.<module directory>", "IN", "get_in")
+```
 
-Open on 27 Sep 2026 (the proposal's section 5): the UNIT filename and recovery
-policy, size ceilings, the menu's name and row structure, whether the
-stock project-copy commands carry the pair, boot ordering for UNIT
-before USB enumeration, write latency under CAPTURE.
+and the source writes `get_in %d0`. With BRAIN in the remix and the value
+neither pinned nor `Apply.BUILD`, that assembles to one absolute load from
+BRAIN's value table (`move.l brain_v_<store>_<key>,%d0`; the unit links
+against BRAIN's global); otherwise it assembles to `move.l #<value>,%d0`
+with the resolved value. The same source builds with and without BRAIN.
+`brain.live_table(remix, mods)` lists the settings the table holds: Binary,
+Option and Number settings, one long each. Blob and Trigger settings have
+no row yet, and `Apply.CALLBACK` has no callback field yet (it reads as
+`LIVE`).
+
+A setting declared `apply=Apply.BUILD` chooses code: the module's
+`variant(values)` returns the fields that differ (`linked`, `dsp`,
+`detours`, `claims`, `gates`, ...), given `{setting name: value}` with an
+Option as its label, and the build binds each selected module once per
+remix (`registry.bound`), so every reader of those fields sees the chosen
+code. An `include` callable reads the values from the bound module's
+`build_values`. `modules/usb-audio-out/manifest.py` is the worked example:
+one source, five layouts.
+
+Then `python3 tools/remix/brain.py lock <module>` writes
+`modules/<module>/brain.lock`, committed with the manifest; `make
+verify-shared` refuses a stale lock and a change that breaks a released key
+(a removed key not retired, a changed type, a moved or removed label).
+`python3 tools/remix/brain.py resolve <remix>` prints every setting's value
+and the layer it came from.
+
+Until the store exists a module does not invent a settings file, a save
+hook or a menu root of its own for these values (`MAINMENU.md` section 5:
+two modules that both grow one submenu cannot coexist). Its
+personal-material files stay its own.
 
 ## Declaring a ROM cave: `CavePatch`
 
@@ -843,7 +861,7 @@ work. The hook span is `len(hook_stock)`: the six-byte `jsr` followed by
 nops to the end of the displaced instructions, so `hook_stock` must be
 whole instructions, at least six bytes and even. A pc-relative instruction
 in `hook_stock` can be replaced (the cave does the work itself) but not
-replayed at the cave's address; `TEMPOCAVE=replay` refuses such a cave.
+replayed at the cave's address.
 
 A cave can register itself as another module's display formatter with
 `registers_formatter=FormatterReg(module=..., slot=...)`; naming the target

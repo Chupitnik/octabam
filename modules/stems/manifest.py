@@ -97,6 +97,7 @@ MODULE = Module(
                       refs=((ROOT_DESC + 0x18, ROOT_ROWS),)),),
     pokes=(Poke(ROOT_DESC, expect=(ROOT_N).to_bytes(4, "big"),
                 write=(ROOT_N + 1).to_bytes(4, "big"), note="MAIN MENU categories 4 -> 5 (STEMS)"),),
+    requires=("MEMORY",),
     dram_regions=(DramRegion("stems_ring", 0x800000),
                   DramRegion("stems_stack", 0x2000),
                   DramRegion("stems_buf", 14 * 512, align=512),),

@@ -34,8 +34,10 @@ the build refuses on drift. Never "port" by
 rewriting; run their build against the shared stock image first.
 
 **If you change the BUILD rather than a module, prove it changed nothing:**
-`scripts/refhash.sh save` on a tree you trust, then `scripts/refhash.sh check`
-— 24 configurations, artifacts and build reports, bit-identical. Every step
+`scripts/refhash.sh check` — 24 configurations, artifacts and build reports,
+bit-identical against the baseline of your branch's merge-base with
+origin/main (`tools/verify/refhash_store.py` saves it once per merge-base for
+every worktree; `REFHASH_LOCAL=1` compares against a `save` of this tree). Every step
 of the DRAM platform landed under that gate. (Since 10 Sep 2026 the report
 prints tool paths; a path change is a report change and needs a re-save
 after the artifacts are shown identical.)
@@ -60,14 +62,10 @@ the floor; `docs/contributing/TESTING.md` says what each gate proves and what
 none of them can see.
 
 **Before opening a PR, and again before merging one:** rebase onto
-`origin/main` and run every gate in `CONTRIBUTING.md` "Before you open a
-PR" on the rebased tree (`make reach` lists them from the diff; `RUN=1`
-runs them, quick by default; `FULL=1` only when someone chooses it); list
-each command and its result in the PR body.
-Gates run before the rebase are not a result. PR #396 was written on
-`4b07c52`; #415 and #437 renamed SEND's and BusDelay's knobs after that,
-the merge was textually clean in `pressure.py`, and its stress fixture
-failed on `SEND has no knob 'SEND'`.
+`origin/main`, then `make reach RUN=1 KEEP=1` on the rebased tree
+(`CONTRIBUTING.md` "Before you open a PR" is the rule and the reason);
+list each command and its result in the PR body. Passes whose image and
+inputs did not move are reported `cached`.
 
 **ALWAYS WORK IN A GIT WORKTREE, never in the main checkout.** Several
 sessions share this repository at once; the main checkout's working tree,
@@ -282,6 +280,18 @@ one-word displaced Y stores (`move a,y:(r3+$1)`), a form with no site in
 either stock payload; the X form has 533. Before using a form, grep it in
 `out/dsp/payload_*.asm` (`tools/build/dsp_disasm_all.py`); no precedent means
 a hardware probe first, or the form everything else uses.
+
+**NO `rep` IN AN EFFECT'S `init` OR `proc`, AND NO DENSE X WORK IN A DMA'S
+8K BLOCK.** Neither stock payload contains a `rep`. A `rep` cannot be
+interrupted, and the host-command handlers that arm the ColdFire's DMA must
+answer at once: JamCones' BBD delay on T1 crackled core B and then silenced
+tracks 1-4 (11 Oct 2026), and Zac's MKI voice tore the read-back and wrote
+ColdFire RAM out of place; `do #n,>l / div x0,a / l:` is bit-identical and
+fixed both. Separately, core work that hammers the memory partition a DMA
+channel uses stalls the DMA (core 0: `X:$0000-$1cf`, `$2000` and `$4000`
+host buffers, `$8000` ESAI): a muted track leaking into MAIN, outputs stuck
+one-sided. The port models neither. `docs/contributing/FAILURE_MODES.md`
+has both entries; `tools/build/norep.py` makes the build refuse a `rep` in any DSP source.
 
 **`SPEC=1` requires `XBUS=1`.** Without it the accumulators stay in core-private
 memory and each half of the tracks can reach only its own core's server — worse
@@ -572,7 +582,14 @@ looking at is NOT enough; the sequencer runs every track of the part. After
 any change to a slot's count, position or meaning: `tools/hw/ot_project.py
 stamp-defaults <project> <remix>` on the card BEFORE play, and say so in the
 flash notes. (Cause inferred from the symptom and a refreshed project
-running clean; not measured.)
+running clean; not measured.) Measured against it under the port (6 Oct
+2026): stock's Part validator `0x40002318` rewrites every FX page byte
+outside its descriptor's `[min, min + count - 1]` to the nearer end during
+the load, in all 16 banks x 8 Parts (`tools/verify/verify_brain.py`, "stock
+clamps"), so a stored byte loaded from the card does not reach play outside
+its count; and with such bytes stamped, the page drawn and the DSPs
+running, the sequencer advanced as on a clean project. What stalled the
+unit is open; the stamp before play stays the rule.
 
 **THE PART THE EMULATED LOAD APPLIES IS NOT THE PART THAT PLAYS.** `ot_emu`'s
 load applies bank 1 part 1; its transport start re-applies the SAVED bank's

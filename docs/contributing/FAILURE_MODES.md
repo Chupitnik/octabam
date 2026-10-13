@@ -11,13 +11,51 @@ pattern-apply check", "Unattended halt in Octakit's Part-refresh wrapper",
 "A bank file written by the unit that the firmware then rejects", "A UAC2
 host stops audio setup", "A track button pressed within about 250 ms of a pattern
 change halts in Octakit's Part-refresh wrapper", "USB MIDI clock moves the
-sequencer and not the tempo", and every entry after the line "Entries from here to the end of the file (5 Oct 2026)".
+sequencer and not the tempo", "A ten-character page-2 label faults the unit", "Eight LOFI2 in SHIFT: the audio cuts out with bursts of digital noise", "Crackle on core B, then tracks 1-4 silent: a `rep` in an effect's proc", "A track output stuck left-only, right-only or silent, or a muted track leaking into MAIN: dense core work in a DMA's memory block", and every entry after the line "Entries from here to the end of the file (5 Oct 2026)".
+
+## Crackle on core B, then tracks 1-4 silent: a `rep` in an effect's proc ✅ measured on two units, fixed in their modules; octabam's 20 sites fixed in code, hardware open
+
+- **Seen:** JamCones' MKII, 11 Oct 2026, a BBD delay draft on T1's FX2 (images BBD01-BBD03): continuous crackle on core B with FILTER or PHASER on T1's FX1, at MIX 0, FDBK 0, with T1 muted and at level 0; STGS changes clicked and after a few all four tracks on core B went silent until a power cycle. The same effect on T5 was clean, and three instances on T2-T4 were clean. A second report, from Zac's MKI (Zac-Kyoti, 12 Oct 2026): a per-sample `rep #21` in a DSP voice tore the read-back (each sample's halves from different moments, L/R one word apart) and at worst wrote ColdFire RAM out of place (a garbage project name, "never saved", "set not mounted"; a power cycle restored them), on both cores.
+- **Cause (measured by bisect, BBD02):** a DIAG selector ran parts of the proc: the per-call control code with its `rep #$18` / `div x0,a` divides crackled; a `nop` burn of the sample loop's cycle count and the sample loop without the divides did not. Cycle count and memory traffic are not the cause. **Mechanism (inferred):** `rep` is not interruptible (56300 FM section 2.3.2); payload B's host-command vectors (`P:0x10`, `P:0x12`) arm DMA channels 0 and 1 for the ColdFire's transfers and must answer at once, and T1 is the first track core B runs after its frame handshake. Interrupt timing was not observed; the port has no host-port timing and reproduces neither report.
+- **Fix:** each `rep` became `do #n,>label / div x0,a / label:`, bit-identical (BBD03 on the unit: FILTER and PHASER on T1's FX1 clean, STGS clean on T1 and T5, tracks 1-4 keep playing; the MKI voice clean). Neither stock payload contains a `rep` or a `div`.
+- **octabam (12 Oct 2026):** the 20 `rep` sites (BusDelay 1, Character 5, Character TXTR 6, Spectrum 4, Modulation 1, TESTGEN 2, Vocoder 1 at init; the first count of 21 was one too many) are `do #n,>norep_<module>_<nn> / <insn> / label:` loops, one program word longer each. `tools/build/norep.py` refuses a `rep` in any DSP source at assembly (`tests/test_norep.py`). Audio is bit-identical (`verify_bus --base`, 34/34, and each module's own gates); `cycle_count.py` per-sample figures are unchanged (the sites are per-call code). Whether BusDelay's `rep` is the cause of "Junk on main R for one frame, from T1 with BusDelay" below, whose fix is an 8,192-NOP pad, is not measured.
+- **Check (open on hardware):** on the unit, each module on T1's FX2 behind FILTER on FX1 with samples playing, then a STGS change on T1; BusDelay with and without its 8,192-NOP pad, checking "Junk on main R" with `tools/harness/burst_census.py` on 10-minute takes.
+
+## A track output stuck left-only, right-only or silent, or a muted track leaking into MAIN: dense core work in a DMA's memory block 🟡 measured on one MKI, not seen in octabam
+
+- **Seen:** Zac's MKI (Zac-Kyoti), 12 Oct 2026, a DSP voice doing dense X work in core 0's `$8000` block, later in its `$2000` block: the ColdFire-core 0 handoff slipped into persistent wrong states until the next disturbance: a track's output left-only, right-only, silent or stereo; a muted track leaking into MAIN on ~29% of frames, mostly every other frame (a recorder take with SRC3 = MAIN); at worst the sequencer stuck on step 1-2 until a power cycle. T5 and T8 were clean until disturbed, T6 and T7 dirty from the start; core 1 never showed it.
+- **Cause (inferred from the manual, bounded on the unit):** when the core and a DMA channel contend for the same internal memory partition the core wins and the DMA waits (56300 FM section 10.3.2). The partitions measured on that unit are 8K words (`$0000`, `$2000`, `$4000`, `$6000`, `$8000`): dense work at `X:$3224` failed, at `X:$6400` and `X:$7b24` was clean. Core 0's DMA: ESAI TX `X:$8000-$80ff` and RX `X:$8100-$833f` (DMA2/3, armed at `P:$3001d`, payload A only); the host ping-pong `X:$2400-$28ff` / `$4400-$48ff`; the records at `X:$000-$1cf`. Y has no DMA on either core.
+- **Fix (theirs):** the 216-word working set moved to `X:$7b24`, inside stock's unreferenced `X:$7a92-$7fff`: clean on every track, both cores, two instances, a 10-minute soak.
+- **Possibly affected in octabam (not measured):** ANALOG BD's DSP voice, tables at `X:$2840-$30ff` and voice blocks at `$3100-$31ff`, in the `$2000` block. Check: the voice on T5-T8 with the track muted, listening to the master or recording MAIN with SRC3 = MAIN; sweep a knob through a heavy mode and back.
+
+## Eight LOFI2 in SHIFT: the audio cuts out with bursts of digital noise ✅ measured, limit documented
+
+- **Seen:** Bryan T's MKII, image 99 (`_bt_oct`, his own remix), 11 Oct 2026: LOFI2 in SHIFT UP on T1-T7 played cleanly; switching T8's to SHIFT as well cut the audio out, with occasional bursts of digital noise. No exception screen. Seven in RING (T1-T7) were clean too. What FX1 held on those tracks was not recorded.
+- **Cause (inferred):** core 0 out of cycles. T1-T7 put four SHIFT instances on core 1 and three on core 0; T8 makes four on core 0, which also does the mixing. `cycle_count.py` prices SHIFT at 654 cycles/sample, which brackets the chip's figure near 900-1,000 if this is the limit (Modwerk measured its own effects at 1.4-1.7x their emulator counts); not measured on the chip.
+- **Fix:** none in the code; the limit is in `modules/lofi2/README.md` ("Cost, and how many fit"): SHIFT up to four on T1-T4 and three on T5-T8.
+
+## A ten-character page-2 label faults the unit when its knob turns: EXCEPTION VEC:04 ADDR 4E007890 ✅ measured, fixed
+
+- **Seen:** Bryan T's MKII, September 2026 (reported 13 Sep), LOFI2 with its MODE select labelled `RING` / `SHIFT UP` / `SHIFT DOWN` (`Formatter.STEPPED`): turning MODE threw `EXCEPTION VEC:04 ADDR:4E007890`, an illegal instruction at an address outside the OS's `0x400xxxxx` range.
+- **Cause (inferred):** the label overran the buffer the firmware passes to the display formatter (`void fmt(char *buf, int value)`, `docs/firmware/PARAM_PAGES.md` section 7), whose length is not measured; the copy is not located. Same family as the `abbr` overrun (`AGENTS.md`).
+- **Fix:** labels `RING` / `DOWN` / `UP`; ran on the unit through images 96-99 (October 2026). Five-character labels run on hardware (BusDelay `CLEAN` / `GRAIN` / `REVRS`, BusVerb `PLATE`, TEMPO SYNC `1/16T`); six to nine are unmeasured. The schema does not bound label length.
 
 ## USB MIDI clock moves the sequencer and not the tempo: time stretch, LFOs and FX ignore it ✅ fixed (#633), confirmed on Kazeko's MKI
 
 - **Seen:** reported on Discord, 6 Oct 2026, a remix carrying USB MIDI: USB clock reaches the sequencer, not time stretch, LFOs or FX; DIN clock drives all of them.
 - **Cause:** the tempo (`0x80001818`) is built by the clock handler `0x40005a48` from the DTCN0 interval the UART0 ISR stores for each `0xF8` (`0x4001070a`); the USB decoder enqueued the byte without it, so the tempo stayed at the project's (no DIN clock since power-on) or at the last DIN clock's. Measured under the port (`modules/usb-midi/README.md` "Clock"); that time stretch, LFOs and FX read `0x80001818` is inferred.
 - **Fix:** `usbmidi_rx_decode` timestamps each `0xF8` as the ISR does; `verify_usbmidi_clock` (#633). Kazeko's MKI, 6 Oct 2026: reported working on a build carrying #633 (build number and which of time stretch, LFOs and FX were checked not recorded).
+
+
+## Image A7 (bottleservice + BRAIN) halts on every power-on: EXCEPTION VEC:04 ADDR:400D7790 ✅ fixed (B0)
+
+- **Seen:** Sam's MKII, image A7 (`remixes/test/brain`, branch `store-phase0` at `9b6b6fc2`, sha256 `80512da84fd50194…`), 7 Oct 2026: `EXCEPTION SSP:4 VEC:04 FS:0 SR:2504 ADDR:400D7790` on every power-on, with nothing pressed, over project Bottleservice26 (its track page drawn behind the dialog). No LOG line was written; no project file on the card changed.
+- **What the numbers point at:** VEC 4 is an illegal instruction; `0x400D7790` is 16 bytes into TEMPO SYNC's tempo cave (`0x400d7780`, hooked into the per-frame voice-record writer at `0x40004d40`), where the built image holds `movel %d0,%sp@-`; SR `0x2504` is interrupt level 5. So the bytes there changed on the unit, or the PC got there another way.
+- **Not reproduced under the port** (7 Oct 2026, the same image on Bottleservice26 from the morning's card backup, no samples): LOAD PROJECT, DSPs, 600 frames; and a power-up from captured CS1 with no LOAD PROJECT post, 600 frames. BRAIN's writes do not reach the cave: MODE DEFAULTS' view table (`0x400d765e`) ends at `0x400d76f7`; descriptor writes land on the clone descriptors.
+- **Cause:** BRAIN's `snapped` flag, which gates its first snapshot, was in `.bss`. The platform leaves a unit's `.bss` as the boot left it (`tools/remix/platform_build.py`: "the unit initialises it"; the depack stage sits inside it), so on the unit it starts nonzero: the snapshot is skipped, and the restore writes through uninitialised `desc[][]` pointers and an uninitialised `table_len` starting at MODE DEFAULTS' table (`0x400d765e`), which reaches RIG HOSTS' cave and the tempo cave (`0x400d7790` is `0x132` bytes on). The port and `dsp_host` boot zeroed RAM, which is why neither showed it.
+- **Fix:** image B0 (`modules/brain`: `snapped`, `table_len` and the counters in `.data`; `verify_brain` checks the four symbols are `.data`), sha256 `ca9c50c373c3c6f7…`: boots and loads Bottleservice26 on the same unit and card, 7 Oct 2026 (with A8 booting and A7 halting, the change between A7 and B0 is the measured cause).
+- **A8 boots (measured, 7 Oct 2026):** image A8, bottleservice from the same tree with no BRAIN, flashed over MIDI, boots and loads on the same unit and card. So the halt comes from BRAIN.
+- **To find out:** image A8 (bottleservice from the same tree, no BRAIN, sha256 `40aa4ca3fb40c9fd…`) and A9 (`brain` built with `BRAIN_DIAG=noload`: BRAIN's two load-path hooks out, sha256 `8fd683abd9a36dde…`), both on the card: A8 halting rules BRAIN out; A8 clean and A9 halting points at BRAIN's presence (its runtime or the engine job switch at `0x4008485e`); both clean points at its work at load.
 
 ## STOP, a pattern switch while stopped, PLAY halts in Octakit's pattern-event retry bridge, D0 = CORRUPT (image A5, bottleservice) ✅ closed by removal (6 Oct 2026)
 
@@ -65,6 +103,31 @@ sequencer and not the tempo", and every entry after the line "Entries from here 
 - **Seen:** Sam's MKII, image 99 (bottleservice with USB AUDIO IN CD + USB CROSSBAR, a computer on USB), 4 Oct 2026 12:42:14: `PROJECT 261004p/bank01.work` written with `project.work`, `markers.work` and `p2lk01.work` in the same second (a project change or SYNC, not SAVE: no `.strd`). Checksum 0x7188 stored, 0x4e8c computed; with the checksum repaired the firmware still rejects it (−51). Content: from 0x2c000 to 0x30000 every byte is 64 earlier than in a good bank, and the last 64 bytes of that span are the card's MBR code (`33 c0 8e d0 bc 00 7c fb 50 07 50 1f …`). Three other saves that day (09:40, 12:45, 14:13) are intact.
 - **Cause:** inferred: a 16 KiB ATA write lost one 64-byte burst at its head and took a 64-byte block from another buffer (sector 0, read at mount) at its tail — a DMA/bus-arbitration fault, not a serialiser error. USB CROSSBAR raises the USB host's crossbar priority on SDRAM; it is the one module in the image that changes bus arbitration under card DMA. Not reproduced under the port (a project SAVE with PLOCKS P2 writes every bank intact; the port has no bus timing).
 - **Fix:** USB CROSSBAR and USB AUDIO IN CD removed from bottleservice (image 100). To find out: whether a bank written on image 100 ever fails again; the bad file is at `~/octa/backups/card_20261004_strand/`.
+
+## OS SWITCH: "SOME ERRORS OCCURED DURING CARD SYNC. 'INVALID STATE'" on a boot picker YES ✅ measured, fixed; closed by removal (8 Oct 2026: REMIX SWITCH has no boot picker)
+
+- **Seen:** BSRET8BP, 30 Sep 2026: power-on, the boot picker, YES -> SYNCING PROJECT, then that message; the switch went through.
+- **Cause (measured):** the YES path reused the pane's OS UPGRADE stop sequence, whose `0x40022cd4(1)` posts SYNC TO CARD; at the boot picker nothing is loaded (the files job is held).
+- **Fix:** a boot-picker YES skips the sync (the next image boots from the same SRAM); the pane's YES keeps it. BSRET9BP on the unit: no message. **Check:** `verify_remixswitch` (both paths).
+
+## OS SWITCH: the boot picker never opens on the unit ✅ measured, fixed; closed by removal (8 Oct 2026: REMIX SWITCH has no boot picker)
+
+- **Seen:** BSRET6BP, 30 Sep 2026: power-on went straight to the project; BOOT TRACE sent notes 1 and 12 and no 26 -- the hook was never called.
+- **Cause (measured):** the hook was the boot's LOAD PROJECT post (`0x4002574c`). A unit whose battery SRAM knows the card (id at `0x100f8584`, compared by `0x4004abcc`) never posts it: the project stays in SRAM and only the last set is mounted, which posts LOADING FILES (`0x4002573e`). The port boots SRAM zeroed, so every port boot took the reload path.
+- **Fix:** whichever of the two posts comes first opens the picker; the other is held and replayed in stock's order. BSRET7BP on the unit: it opens. **Check:** `verify_remixswitch` boot case from a dumped SRAM.
+- **Lesson:** power-on behaviour is measured from SRAM a boot has left (`ot_emu --preload 0x10000000=sram.bin`), not from zeroed RAM.
+
+## REMIX SWITCH (OS SWITCH at the time): VEC:04 at PC 0x2007E788 on a file load after a switch 🟡 cause inferred, fixed
+
+- **Seen:** BSRET3OS, 29 Sep 2026, once: a switch to itself, a power-cycle, a file load -> `VEC:04 ADDR:2007E788`.
+- **Cause (🟡):** MAIN MENU's rescan listed the card through the stock dir scan (`0x4007f598`), whose one global name pool (`0x460e76ac`) and cache the project, set and sample browsers keep pointing into.
+- **Fix:** the rescan saves the pool and cache, lists into its own table and restores both. BSRET3OS2 ran the sequence clean. **Check:** `verify_remixswitch` (the cache as found after the menu).
+
+## REMIX SWITCH (OS SWITCH at the time): the unit hangs on the logo after a switch, keys dimmer than at power-on ✅ measured, fixed (build 14, on the unit)
+
+- **Seen:** builds 1-13, 29 Sep 2026: after the switch's reset the logo stays; builds 11-12 got to the UI and hung on play.
+- **Cause (measured with BOOT TRACE):** the soft reset restarts the ColdFire, not the DSP. (1) The next OS's upload assumes the cores in their boot ROM; they ran the old payload on. (2) Two stale words sat in core 0's host-side receive register. (3) The payload's start sets HPCR bit 7, in which the ColdFire read every record echo as `0x010101`; the record sender abandons the upload silently.
+- **Fix:** before the reset each core is sent a host command into a park (`modules/remix-switch/dsp_park.asm`, in stock's dead vectors): DMA and ESAI stopped, HPCR bit 7 cleared, a boot-ROM-style loader; the ColdFire drains each receive register. Build 14 on the unit: uploads complete, audio and play work.
 
 ## STEM REC: RING FULL ends a 24-bit take on a busy project ✅ eight tracks fixed (zero copy, flash G); 🟡 twelve files still fill
 
@@ -450,7 +513,7 @@ Entries from here to the end of the file (5 Oct 2026) were recorded in other doc
 ## Two SET_INTERFACE requests 40 ms apart freeze the unit (USB AUDIO OUT, a DAW changing its buffer size) 🔴 open
 
 - **Seen:** erreye's MK1, 7 Oct 2026, `felipe` remix (USB AUDIO OUT TRACKS POST, `AUD_TARGET` 256 locally), macOS and Ableton Live with the unit as the open input. A buffer-size change in Live: CoreAudio stops IO (20:11:18.653), SET_INTERFACE(4, alt 1) (.747), `Initialize failed` and SET_INTERFACE(4, alt 0) (.786); 6 s later `Unable to select alternate setting`, `0xe00002d6` (timeout): the alt 0 status stage never completed. Then every EP0 request timed out (5 s each), EP 0x82 (USB MIDI) took transaction errors and the device dropped. Frozen until a power cycle; the screen was not recorded. Also while building an aggregate device: 12 failed starts in about a second, and a freeze at 20:08:06 right after a reopen.
-- **Cause:** open. Not reproduced under the port (`usb_host` bench, `--frame`): 24 rounds of alt 1, then 0–160 polls on EP3, alt 0 and GET_INTERFACE; the same 18 rounds with GET CUR + SET CUR 44100 before alt 1, and with SET CUR 48000 (STALL) mid-stream. All clean, alt reads 0. 🟡 erreye's candidate: alt 0 in `audio_setiface_shim` runs `audio_ep3_flush` inside the USB interrupt, and the port's flush completes at once (`modules/usb-audio-out-tracks-main-cue/README.md`, "Bus reset and session end"), so that path is unmeasured on a unit.
+- **Cause:** open. Not reproduced under the port (`usb_host` bench, `--frame`): 24 rounds of alt 1, then 0–160 polls on EP3, alt 0 and GET_INTERFACE; the same 18 rounds with GET CUR + SET CUR 44100 before alt 1, and with SET CUR 48000 (STALL) mid-stream. All clean, alt reads 0. 🟡 erreye's candidate: alt 0 in `audio_setiface_shim` runs `audio_ep3_flush` inside the USB interrupt, and the port's flush completes at once (`modules/usb-audio-out/README.md`, "Bus reset and session end"), so that path is unmeasured on a unit.
 - **Fix:** none. Workaround: don't change the DAW's buffer size or sample rate while the unit is its open input. To find out: the same on stock upstream test images (`AUD_TARGET` 64, without POST); a diagnostic build on erreye's unit (offered) around the alt 0 flush; whether the port's bench can hold the flush pending.
 
 ## A marginal USB cable freezes the unit in DISK MODE ✅ measured (the cable)
@@ -458,3 +521,9 @@ Entries from here to the end of the file (5 Oct 2026) were recorded in other doc
 - **Seen:** erreye's MK1, 7 Oct 2026, a generic 3 m USB A-B cable straight into a Mac: entering DISK MODE, the first MSC bulk IN (EP 0x81) fails with a transaction error, then babble errors and 0 bytes; macOS resets the device about every 0.4 s; then every EP0 request times out and the unit is frozen. The same on OCTABAM3 (no USB CROSSBAR), OCTABAM4 and a BCR-only build.
 - **Cause:** the cable. A generic 2 m cable mounts DISK MODE (32 GB FAT32) with 0 errors on OCTABAM3 and OCTABAM4. 🟡 The MK1 (or this unit) is at the edge of the signal budget.
 - **Fix:** a shorter or better cable, straight into the computer. Try one before treating a USB freeze as a firmware hang.
+
+## An LFO design on tracks 2–8 changes after a MIDI scene lock or a page-2 scene lock (MIDI SCENES, SCENES P2) ✅ measured under the port; SCENES P2 fixed, MIDI SCENES 🔴 open
+
+- **Seen:** not reported on a unit. Found 10 Oct 2026 while checking whether PLOCKS P2 and MIDI SCENES can share a remix (radiohagen, Discord, 9 Oct 2026).
+- **Cause:** both modules store their data at Part `+0x1712..+0x1832`, which stock uses for the LFO designer records of audio tracks 2–8 and MIDI tracks 2–8 (`docs/firmware/PARTS.md` section 9, measured under the port). MIDI SCENES writes its sparse blob (`+0x17a2`) once a Part holds MIDI scene locks and its freeze twin (`+0x1712`) on Part Save; SCENES P2 wrote its pool (`+0x17a2`) from the first page-2 scene lock. A track whose LFO WAVE is a designed shape (12–18 for T2–T8) then plays the module's bytes as its shape; the module reads a design the editor wrote as its own data.
+- **Fix:** SCENES P2 keeps its locks in bytes 30 and 31 of the stock scene block since 10 Oct 2026 (`verify_scenesp2`); the old pool's bytes stay as the last image wrote them. MIDI SCENES: open; its storage is its author's. To find out: on a unit, a designed LFO on T2 before and after a MIDI scene lock and a Part Save.

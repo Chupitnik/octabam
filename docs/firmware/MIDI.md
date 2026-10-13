@@ -30,7 +30,7 @@ Page 2 is unreachable from stock CC: `cc−16 < 30` and the writer derives
 **The generic writer `FUN_40054cd8(track, flat, value)`** ✅ resolves the
 descriptor via `FUN_40031da4(track, flat/6)`, refuses disabled slots,
 clamps to `[min, min+count−1]` from `P+0x6a/P+0x9a`, stores to the Part
-(`+0x8ee9a + track·24 + flat−6` for AMP/LFO/FX1/FX2), a shadow, and the
+(`+0x8ee9a + track·24 + flat−6` for LFO/AMP/FX1/FX2; ❌ was "AMP/LFO", see `MAINMENU.md` section 7), a shadow, and the
 live byte `0x80000810[track·72 + flat]`; the frame builder `0x4000c0f0`
 copies those `<<8` into the DSP frame every frame (why knobs sit at bits
 16-23). The UI knob path is a near-copy, `FUN_40055008(slot, delta)`.
@@ -584,7 +584,7 @@ at `0x4000ce60..0x4000ced4`). Frame halfwords are `knob<<8 | companion`
 | 12..17 | voice record `0x80000110+ping·0x200+track·0x40`, hw 0..5 | AMP p1: PMTR 12–17 write there (✅ objdump, `LFO.md` section 5) |
 | 18..23 | voice record hw 6..11 | FX1 page 1 (`r6+0..5`) ✅ |
 | 24..29 | voice record hw 12..17 | **FX2 page 1 (`r6+0..5`)** ✅ |
-| 30..31 | — | **skipped**: `addql #4,%a2` at `0x4000cef6` |
+| 30..31 | — | **skipped**: `addql #4,%a2` at `0x4000cef6`; SCENES P2 keeps its page-2 locks here (`modules/scenes-p2/README.md`) |
 
 **Not-locked sentinel: any negative byte (bit 7 set, i.e. `0xFF`)** — every
 reader tests with `blt`/`bge` after a sign-extending load (`mvsb`). A lock is
