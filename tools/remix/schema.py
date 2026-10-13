@@ -1016,6 +1016,11 @@ class Harness:
     # fall back to the firmware's own NONE rather than to SEND. See
     # NO_FALLBACK below.
     bus_client: bool = False
+    # Reads the bus scratch without writing it or registering (CHARACTER's
+    # KEY = T1 reads the delay host's level): the build relocates its `$9xx`
+    # literals as for a client, but `on_the_bus` does not count it, so a
+    # remix of readers alone may use fallback NONE.
+    bus_reader: bool = False
     # THE STATE BLOCK A LOCAL RENDER RUNS THE MODULE AT: dsp_host's -r7
     # index n (X:0x6000 + 0x100 n; R7_ALLOC gives its allocator entry).
     # None = the default, FX2 position 0 (n = 2), or FX1 (n = 1) for an

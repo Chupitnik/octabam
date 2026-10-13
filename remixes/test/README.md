@@ -14,6 +14,7 @@ Each carries one module, or one combination, for that module's gates: `make chec
 | [`cfmeter-post`](cfmeter-post/README.md) | octatrick (less TUNER and USB AUDIO IN) + CF METER on T8's FX2, with USB AUDIO OUT TRACKS POST in place of TRACKS MAIN CUE: the layout's ColdFire cost, over USB. | port-gated: the readout chain under the port |
 | [`cfmeter-tracks`](cfmeter-tracks/README.md) | octatrick (less TUNER and USB AUDIO IN) + CF METER on T8's FX2, with USB AUDIO OUT TRACKS in place of TRACKS MAIN CUE: the layout's ColdFire cost, over USB. | port-gated: the readout chain under the port |
 | [`character-txtr`](character-txtr/README.md) | octabam-bus with CHARACTER TXTR (Character + Airwindows Pockey2 texture) on FX1 in place of CHARACTER: the image for measuring the texture stage's cost on a unit. | `make check` |
+| [`clouds-verb`](clouds-verb/README.md) | CLOUDS VERB alone: the fixture of its render gate. | local render: `verify_cloudsverb`; not flashed |
 | [`direct-jump-kyoti`](direct-jump-kyoti/README.md) | stock effects with DIRECT_JUMP_KYOTI: [PTN] + [YES] toggles an immediate, clock-locked pattern change. | `make check` |
 | [`erase-empty-trigless-locks`](erase-empty-trigless-locks/README.md) | stock effects with ERASE_EMPTY_TRIGLESS_LOCKS: an emptied trigless lock disappears. | `make check` |
 | [`euclid`](euclid/README.md) | Euclid rhythmic modulation: 12 dB LP/BP/HP or AMP, both FX slots. | local render: the module's render gates |
@@ -40,6 +41,7 @@ Each carries one module, or one combination, for that module's gates: `make chec
 | [`scenes-midisc`](scenes-midisc/README.md) | MIDI SCENES + KITS + page-2 scene locks (SCENES P2) + page-2 parameter locks (PLOCKS P2), stock effects. | port-gated: verify_scenesp2 and verify_plocksp2 under the port |
 | [`sidechain-compressor`](sidechain-compressor/README.md) | stock effects with SIDECHAIN_COMPRESSOR in COMPRESSOR's row: KEY, KFLT, KGN and MON on page 2. | `make check` |
 | [`sos-capture`](sos-capture/README.md) | recorder fixes + USB MIDI + USB AUDIO OUT TRACKS + USB CROSSBAR + USB AUDIO IN AB (stock effects minus SPATIALIZER). | port-gated: `make check` under the port; not on hardware in this form |
+| [`stations-fx2`](stations-fx2/README.md) | SPECTRUM, CHARACTER and MODULATION on FX1 and FX2, beside the stock DELAY. | port-gated: `verify_stations_fx2` (dsp_host); not on a unit |
 | [`stems`](stems/README.md) | STEM REC on the stock effects: multitrack recording to the card, each track, MAIN, CUE and the inputs as separate WAV files. | on hardware: Yves's MKII, 6 Oct 2026 (STEMS3) |
 | [`tapeecho`](tapeecho/README.md) | Tape Echo replacing Spring Reverb, alone. | on hardware: the author's unit (OCTACLID4): six instances; a seventh freezes it, open |
 | [`testgen`](testgen/README.md) | TESTGEN on FX1 beside the stock effects (all but PLATE REV, whose words it takes). | on hardware: Ignorato's MKII, OCTABAM6, 4 Oct 2026 |
