@@ -226,7 +226,10 @@ card udma 4 mwdma 0, cluster 64 sectors
 - **Card rec and card save** split the card's writes into the take
   (recording) and the rest after STOP (saving), each in ms, KB and µs a
   KB. There is no copy to time: the card reads each file's ring where the
-  hook wrote it (zero copy, STEM_REC.md 20.7).
+  hook wrote it (zero copy, STEM_REC.md 20.7). Each counts its bytes in
+  32 bits, so its KB and µs a KB are wrong past 4 GiB: after about 22
+  minutes with every source at 24 bits, or 34 with eight tracks at 24
+  bits. The files aren't affected.
 - **The fastest write** is a write that nothing interrupted: the card's
   own speed. A mean far below it (1,024 over the µs a KB, in KB/s) spent
   its time waiting for the processor, not for the card.
@@ -242,6 +245,10 @@ timestamps with (7.58 ns a count).
 
 - The choices reset at every boot. Nothing is saved.
 - At most 60 minutes.
+- **T8's row shows the next take, not the one recording.** A take keeps
+  the sources it started with. If MASTER TRACK changes while a take
+  records, T8's row follows it at once (`T8 MASTER`, or T8's own `[X]` or
+  `[ ]`), but the take doesn't.
 - **A track's file is after its fader.** With MASTER TRACK on, T1 to T7's
   files hold each track as it would sit in MAIN through a T8 that passed
   it unchanged, and T8 isn't recorded (MAIN is T8 then), so the files

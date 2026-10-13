@@ -8284,9 +8284,9 @@ most capacity × its frame's bytes + 44 ≤ its ring's size.
 
 ### 20.8 For later
 
-Ideas from the perf round that weren't needed for its goal (eight tracks
-at 24 bits on a busy project), with what each would buy and its size.
-None is measured.
+Ideas from the perf round and from Sam's review of it (#644) that weren't
+needed for its goal (eight tracks at 24 bits on a busy project), with what
+each would buy and its size. None is measured.
 
 | Idea | What it would buy | Size |
 |---|---|---|
@@ -8299,3 +8299,8 @@ None is measured.
 | Pre-shifted gains | The mirror stores `g << 8`, saving one shift a sample in the track loops: 128 instructions a frame at T1–T8 | Small |
 | The stems from the audio processor | Core 0 already computes each track's share of MAIN; reading it back would remove the hook's multiplies | Large: DSP work, both payloads |
 | A CAPTURE-style menu page | A clearer STEMS menu (octalab's page-drawing calls; TUNER is the in-tree precedent) | Medium: menu work, deferred this round |
+| `STATS.TXT`'s byte counts in sectors | The card rec and card save lines stay right past 4 GiB in a phase, about 22 minutes with every source at 24 bits (README, STATS.TXT) | Small: two counters, their readout and `stats_check`'s tolerance |
+| T8's row held while a take records or saves | The row would show the running take's choice when MASTER TRACK changes mid-take, not the next take's (README, Limits) | Small, but in the frame hook (`stems_m8check`): its instruction counts (20.1) are measured again |
+| T8's label stored with interrupts off | `stems_source_action` restores SR before it stores the label; a MASTER TRACK change in those few instructions leaves a stale `T8 [X]` or `T8 [ ]` until the next change. Who writes the MASTER TRACK byte isn't traced | One line moved |
+| A port gate that fills the ring and checks the samples | The hook writing up to the writer's place, checked sample for sample under the port. Today only flash G's take 1858 checks it, on the unit (17.6) | Medium |
+| `RAW_WRITE`'s return value | `stems_zput` tests only its sign, as the writer did before this round; what a positive value means is open (12.1) | Small, once 12.1 is answered |
