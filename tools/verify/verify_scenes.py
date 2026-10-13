@@ -45,9 +45,10 @@ Per scenario, against the oracle (PASS needs all of them):
            names the Kit where the oracle names the Part)
   nopart   the four Part windows of the image equal the stock image's (the
            module writes no Part byte; needs the stock image run; skipped
-           on a remix whose fallback is not NONE: its effect descriptors'
-           defaults are applied to the Part by stock code, measured 13 Oct
-           2026, so the windows differ from stock's without a MIDI SCENES write)
+           on a remix with an effect of ours or a fallback other than NONE:
+           the effect descriptors' defaults are applied to the Part by stock
+           code, measured 13 Oct 2026, so the windows differ from stock's
+           without a MIDI SCENES write)
 
 and against values computed by hand, with no oracle: b1's table holds 40
 at 0x015 and 100 at 0x815 and 0xff elsewhere, the track record holds 100 at
@@ -70,7 +71,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1])); import toolpath  # noqa: E402,F401
-from remix import registry  # noqa: E402
+from remix import registry, schema  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 EMU = ROOT / "out/emu/ot_emu"
@@ -720,6 +721,12 @@ def main():
 
     fails = 0
     kits_remix = registry.remix(a.remix).modules
+    # nopart compares against stock's Part windows, which only holds when the
+    # remix's effect descriptors are stock's: an effect of ours (a fallback
+    # SEND, a station) has its own default knobs, applied to the Part by stock code.
+    stock_effects_only = (registry.remix(a.remix).fallback == "NONE"
+                          and all(m.menu is None or m.kind is schema.Kind.STOCK
+                                  for m in registry.selected(registry.remix(a.remix))))
 
     def check(msg, ok):
         nonlocal fails
@@ -772,7 +779,7 @@ def main():
                 check(f"{t}: screen against {other}: LED rows and levels equal ({rows or 'same'})",
                       not rows and o["screen"][2] == h["screen"][2])
         s = res.get("stock", {}).get(t)
-        if s and s["parts"] is not None and registry.remix(a.remix).fallback == "NONE":
+        if s and s["parts"] is not None and stock_effects_only:
             check(f"{t}: nopart: the Part windows equal stock's", o["parts"] == s["parts"])
     if not a.card and a.project:
         seq_group(a, images, out, bank, check)
