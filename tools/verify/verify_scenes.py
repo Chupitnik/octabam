@@ -210,8 +210,9 @@ SEQ_PARTS = {0: [(0x0015, 30), (0x0815, 90)], 1: [(0x0015, 50), (0x0815, 110)]}
 
 
 def seq_fixture(src, dst, bank, trigs=False):
-    """`trigs`: the current bank is the project's bank 2, whose pattern 1 holds MIDI trigs on T1 and T2."""
-    if trigs:
+    """`trigs`: the current bank is the project's bank 2, whose pattern 1 holds MIDI trigs on T1 and T2
+    ("notes": the plain project, a T1 trig on step 5 of pattern 1 and on step 1 of pattern 2)."""
+    if trigs in ("trigs", "trigs2"):
         tmp = dst.parent / "trigsrc"
         if tmp.exists():
             shutil.rmtree(tmp)
@@ -221,9 +222,13 @@ def seq_fixture(src, dst, bank, trigs=False):
     fixture(src, dst)
     bf = dst / f"bank{bank + 1:02d}.work"
     dat = bytearray(bf.read_bytes())
-    for part, ents in (SEQ_PARTS if not trigs else {p: TRIG_LOCKS for p in range(4)}).items():
+    for part, ents in (SEQ_PARTS if trigs != "trigs" else {p: TRIG_LOCKS for p in range(4)}).items():
         o = FILE_PART + part * FILE_PSTRIDE + 9 + 0x17a2
         dat[o:o + len(blob(ents))] = blob(ents)
+    if trigs == "notes":                           # T1: pattern 1 a trig on step 5, pattern 2 (Part 2) on step 1
+        for pat, step in ((0, 5), (1, 1)):
+            m = 0x16 + pat * 0x8eec + 0x4918 + 9
+            dat[m:m + 8] = (1 << (step - 1)).to_bytes(8, "big")
     dat[-2:] = (sum(dat[0x10:-2]) & 0xffff).to_bytes(2, "big")
     bf.write_bytes(bytes(dat))
 
@@ -252,10 +257,20 @@ def tg2(s):
 
 tg2.pokes = tg.pokes
 tg2.fixture = "trigs"
-SEQ = dict(sw=sw, tg=tg, tg2=tg2)
+def swn(s):
+    """T1 plays a note on step 5 of pattern 1 and on step 1 of pattern 2; XF at the middle on Part 1, play,
+    PTN + TRIG 2: pattern 2 (Part 2) starts when pattern 1 ends. CC 1 is 59 under Part 1's locks and 79
+    under Part 2's: the 79 must be on the wire before pattern 2's first note."""
+    s.tap("no", 400); s.pot(128, 800); s.tap("play", 1500)
+    s.send("key 0x2e down", 100); s.tap(1, 100); s.send("key 0x2e up", 25000)
+
+
+swn.pokes = tg.pokes
+swn.fixture = "notes"
+SEQ = dict(sw=sw, tg=tg, tg2=tg2, swn=swn)
 # CC 1 on the wire: the mix of Part 1 at XF 128 ((30 * 64 + 90 * 63) / 127 = 59), then of Part 2
 # ((50 * 64 + 110 * 63) / 127 = 79) when the pattern switch lands.
-SEQ_WIRE = dict(sw=[59, 79], tg=None, tg2=None)
+SEQ_WIRE = dict(sw=[59, 79], tg=None, tg2=None, swn=None)
 
 
 def decode(raw, st=0):
@@ -569,7 +584,7 @@ def persist(card, out, bank, lib, check, kimg=None, syms=None):
 
 def seq_group(a, images, out, bank, check):
     """Phase 3: scenarios on the playing sequencer, MIDI out compared with the oracle's."""
-    for fx in ("", "trigs"):
+    for fx in ("", "trigs", "notes"):
         tags = [t for t in SEQ if getattr(SEQ[t], "fixture", "") == fx and (not a.only or t in a.only.split(","))]
         if tags:
             seq_run(a, images, out, bank, check, fx, tags)
@@ -577,7 +592,7 @@ def seq_group(a, images, out, bank, check):
 
 def seq_run(a, images, out, bank, check, fx, tags):
     sd = out / ("seq" + fx); sd.mkdir(exist_ok=True)
-    seq_fixture(pathlib.Path(a.project).expanduser(), sd / "project", bank, trigs=bool(fx))
+    seq_fixture(pathlib.Path(a.project).expanduser(), sd / "project", bank, trigs=fx)
     card = sd / "card.img"
     r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(sd / "project"), "OCTABAM",
                         "SCN", "--tree", str(sd / "tree"), "--out", str(card)], cwd=ROOT, capture_output=True, text=True)
@@ -597,6 +612,19 @@ def seq_run(a, images, out, bank, check, fx, tags):
         if SEQ_WIRE.get(t) is not None:
             cc1 = [int(m.split()[2], 16) for _f, m in o["midi"] if m.startswith("ba 01 ")]
             check(f"seq {t}: CC 1 on the wire {cc1} (predicted {SEQ_WIRE[t]})", cc1 == SEQ_WIRE[t])
+        if t == "swn":
+            on = [f for f, m in o["midi"] if m.startswith("9a ") and not m.endswith(" 00")]
+            f79 = next((f for f, m in o["midi"] if m == "ba 01 4f"), None)
+            period = on[1] - on[0] if len(on) > 1 else 0          # one pass of pattern 1
+            p1, first2 = on[:1], None
+            for f in on[1:]:                                       # pattern 1's step-5 notes are a pass apart;
+                if abs(f - p1[-1] - period) <= period // 16:       # pattern 2's step 1 comes a quarter pass early
+                    p1.append(f)
+                else:
+                    first2 = f
+                    break
+            check(f"seq swn: CC 79 (frame {f79}) is after pattern 1's last note ({p1[-1]}) and before pattern 2's "
+                  f"step-1 note ({first2})", f79 is not None and first2 is not None and p1[-1] < f79 < first2)
         h = res.get("his", {}).get(t)
         if h is None:
             continue

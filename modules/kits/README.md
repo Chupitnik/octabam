@@ -10,7 +10,11 @@ Octatrack in [Octakit](https://github.com/emuyia/ems-octakit) (MIT,
 Copyright (c) 2026 June Kiff). KITS follows its design: Kits per
 project, LOAD KIT and SAVE KIT on PART and FUNC+PART with its key map, the
 list copy, paste, clear and undo, the pattern clipboard carrying the Kit, and the
-`NNN name` status line. It reads Octakit's `kits3a/b.work` files.
+`NNN name` status line, and the pool that keeps a slot's edits when its
+slot is taken. It reads Octakit's `kits3a/b.work` files.
+BUKKAKEBOREALIS ([bkkbrls-del](https://github.com/bkkbrls-del)) found and
+fixed in his OK-MS4.0 build the slot cases the edit pool and the
+unassigned-pattern rule below cover.
 Markers as in `CHIP.md`: ✅ measured, 📖 read from the code.
 
 ## What a Kit is
@@ -124,14 +128,30 @@ which is not what an MD or MnM Kit holds.
   no engine track names it while the transport runs, no queued or
   chained pattern's Part byte names it, and its working Part is byte for
   byte the Kit KITS recorded there (and, with MIDI SCENES, the slot's
-  lock table the Kit's). A slot whose content is in no Kit is never
-  copied over, unless it is the stock default Part (`0x40005638`, what
-  Part Clear writes; every slot of a NEW PROJECT) with no scene lock:
-  until 12 Oct 2026 a NEW PROJECT's patterns all shared slot 1, and a
-  playing switch to another Kit found no free slot and played the Kit
-  already there. With no free slot, or a request with an interrupt
-  level set (the arranger and repeat publish from the tick), the pattern
-  plays what is resident and the request is counted.
+  lock table the Kit's). A slot with no Kit recorded is free when no
+  pattern of the bank names it, or when it holds the stock default Part
+  (`0x40005638`, what Part Clear writes; every slot of a NEW PROJECT)
+  with no scene lock: until 12 Oct 2026 a NEW PROJECT's patterns all
+  shared slot 1, and a playing switch to another Kit found no free slot
+  and played the Kit already there.
+- **The edit pool.** With no free slot, a slot nothing names whose Kit
+  is known (the pattern's own first, else the one used longest ago) has
+  its working Part, edits included, copied into a pool under that Kit
+  (64 entries in RAM; with MIDI SCENES the lock table too), and the Kit
+  is staged there. When the pooled Kit is staged again, the pool's Part
+  becomes the slot's working Part, unsaved; the library Kit changes only
+  on SAVE KIT (Octakit's spill, `runtime/manager.S`). The pool is cleared
+  at a project load and dropped for a Kit that is written, cleared or
+  loaded with LOAD KIT; it is not written to the card. Until 13 Oct 2026
+  a bank whose slots all held edits played the resident Part instead
+  (`verify_kits` editfull, editback).
+- **Unassigned patterns keep their Kit.** A pattern with no Kit plays
+  whatever its slot holds; before a Kit is copied over a slot, every such
+  pattern naming the slot is assigned the Kit the slot held (`verify_kits`
+  noasg).
+- With a full pool, or a request with an interrupt level set (the
+  arranger and repeat publish from the tick), the pattern plays what is
+  resident and the request is counted.
 - **LOAD KIT** writes the Kit into the current Part's saved copy and runs
   the stock Part Reload `0x4004aab4` (working copy, CS1 copy, engine
   apply, machine transitions). **SAVE KIT** runs the stock Part Save

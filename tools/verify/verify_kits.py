@@ -27,6 +27,17 @@ pattern content beyond pattern 1 playing.
             slot takes Kit 0 and the Part byte names it.
   stopped   the same while stopped: applied at once.
   progchg   a program change (bank 3 pattern 2) while playing.
+  editfull  slots 2-4 each edited (a Part byte no Kit holds), pattern 1
+            playing slot 1, PTN+TRIG 2 (Kit 1, Part byte on slot 1):
+            pattern 2 plays Kit 1; the edits are not lost.
+  editback  editfull, then PTN+TRIG 4 (Kit 10, Part byte on slot 2): its
+            slot holds Kit 10 with the edit slot 2 had (from the edit
+            pool), unsaved; the library's Kit 10 unchanged. With MIDI
+            SCENES each edited slot also holds a scene lock (table byte
+            0x015): slot 2's comes back with Kit 10, the other slots' stay.
+  noasg     pattern 3 with no Kit on slot 2 (Kit 10); PTN+TRIG 2 (Kit 1,
+            Part byte on slot 2), then PTN+TRIG 3: pattern 3 still plays
+            Kit 10.
   chain     patterns 2-4 -> Kits 0, 1, 4, all on the playing slot,
             chained: each in its own slot, the chain cycles.
   trackbtn  the chain, and track keys every 25 ms for 3 s across its
@@ -157,9 +168,12 @@ K = dict(no=0x32, yes=0x31, play=0x28, stop=0x27, ptn=0x2e, func=0x2d, part=0x1d
          up=0x33, down=0x20, right=0x21, mixer=0x30, rec=0x29)
 BANK = 2                                  # bank 3: the project's own
 ENG_PART = 0x80001829                     # the engine's current Part: changes when a pattern switch lands
+CUR_PTN = 0x80000004                      # the current pattern: changes when a switch lands on the same Part too
 TEMPO24 = 0x80001814, 0x80000020          # BPM x 24 and its shadow (long); the setter's clamp is 720..7200
 FAST = [(a + i, v) for a in TEMPO24 for i, v in enumerate((0, 0, 5760 >> 8, 5760 & 255))]   # 240 BPM
-NEWKNOB = (5, 11)                         # knob A turns on patterns 2 and 3 of the panel-made project
+LOCK_IDX = 0x015                          # a lock-table index: scene A, track 1, flat 21
+EDIT_OFF, EDIT_VAL = 0x10, 0x30           # a Part byte (track 1's level) set to EDIT_VAL + slot: an edit no Kit holds
+NEWKNOB = (5, 11)                        # knob A turns on patterns 2 and 3 of the panel-made project
 MKI = dict(midi=0x35, bank=0x2f, recab=0x2b)   # held with FUNC on the MKI panel
 MENU = 0x460e5e28                         # the stock list: callbacks, labels, object, &selection
 PSET, TEXTED = 0x460fab34, 0x460e7612     # PATTERN SETTINGS' window, the text editor (nonzero: open)
@@ -432,6 +446,26 @@ def main():
     for p_ in (2, 3, 2, 3):
         s.hold("ptn", p_); s.until(ENG_PART, 1)
     add("swback", s, [(pa(2), 2), (pa(3), 3), (pb(2), 0), (pb(3), 0)], fast=True)
+    # Slots 2-4 each carry an edit no Kit holds (EDIT_OFF), pattern 1 plays
+    # slot 1: pattern 2 (Kit 1, Part byte on slot 1) has no slot it may take.
+    edits = [(b3 + WORK + s_ * PARTSZ + EDIT_OFF, EDIT_VAL + s_) for s_ in (1, 2, 3)]
+    s = Script(); s.tap("no"); s.tap("play", 2000); s.hold("ptn", 1); s.until(CUR_PTN, "01", "eq")
+    add("editfull", s, [(pa(1), 0), (pb(1), 0)] + edits, fast=True)
+    # ... then PTN+TRIG 4 (Kit 10, Part byte on slot 2): the edit slot 2 held
+    # comes back with Kit 10, unsaved; Kit 10 in the library as it was.
+    s = Script(); s.tap("no"); s.tap("play", 2000); s.hold("ptn", 1); s.until(CUR_PTN, "01", "eq")
+    s.hold("ptn", 3); s.until(CUR_PTN, "03", "eq")
+    lockp, lockd = [], ""
+    if "MIDI SCENES" in remix.modules:        # each edited slot also holds a scene lock no Kit has (its lock table, byte 0x015)
+        scn = sym["scn_lib"] + BANK * 4 * 4096
+        lockp = [(scn + s_ * 4096 + LOCK_IDX, EDIT_VAL + s_) for s_ in (1, 2, 3)]
+        lockd = f";{scn:#x},{4 * 4096:#x}=" + str(OUT / "editback_msc.bin")
+    add("editback", s, [(pa(1), 0), (pb(1), 0), (pa(3), BANK * 4 + 1), (pb(3), 1)] + edits + lockp,
+        more_dumps=lockd, fast=True)
+    # Pattern 3 has no Kit and plays slot 2 (Kit 10); pattern 2's Kit 1 lands
+    # in slot 2, its own; then PTN 3.
+    s = Script(); playing_switch(s, 1); s.hold("ptn", 2); s.until(CUR_PTN, "02", "eq")
+    add("noasg", s, [(pa(1), 0), (pb(1), 1), (pa(2), 0xff), (pb(2), 1)], fast=True)
     cpokes = [(pa(1), 0), (pa(2), 1), (pa(3), 4), (pb(1), 0), (pb(2), 0), (pb(3), 0)]
     def chain_cycle(s):                      # patterns 2, 3, 4 each land: three changes of the engine's Part
         for _ in range(3):
@@ -839,6 +873,41 @@ def main():
         check(f"swback: after switching 3, 4, 3, 4 the patterns keep Kits {[a + 1 for a in asg]} (3, 4), "
               f"on slots {[x + 1 for x in sl]} holding them ({held})",
               asg == [2, 3] and all(held) and sl[0] != sl[1])
+    if exists("editfull"):
+        clean("editfull")
+        b, im = b3_("editfull"), img("editfull")
+        sl, ok, _ = plays("editfull", 1, 0)
+        kept = [slot(b, x)[EDIT_OFF] == EDIT_VAL + x for x in (1, 2, 3) if x != sl]
+        check(f"editfull: pattern 2's slot {sl + 1} holds Kit 1 ({ok}); the edits on the other slots kept ({kept})",
+              ok and all(kept))
+    if exists("editback"):
+        clean("editback")
+        b, im = b3_("editback"), img("editback")
+        sl = b[3 * PSTRIDE + PBYTE]
+        got, k = slot(b, sl), kit(im, BANK * 4 + 1)
+        same = got[:EDIT_OFF] + got[EDIT_OFF + 1:] == k[:EDIT_OFF] + k[EDIT_OFF + 1:]
+        unsaved = bool(b[0x95048] >> sl & 1)
+        check(f"editback: pattern 4's slot {sl + 1} is Kit 10 with its edit ({same}, {got[EDIT_OFF]:#x}), "
+              f"unsaved ({unsaved}); the library's Kit 10 unedited ({k[EDIT_OFF]:#x})",
+              same and got[EDIT_OFF] == EDIT_VAL + 1 and unsaved and k[EDIT_OFF] != EDIT_VAL + 1)
+        mf = OUT / "editback_msc.bin"
+        if mf.is_file():
+            tab = mf.read_bytes()
+            kl = im[O_LIB + (BANK * 4 + 1) * REC + REC1:O_LIB + (BANK * 4 + 2) * REC]
+            rest = [x for x in (1, 2, 3) if x not in (sl, 1)]   # slot 2 holds pattern 2's Kit 1 since editfull
+            kept = [tab[x * 4096 + LOCK_IDX] == EDIT_VAL + x for x in rest]
+            check(f"editback: slot {sl + 1}'s lock table is the one slot 2 had ({tab[sl * 4096 + LOCK_IDX]:#x}, "
+                  f"{EDIT_VAL + 1:#x} was set), slot 2 is Kit 1's (no lock, {tab[4096 + LOCK_IDX]:#x}), "
+                  f"slots {[x + 1 for x in rest]} kept theirs ({kept}), the library's Kit 10 has no lock ({kl[LOCK_IDX]:#x})",
+                  tab[sl * 4096 + LOCK_IDX] == EDIT_VAL + 1 and tab[4096 + LOCK_IDX] == 0xff and all(kept)
+                  and kl[LOCK_IDX] == 0xff)
+    if exists("noasg"):
+        clean("noasg")
+        b, im = b3_("noasg"), img("noasg")
+        sl, ok, _ = plays("noasg", 2, BANK * 4 + 1)
+        a3 = im[O_ASSIGN + BANK * 16 + 2]
+        check(f"noasg: pattern 3 (no Kit) still plays what slot 2 held, Kit {BANK * 4 + 2} (slot {sl + 1}: {ok}, "
+              f"ASSIGN {a3 + 1 if a3 != 0xff else '-'})", ok)
     for tag in ("chain", "trackbtn", "presses", "unattended"):
         if not exists(tag):
             continue
