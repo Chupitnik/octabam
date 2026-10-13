@@ -33,6 +33,17 @@ path, so the harness's own gains cancel.
                   and the output passes through the dry on the way: some
                   16-sample window where it is within 1% FS of the MIX 0
                   render (the steady wet differs from it by ~12% FS).
+  SHIFT sidebands UP and DOWN (MIX 127, RANGE HIGH, FREQ 30) on 1 kHz and 10 kHz
+                  tones, at a 16- and a 13-sample block: the wanted sideband
+                  on the right side, the other under -25 dB (this tree:
+                  -29.6 / -30.7 dB), one carrier across all eight renders
+                  within 0.5 Hz; and UP -> DOWN while playing (block 600):
+                  the lower sideband after the duck, the other under -25 dB.
+                  10 kHz is what catches the Hilbert sections running in z^-1
+                  (the parity toggle failing: -12 dB there, still -33 dB at
+                  1 kHz); the 13-sample block catches a parity that does not
+                  carry across blocks (about -2 dB). Both found by mutating
+                  the source under a standalone harness, 12 Oct 2026.
 
   SRR rate        the hold's droop on a 2 kHz tone, sinc(pi f / f_r), against
                   stock LO-FI's at SRR 16/32/64/96/127 (each re its own SRR 0),
@@ -118,18 +129,19 @@ def sine(seconds, amp=0.125, f=440.0):
     return [int(round(amp * math.sin(2 * math.pi * f * i / SR) * (1 << 23))) for i in range(n)]
 
 
-def render(samples, schedule=None, raw=None, mem=None, ep=None, sched=None, extra=None, **kw):
+def render(samples, schedule=None, raw=None, mem=None, ep=None, sched=None, extra=None, frames=FRAMES, **kw):
     """Mono Q23 ints in, fed to both channels; (L, R) ints out. `schedule`
     is [(block, {knob: value}), ...] on top of kw, by -paramfile. `raw` (a
     12-value list), `mem`/`ep` and `sched` (dsp_host -sched) render another
-    effect -- stock LO-FI -- through the same path."""
+    effect -- stock LO-FI -- through the same path. `frames` is the block
+    length (the firmware's SPLIT can make it odd)."""
     n = len(samples)
     src, out = TMP / "in.raw", TMP / "out.raw"
     src.write_bytes(b"".join(struct.pack("<i", s) for s in samples))
     m, (i0, p0) = (mem or MEM), (ep or (INIT, PROC))
     cmd = [str(HOST), "-mem", str(m), "-init", f"{i0:x}", "-proc", f"{p0:x}",
            "-inst", "1", "-r7", "1", "-alloc", "0", "-inmask", "1", "-audio", "0",
-           "-frames", str(FRAMES), "-blocks", str(n // FRAMES),
+           "-frames", str(frames), "-blocks", str(n // frames),
            "-in", str(src), "-out", str(out),
            "-params", ",".join(str(x) for x in (raw if raw is not None else params(**kw)))]
     if sched:
@@ -227,7 +239,14 @@ quiet = min(max(abs(swL[j] - dlL[j]) for j in range(i, i + 16)) for i in range(s
 check("MODE RING -> UP: passes through the dry", quiet <= lim,
       f"closest 16-sample window {quiet} LSB (limit {lim})")
 
-# ---- SRR: the rate against stock's, and a turn ------------------------------
+# ---- SHIFT: the sidebands, DOWN, odd blocks, a live UP <-> DOWN --------------
+# The wanted sideband's frequency from its zero crossings (the other is ~30 dB
+# down, so it barely moves them), the carrier from that, then both sidebands'
+# amplitudes by fit_amp. 1 kHz and 10 kHz: a network whose sections ran in z^-1
+# instead of z^-2 (the parity toggle failing) still rejects at 1 kHz (-32.7 dB
+# under the harness) and fails at 10 kHz (-12.2); a parity that does not carry
+# across blocks fails at a 13-sample block (about -2 dB). This tree: -29.6 dB at
+# 1 kHz and -30.7 at 10 kHz, at 16 and at 13.
 def fit_amp(y, f, a, b):
     w = 2 * math.pi * f / SR
     sc = ss = cc = ys = yc = 0.0
@@ -237,6 +256,43 @@ def fit_amp(y, f, a, b):
     det = ss * cc - sc * sc
     return math.hypot((ys * cc - yc * sc) / det, (yc * ss - ys * sc) / det)
 
+
+def carrier_hz(y, a, b):
+    """Frequency from the first and last upward crossings of y less its mean."""
+    m = sum(y[a:b]) / (b - a)
+    ups = [i + (m - y[i]) / (y[i + 1] - y[i]) for i in range(a, b - 1) if y[i] < m <= y[i + 1]]
+    return (len(ups) - 1) * SR / (ups[-1] - ups[0])
+
+
+def sidebands(y, f0, a, b):
+    fw = carrier_hz(y, a, b)
+    return fw, db(fit_amp(y, 2 * f0 - fw, a, b), fit_amp(y, fw, a, b))
+
+
+shift = dict(MIX=127, RANGE=1, FREQ=30, FDBK=0)
+fcs = {}
+for frames in (16, 13):
+    for f0 in (1000.0, 10000.0):
+        tone = sine(1.0, f=f0)
+        for name, mode, side in (("UP", 2, +1), ("DOWN", 1, -1)):
+            y, _ = render(tone, frames=frames, MODE=mode, **shift)
+            fw, rej = sidebands(y, f0, SETTLE, len(y) - 16)
+            fc = side * (fw - f0)
+            fcs.setdefault(f0, []).append(fc)
+            check(f"SHIFT {name} at {f0:.0f} Hz, block {frames}: the {'upper' if side > 0 else 'lower'} "
+                  f"sideband, the other under -25 dB",
+                  fc > 0 and rej < -25.0, f"wanted {fw:.2f} Hz, other {rej:+.1f} dB")
+spread = max(max(v) - min(v) for v in fcs.values())
+check("SHIFT: one carrier across UP, DOWN and both block lengths (within 0.5 Hz)", spread < 0.5,
+      f"carrier {sum(fcs[1000.0]) / len(fcs[1000.0]):.2f} Hz, spread {spread:.3f} Hz")
+
+LONG1K = sine(1.6, f=1000.0)
+swY, _ = render(LONG1K, schedule=[(0, {}), (SW, {"MODE": 1})], MODE=2, **shift)
+fw, rej = sidebands(swY, 1000.0, SW * FRAMES + SR // 8, len(swY) - 16)
+check("SHIFT UP -> DOWN while playing: the lower sideband after the duck, the other under -25 dB",
+      fw < 1000.0 and rej < -25.0, f"wanted {fw:.2f} Hz, other {rej:+.1f} dB")
+
+# ---- SRR: the rate against stock's, and a turn ------------------------------
 
 SMEM = audition._ensure_stock_mem()
 SEP = send_probe.entry_points(SMEM, 0x1c)            # stock LO-FI
@@ -374,13 +430,6 @@ check("LPF turn 20 -> 110: block-locked step under -70 dBFS", tl < -70.0,
       f"turn {tl:.1f} dBFS, held {hl:.1f}")
 
 # ---- FREQ: the LFO fraction is heard, and a turn does not step ----------------
-def carrier_hz(y, a, b):
-    """Frequency from the first and last upward crossings of y less its mean."""
-    m = sum(y[a:b]) / (b - a)
-    ups = [i + (m - y[i]) / (y[i + 1] - y[i]) for i in range(a, b - 1) if y[i] < m <= y[i + 1]]
-    return (len(ups) - 1) * SR / (ups[-1] - ups[0])
-
-
 dcin = [int(0.25 * 8388607)] * (SR // FRAMES * FRAMES)
 ring = dict(MIX=127, RANGE=1, MODE=0)
 fk = {}

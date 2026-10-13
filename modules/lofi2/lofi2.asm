@@ -98,7 +98,7 @@ init:
 ; that init does not clear"). r5, never r1: the FX1 dispatcher keeps the
 ; effect id in r1 across this call (verify_initregs). $00..$83 is the whole
 ; block, so no per-slot census can go stale. The smoothed shelf coefficient
-; at $3f starts at 0 and glides to its target over the first few hundred
+; at $08 starts at 0 and glides to its target over the first few hundred
 ; samples, which on silence produces nothing.
         clr     a
         move    r7,r5
@@ -137,7 +137,8 @@ proc:
         move    x0,x:(r7+$15)           ; MODE as the knob has it
 
 ; ---- the MODE duck --------------------------------------------------------
-; A MODE change swaps one modulator for an unrelated one (or flips Q's sign),
+; A MODE change swaps one modulator for an unrelated one (or reverses the
+; carrier, UP <-> DOWN),
 ; a step in the output. So the wet is ducked to dry over 5 ms, the running
 ; mode switches only once it is fully out, and the wet comes back over 5 ms.
 ; Only the running mode ($10) reaches the flags below, never the knob. The
@@ -272,7 +273,7 @@ lf_ringf:
         move    y0,a
         sub     #>$7f,a
         teq     x0,b                    ; k = 127: out
-        move    b,x:(r7+$0b)            ; kd target; $1f glides to it
+        move    b,x:(r7+$0b)            ; kd target; $0a glides to it
         move    x1,a
         and     #>$00ff00,a
         asl     #$7,a,a
@@ -286,7 +287,7 @@ lf_ringf:
         move    b,y1
         mpy     x0,y1,a
         add     y0,a
-        move    a,x:(r7+$09)            ; c target; $3f glides to it
+        move    a,x:(r7+$09)            ; c target; $08 glides to it
 
 ; ---- SRR -> the hold's rate, from our own table -------------------------
 ; A fractional sample-and-hold: a phase advances by `inc` a sample and the
@@ -738,8 +739,9 @@ lf_nomod:
         move    r1,r2
         move    (r2)+                   ; r2 writes from section 0's X slot
         move    n1,a                    ; the other half next sample:
-        eor     #$20,a                  ;  $40 <-> $60
-        move    a1,n1
+        move    #>$20,x0                ;  $40 <-> $60. EOR in the register form
+        eor     x0,a                    ;  stock uses (eor x0,b / x1,b); stock
+        move    a1,n1                   ;  has no EOR #imm site (#704 review)
 
         move    x:(r7+$3d),x1          ; chain A-L input
 ; ---- chain A-L section 0: allpass, c = 0.6923877778065 ----
@@ -889,13 +891,8 @@ lf_nomod:
 lf_noshift:
 ; MODEFORK_END
 
-; ---- LPF: glide c and kd toward their targets, once per sample ----------
-; 1/64 of the way a sample (about 1.5 ms), snapping to the target when the
-; step rounds to nothing, so kd lands on exactly 0 at LPF 127. The step is
-; reloaded through a register before the test (AGENTS.md: asr leaves a
-; remainder in a0, and Z needs all 56 bits clear). HERE, after MODEFORK_END,
-; so it runs in every mode; a, b, x0, x1 and y0 are all free at this point.
-; (c and kd glide with the others, in the walk before the fork)
+; (LPF c and kd glide with the others, in the walk before the fork; kd still
+; lands on exactly 0 at LPF 127, lf_gset's snap)
 
 ; ---- the MODE duck, per sample: e moves one step toward its target -------
 ; Floored at 0 by tmi, capped near 1 by the store's limiter.
@@ -944,8 +941,8 @@ lf_noshift:
         move    a,x:(r7+$36)
 
 ; ---- SRR: glide the rate, advance the phase, latch the MODULATED pair ---
-; The rate moves 1/64 of the way to its target every sample (a ~1.5 ms
-; time constant), so a turned knob never steps at the block rate.
+; The rate glides by lf_gset's per-block step, added every sample (about
+; 1.5 ms), so a turned knob never steps at the block rate.
         move    x:(r7+$17),b           ; the rate in use
         move    x:(r7+$16),x0           ; this block's step (target)
         add     x0,b
