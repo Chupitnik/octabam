@@ -538,7 +538,14 @@ def sources(s):
 
 def mono(s):
     """AB STEREO off: A.wav and B.wav, mono, equal to the stereo take's left
-    and right channels of the same deterministic run."""
+    and right channels of the same deterministic run, over the shorter take.
+    The two takes can stop a frame apart: the STOP call lands on one frame,
+    but the firmware's main task writes the transport's 2 (0x4009f5c6) when
+    its turn comes, and the hook's own cost moves that turn. Measured under
+    the port with a write watch (13 Oct 2026, after main's MEMORY moved the
+    ring): both takes start on sample 521,742.5, the transport stops on
+    525,042.1 in the sources take and 525,026.2 in this one, and each hook
+    leaves RECORDING 9.4 samples after its stop: 206 frames and 205."""
     log, dump, card, words, _ = port(s, SRC_FRAMES, stop_at=180, tag="mono", fixture=FIXTURE_THRU1, mask=None,
                                      pokes_before=[(s["stems_tracks"] + 2, 0x04), (s["stems_tracks"] + 3, 0x01),
                                                    (s["stems_fmt"] + 3, 0b100)])
@@ -552,8 +559,11 @@ def mono(s):
     ab = wav16(sf["AB.WAV"])
     check("mono: A.wav and B.wav are one channel, 16 bits",
           wav_fmt(f["A.WAV"])[:4] == wav_fmt(f["B.WAV"])[:4] == (1, 88200, 2, 16))
-    check("mono: A.wav is AB.wav's left, B.wav its right, every sample",
-          wav16(f["A.WAV"]) == ab[0::2] and wav16(f["B.WAV"]) == ab[1::2])
+    a, b, left, right = wav16(f["A.WAV"]), wav16(f["B.WAV"]), ab[0::2], ab[1::2]
+    n = min(len(a), len(left))
+    check("mono: A.wav is AB.wav's left, B.wav its right, every sample both hold, the takes within a frame",
+          len(a) == len(b) and abs(len(a) - len(left)) <= 16 and n > 0     # a frame is 16 samples
+          and a[:n] == left[:n] and b[:n] == right[:n], f"{len(a)} and {len(left)} samples")
 
 
 def all14(s):
