@@ -18,6 +18,7 @@ The full text before this rewrite: `git show 666b6154:CHANGELOG.md`.
 
 ## Unreleased
 
+- CLOUDS VERB (`modules/clouds-verb`): the reverb stage of Mutable Instruments Clouds, ported to fixed point on PLATE REV's id, five knobs, one FX2 slot per instance; in `octabam-inserts` (DSP words free 361 / 361, worst core still 2,640 cycles). Under `dsp_host` only: a float model agrees to 58 dB, no write outside its 16,120-word ring. Not heard, not on a unit.
 - Stations: a `SLOTS` build setting on SPECTRUM, CHARACTER and MODULATION (`FX1`, the default, or `FX1+FX2`); `FX1+FX2` runs an FX2 instance live and lists the FX2 row. `tools/verify/verify_stations_fx2.py` (remix `stations-fx2`) renders FX2 against FX1, bit for bit. CHARACTER is a bus reader (`Harness.bus_reader`), not a client: a remix with CHARACTER and no server uses fallback NONE with no SEND, and the build turns its KEY = T1 into SELF there. `octabam-inserts`: stations on both menus, the stock DELAY, no SEND.
 - Removed `remixes/test/brain` and the example image templates `templates/amp-short.json` and `templates/midi-drums.json`. `verify_brain` and `verify_loadmeter` default to `octabam-bus`; `verify_brain` skips its image-template checks on a remix with no `templates`.
 - Remixes: `octabam-bus` and `octabam-inserts` (the core ColdFire modules with the bus, and with the inserts; port gates only, not flashed). `bottleservice` and `ok-ms` retired. `octatrick`, `analog-bassdrum` and `wave` moved to `remixes/test/` with their selections.

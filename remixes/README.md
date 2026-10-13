@@ -17,6 +17,6 @@ A remix is a named selection of modules; `make image REMIX=<name> BUILD=<n>` bui
 | remix | contains | proof |
 |---|---|---|
 | [`octabam-core`](octabam-core/README.md) | The core ColdFire modules on the 14 stock effects, with LOFI AMF FIX. | port-gated |
-| [`octabam-inserts`](octabam-inserts/README.md) | CORE + SPECTRUM, CHARACTER, MODULATION, SIDECHAIN_COMPRESSOR, TRANSIENT and EUCLID on FX1 and FX2, the stock DELAY, and REPITCH. | port-gated |
+| [`octabam-inserts`](octabam-inserts/README.md) | CORE + SPECTRUM, CHARACTER, MODULATION, SIDECHAIN_COMPRESSOR, TRANSIENT and EUCLID on FX1 and FX2, the stock DELAY, CLOUDS VERB on FX2, and REPITCH. | port-gated |
 
 Never share a built image: it contains Elektron's OS.
