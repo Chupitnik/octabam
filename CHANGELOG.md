@@ -124,6 +124,29 @@ THR5 is the module's commit.
 - THR4: LEV −60 to 0 dB (4 dB steps to −8, then 2 dB). Working. (Its "armed from inside a recording page it starts only sometimes" is retracted below.)
 - THR5: after review, a crossing fires at or over LEV and only for a track still on THR with its recorder idle. The THR4 checks again; LEV 0 dB, an ordinary source does not start it; TRIG moved from THR to ONE while armed, the input then records nothing, and the next press records at once as ONE. With RECORDING SETUP 1 or 2 open, TRIG ONE and THR record (12 Oct), as stock 1.40C does on the same unit: the THR1 to THR4 reading that the REC keys record nothing with a page open is retracted (`docs/contributing/FAILURE_MODES.md`).
 
+## STEMS7 — 8 Oct 2026 (`stems` at `92959832`, PR #644)
+
+On the unit (Yves's MKII, flash G): T1 to T8 at 24 bits on a project of
+eight Static tracks ran 61 s with `DONE`, the ring at most 21% full;
+twelve files at 24 bits stopped with RING FULL after 4.3 s. Every file
+whole: MAIN minus the stems' sum is 0 to 7 at every sample
+(`docs/firmware/STEM_REC.md` 17.6).
+- STEM REC, zero copy: the frame hook writes each file's bytes into the file's own ring through the uncached alias, and the writer hands the card whole sectors straight from the rings; `STATS.TXT` gives the card's time while recording and while saving.
+
+## STEMS5 — 8 Oct 2026 (`stems` at `19a3a113`)
+
+On the unit (flash E): the same eight tracks at 24 bits ran 18 s before
+RING FULL; six tracks and fewer at 24 bits, and eight at 16 bits, held.
+`STATS.TXT` showed the writer waiting for the processor (STEM_REC.md 17.5).
+- STEM REC: every sample in its file's byte order, the writer's copy in whole longs; `STATS.TXT` adds the copy's fastest frame and the card's fastest write.
+
+## STEMS4 — 8 Oct 2026 (`stems` at `ad73ee89`)
+
+On the unit (flash D): T1 to T8 at 24 bits on a project of eight Static
+tracks stopped with RING FULL after 6.75 s, every file whole; the first
+`STATS.TXT` put the limit in the writer's copy (STEM_REC.md 17.4).
+- STEM REC, the perf round: a lighter frame hook (staged a frame early, no limit where it can't act, the mirror's EMAC only on a multiply), `STATS.TXT` in each take's folder, T8 shown as `T8 MASTER` and left out of a take while MASTER TRACK is on.
+
 ## L1, C1 and C2 — 7 Oct 2026 (`usb-out-tracks-main-cue`, `cfmeter-tracks`, `cfmeter-post`, allmyfriendsaresynths's builds for #625)
 
 On allmyfriendsaresynths's (@clickysteve) MKII, built on main `6f9e5bc9`.
