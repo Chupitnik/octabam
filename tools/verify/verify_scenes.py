@@ -44,7 +44,10 @@ Per scenario, against the oracle (PASS needs all of them):
            levels equal (skipped on a remix with KITS: its status line
            names the Kit where the oracle names the Part)
   nopart   the four Part windows of the image equal the stock image's (the
-           module writes no Part byte; needs the stock image run)
+           module writes no Part byte; needs the stock image run; skipped
+           on a remix whose fallback is not NONE: its effect descriptors'
+           defaults are applied to the Part by stock code, measured 13 Oct
+           2026, so the windows differ from stock's without a MIDI SCENES write)
 
 and against values computed by hand, with no oracle: b1's table holds 40
 at 0x015 and 100 at 0x815 and 0xff elsewhere, the track record holds 100 at
@@ -279,6 +282,9 @@ def decode(raw, st=0):
     while i < len(raw):
         if raw[i] & 0x80:
             st = raw[i]; i += 1
+        elif st >= 0xf8 or st == 0:
+            i += 1                       # a data byte with no running status to carry it: dropped
+            continue
         if st >= 0xf8 or st == 0:
             out.append(f"{st:02x}"); continue
         n = 2 if st & 0xf0 in (0x80, 0x90, 0xa0, 0xb0, 0xe0) else 1 if st & 0xf0 in (0xc0, 0xd0) else 0
@@ -766,7 +772,7 @@ def main():
                 check(f"{t}: screen against {other}: LED rows and levels equal ({rows or 'same'})",
                       not rows and o["screen"][2] == h["screen"][2])
         s = res.get("stock", {}).get(t)
-        if s and s["parts"] is not None:
+        if s and s["parts"] is not None and registry.remix(a.remix).fallback == "NONE":
             check(f"{t}: nopart: the Part windows equal stock's", o["parts"] == s["parts"])
     if not a.card and a.project:
         seq_group(a, images, out, bank, check)

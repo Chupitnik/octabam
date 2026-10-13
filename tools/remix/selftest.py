@@ -873,7 +873,7 @@ def main():
     _rig = ("FILTER", "SPATIALIZER", "EQUALIZER", "PHASER", "FLANGER", "CHORUS",
                  "PLATE REV", "SPRING REV", "DARK REV", "COMPRESSOR", "LO-FI",
                  "DJ EQ", "COMB FILTER")
-    _want = {"mods": (), "ok-ms": (), "usb-out-tracks-main-cue": (), "usb-out-tracks": (), "usb-out-master": (),
+    _want = {"mods": (), "octabam-core": (), "ok-ms": (), "usb-out-tracks-main-cue": (), "usb-out-tracks": (), "usb-out-master": (),
              "usb-out-tracks-post": (),
              "remix-switch": (), "remix-switch-trace": (),   # REMIX SWITCH's park in dead vectors, no region words
              "usb-out-main-cue": (), "usb-out-main": (), "usb-midi": (), "stems": (),     # stock effects + ColdFire modules, no DSP words
@@ -898,7 +898,10 @@ def main():
              "euclid": ("SPATIALIZER", "FLANGER", "CHORUS", "COMB FILTER"),
              "rig": _rig, "bottleservice": _rig,
              "character-txtr": _rig,   # bottleservice with the TXTR station
-             "brain": _rig}   # bottleservice with BRAIN (a ColdFire module)
+             "brain": _rig,   # bottleservice with BRAIN (a ColdFire module)
+             "octabam-bus": _rig,
+             # every stock effect but COMPRESSOR, which SIDECHAIN_COMPRESSOR runs (stock_dsp)
+             "octabam-inserts": tuple(_k for _k in _rig if _k != "COMPRESSOR")}
     for _n in registry.remix_names():
         _r = registry.remix(_n)
         _hv = stock.region_of(stock.harvested(
