@@ -873,7 +873,7 @@ def main():
     keys_new = [(0x32, 400), (0x1c, 1000), (0x31, 1000), (0x31, 1000), (0x33, 600), (0x31, 1400), (0x31, 13000)]
     files, _, _ = ui_run("part_def_new", keys_new, roots=((pdseed, "BRAIN/card.work"),))
     banks = {k: v for k, v in files.items() if k.upper().endswith(".WORK") and "BANK" in k.upper() and a.name.upper() not in k.upper()}
-    probe = dblob[0x3e2:0x602]                  # the MIDI tracks' pages: a section the default carries, in one run
+    probe = dblob[0x662:0x762]                  # scene 0's locks of the eight tracks: wholly in a section, and not clamped by the stock Part validator (the MIDI pages are)
     hits = {k: v.count(probe) for k, v in banks.items()}
     check(f"PART default: CREATE EMPTY PROJECT writes the card's PART default into the Parts of the new project's "
           f"banks (the working and the saved copy of each of four Parts: 8 in a bank file)  {sorted(hits.values())[:4]}...",

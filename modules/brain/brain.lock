@@ -12,6 +12,10 @@
   "2": {
    "name": "APPLY DFLTS",
    "type": "binary"
+  },
+  "3": {
+   "name": "EVENT LOG",
+   "type": "binary"
   }
  },
  "store": {
