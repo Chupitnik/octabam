@@ -456,23 +456,20 @@ inside a pane cannot open a further submenu and no free stock page id is
 known (`docs/firmware/MAINMENU.md` section 5). KITS draws 256-row lists
 with a name editor, copy, paste and clear (✅ on the unit, image A6).
 
-- One root category, **BRAIN**, owned by the BRAIN module: SETTINGS,
-  DEFAULTS, REMIXES, TOOLS, each a sub-list (as built, 8-10 Oct 2026: the
-  stock engine is two levels deep, so a row's action repoints the pane's
-  list descriptor; `modules/brain/README.md`).
-- **SETTINGS**: one list; the brain's own settings first, then a heading
-  row per module in the image and its setting rows, the value in the
-  label. YES or the arrows change a value.
-- **DEFAULTS**: the targets that have a card-layer default; CLEAR on a
-  row removes the record and returns the target to layers 1 and 2.
-- **TEMPLATES**: a list per target type, built like the KITS lists: name,
-  apply, copy, clear, rename.
-
-  Built (11 Oct 2026, port; reworked 12 Oct 2026): SAVE TEMPLATE, then a
-  section per target (the effect's name or the stock page's) with its card
-  templates, alphabetical. A template takes LOAD (onto the page in view),
-  RENAME (the stock name editor) and DELETE; SAVE TEMPLATE asks for a name.
-  The page shortcut keeps its own SAVE, LOAD and DELETE TEMPLATE.
+- One root category, **BRAIN**, owned by the BRAIN module. As built (13 Oct 2026; `modules/brain/README.md`
+  is the description of each screen): its pane is one list, the most used first: TEMPLATES, REMIXES,
+  SETTINGS, PERFORMANCE, LOG, ABOUT. Each row opens a full screen, a state of the menu-state table (the
+  stock menu engine is two levels deep); TEMPLATES, PERFORMANCE, LOG and ABOUT have tabs, LEFT and RIGHT
+  between them.
+- **SETTINGS**: one list; a heading row per module that declares a setting and its setting rows, the value
+  at the right. YES steps a value, LEFT and RIGHT step it down and up.
+- **Defaults** have no screen of their own: SET AS DEFAULT and CLEAR DEFAULT are rows on a template's
+  screen (an effect's, PROJECT's and PART's), and a default acts when its target is born: an effect's
+  selection, CREATE EMPTY PROJECT, a Part initialised (Part Clear, a new project's Parts).
+- **TEMPLATES**: four tabs, PART, FX, MIDI and PROJECT, each a list under a NEW row. A template's screen
+  has the same actions on every template (APPLY TO..., SET AS DEFAULT, SAVE, RENAME, DELETE) and then its
+  values; a PART template is a whole Part applied by section and track. Built 11 to 13 Oct 2026, under the
+  port; the page shortcut keeps its own SAVE, LOAD and DELETE TEMPLATE, for the AMP, LFO and SRC pages too.
 - On an FX page, a MIDI track page or an audio track page, one key
   combination opens a short list for the current page: SAVE AS DEFAULT,
   LOAD TEMPLATE, SAVE TEMPLATE.

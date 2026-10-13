@@ -172,6 +172,8 @@ def main():
         "settings": {"card.work": sett}, "settings_bad": {"card.work": sbad},
     }
     values_at, set_counts_at = symbol("brain_values"), symbol("brain_set_counts")
+    # APPLY DFLTS (key 2) and MIDI LOG (key 1) among the run-time values (EVENT LOG is the third)
+    v_apply, v_midilog = symbol("brain_v_octabam_brain_2") - values_at, symbol("brain_v_octabam_brain_1") - values_at
     # FX2 LOCK's poke undone in RAM, so the FX2 chooser's YES selects
     unlock = (["--poke", ";".join(f"{0x400bc374 + i:#x}={b:#x}" for i, b in enumerate(bytes.fromhex("40052474")))]
               if "FX2 LOCK" in remix.modules else [])
@@ -216,7 +218,7 @@ def main():
             cmd = [EMU, "--image", image, "--card", c, "--set", a.set_name, "--project", a.name,
                    "--load-ms", "90000", "--mkii", "--live-script", sp, *unlock,
                    "--step", f"-:dump:{counts_at:#x},{4 * len(COUNTERS)}={cdump}",
-                   "--step", f"-:dump:{values_at:#x},8={vdump}",
+                   "--step", f"-:dump:{values_at:#x},16={vdump}",
                    "--step", f"-:dump:{set_counts_at:#x},16={scdump}",
                    "--mem-dump", f"{LANES:#x},{IDS + 16 - LANES}={dump}"]
             with open(log, "w") as fh:
@@ -227,7 +229,8 @@ def main():
             m = dump.read_bytes()
             lanes[page] = (m[IDS - LANES:], m[72:144])
             counts = dict(zip(COUNTERS, struct.unpack(f">{len(COUNTERS)}I", cdump.read_bytes())))
-            svals = struct.unpack(">2i", vdump.read_bytes())
+            vb = vdump.read_bytes()
+            svals = (struct.unpack_from(">i", vb, v_apply)[0], struct.unpack_from(">i", vb, v_midilog)[0])
             scounts = dict(zip(("records", "values", "skip", "dup"), struct.unpack(">4I", scdump.read_bytes())))
         print(f"  {name}: counters {counts}")
         state = STATES.get(counts["state"], counts["state"])
@@ -551,7 +554,7 @@ def main():
                         "--root-file", f"{OUT / 'mset_seed.work'}:BRAIN/card.work"], cwd=ROOT, capture_output=True, text=True)
     if r.returncode:
         sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
-    keys = [("no", 400), ("proj", 1200)] + [("down", 400)] * 4 + [("right", 800)] + [("down", 400)] * 1 + [("yes", 800), ("right", 600), ("yes", 3000)]   # BRAIN > LOG, MIDI tab, MIDI LOG
+    keys = [("no", 400), ("proj", 1200)] + [("down", 400)] * 4 + [("right", 800)] + [("down", 400)] * 4 + [("yes", 800), ("right", 600), ("yes", 3000)]   # BRAIN > LOG (the fifth row), MIDI tab, MIDI LOG
     (OUT / "menu_settings.script").write_text(keys_script(keys))
     cmd = [EMU, "--image", image, "--card", mc, "--set", a.set_name, "--project", a.name, "--load-ms", "90000",
            "--mkii", "--live-script", OUT / "menu_settings.script", "--card-out", mafter]
@@ -563,8 +566,8 @@ def main():
     mw = next((v for k, v in files.items() if k.upper().endswith("BRAIN/CARD.WORK")), None)
     srec = [r for r in brainfile.parse(mw).records if r.kind == brainfile.SETTINGS] if mw else []
     got = {v.key: v.data[0] for v in srec[0].values()} if len(srec) == 1 else {}
-    check(f"settings: YES on MIDI > MIDI LOG writes one settings record, MIDI LOG on, APPLY DFLTS on, "
-          f"the unknown key kept  {got}", got == {1: 1, 2: 1, 99: 1})
+    check(f"settings: YES on LOG > MIDI > MIDI LOG writes one settings record, MIDI LOG on, APPLY DFLTS on, "
+          f"EVENT LOG at its default (on), the unknown key kept  {got}", got == {1: 1, 2: 1, 3: 1, 99: 1})
 
     # ---- templates: SAVE from the shortcut; LOAD of a seeded template -------
     # Run 1: T1's FX1 page; hold FX1 + FUNC (the shortcut), SAVE TEMPLATE:
@@ -806,9 +809,10 @@ def main():
     # slot 0 = 77 and T1's AMP page 1 slot 0 = 66. APPLY TO..., FX (row 1), FROM T1, ONTO T2: T2's FX1
     # page 1 slot 0 = 77 in the Part, T2's AMP page 1 untouched.
     def blob_with(fn):
-        b = bytearray(6322)
-        for k in range(6322):
-            b[k] = (k * 7 + 3) & 0x7f
+        import random
+        rng = random.Random(5)
+        # 0 or 1 (inside every count, so the stock Part validator keeps it), from a seeded generator: no period, a probe is found once
+        b = bytearray(rng.getrandbits(1) for _ in range(6322))
         fn(b)
         return bytes(b)
     pblob = blob_with(lambda b: (b.__setitem__(0x126, 77), b.__setitem__(0x120, 66), b.__setitem__(0x00, 0), b.__setitem__(0x08, 0)))
@@ -832,8 +836,38 @@ def main():
           f"keeps its value (T2 FX1 {t2fx.hex()}, T2 AMP {t2amp.hex()}, T1 FX1 {w126.hex()} T1 AMP {w120.hex()} unchanged)",
           t2fx[0] == 77 and t2amp[0] != 66)
 
+    # ---- a PART template: APPLY TO..., WHOLE PART --------------------------------------------------
+    # The template's Part image has valid FX ids (0 = NONE), valid machines and scene selections, and a
+    # byte pattern everywhere else. WHOLE PART, then the live Part: every section's bytes equal the
+    # template's (FX, LFO, INPUT SRC, MIDI TRACKS, SCENES, MACHINES), the bytes no section carries
+    # (the AMP pages, the levels, the sample slots) still the project's own.
+    def whole_fn(b):
+        for k in range(16):
+            b[k] = 0
+        for t, m in enumerate((0, 1, 2, 0, 4, 1, 0, 2)):
+            b[0x22 + t] = m
+        b[0x10], b[0x11] = 2, 5
+    wblob = blob_with(whole_fn)
+    wseed = OUT / "tpl_whole_seed.work"
+    wseed.write_bytes(brainfile.File(brainfile.CARD_WORK, [part_rec(brainfile.TEMPLATE_REC, wblob)]).encode())
+    files, _, (live0,) = ui_run("tpl_part_whole0", [(0x32, 400)], dumps=((part_at + 0x8ed80, 6322),))
+    files, _, (live1,) = ui_run(
+        "tpl_part_whole", [(0x32, 400)] + to_pane + [(0x20, 400), (0x31, 3000), (0x31, 800), (0x31, 800), (0x31, 4000)],
+        roots=((wseed, "BRAIN/card.work"),), dumps=((part_at + 0x8ed80, 6322),))
+    def span(b, off, n): return b[off:off + n]
+    secs = {"FX ids": (0x00, 16), "FX pages 1": (0x126, 12), "LFO": (0x11a, 6), "LFO designer": (0x1702, 304),
+            "INPUT SRC T1 page": (0x02a + 12, 18), "MIDI T1 page 1": (0x3e2, 32), "scenes T1 lock": (0x662, 32),
+            "scene A, B": (0x10, 2), "machines": (0x22, 8)}
+    bad = [n for n, (o, c) in secs.items() if span(live1, o, c) != span(wblob, o, c)]
+    kept = [n for n, (o, c) in {"AMP T1 page 1": (0x120, 6), "levels": (0x12, 16), "sample slots": (0x2ca, 40)}.items()
+            if span(live1, o, c) != span(live0, o, c)]
+    check(f"templates: PART template APPLY TO..., WHOLE PART: every section equals the template's "
+          f"(differing: {bad or 'none'}); the AMP page, the levels and the sample slots keep the project's "
+          f"(changed: {kept or 'none'})", not bad and not kept)
+
     # ---- the PART default: CREATE EMPTY PROJECT and every Part of every bank, the sample slots apart ----
-    dblob = blob_with(lambda b: (b.__setitem__(slice(0x22, 0x2a), bytes([1] * 8)), b.__setitem__(slice(0x2ca, 0x2f2), bytes([0x33] * 40))))
+    dblob = blob_with(lambda b: (b.__setitem__(slice(0, 16), bytes(16)), b.__setitem__(slice(0x22, 0x2a), bytes([1] * 8)),
+                                 b.__setitem__(slice(0x2ca, 0x2f2), bytes([0x33] * 40))))
     pdseed = OUT / "part_def_seed.work"
     pdseed.write_bytes(brainfile.File(brainfile.CARD_WORK, [part_rec(brainfile.DEFAULT, dblob)]).encode())
     keys_new = [(0x32, 400), (0x1c, 1000), (0x31, 1000), (0x31, 1000), (0x33, 600), (0x31, 1400), (0x31, 13000)]
@@ -846,6 +880,15 @@ def main():
           len(banks) >= 1 and all(n == 8 for n in hits.values()))
     check("PART default: the default's sample slot bytes (0x33 x 40) are in none of the new project's banks",
           not any(b"\x33" * 40 in v for v in banks.values()))
+
+    # Part Clear (stock 0x4004a9d0, called as the Part window's CLEAR does) of Part 3: the stock initialiser
+    # runs, so the card's default lands on the working Part, and its sample slots are the stock default's
+    files, _, (cleared,) = ui_run("part_def_clear", [], roots=((pdseed, "BRAIN/card.work"),),
+                                  dumps=((part_at + 0x8ed80 + 2 * 6322, 6322),), extra=("--call", "0x4004a9d0,2"))
+    dsecs = {"FX ids": (0x00, 16), "LFO": (0x11a, 6), "MIDI T1 page 1": (0x3e2, 32), "machines": (0x22, 8), "scenes T1 lock": (0x662, 32)}
+    badc = [n for n, (o, c) in dsecs.items() if cleared[o:o + c] != dblob[o:o + c]]
+    check(f"PART default: Part Clear of Part 3 leaves the default's sections on it (differing: {badc or 'none'}) "
+          f"and not its sample slots", not badc and cleared[0x2ca:0x2f2] != dblob[0x2ca:0x2f2])
 
     # ---- MIDI knob names: NAME KNOB, the CTRL1 label, SAVE TEMPLATE ----------
     # MIDI mode, T1, the CTRL1 page; the shortcut, NAME KNOB (row 6), CC1, the
