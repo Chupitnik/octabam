@@ -5,7 +5,7 @@ USB MIDI, USB AUDIO OUT MAIN CUE, the recorder and bug fixes, MUTE_MODES from
 DRAM, SCALE QUANTIZER, TUNER, DIRECT_JUMP_KYOTI, RELOAD_FROM_PROJECT, RLEN PLEN,
 LOAD METER) with the effects that are inserts rather than bus servers:
 SPECTRUM, CHARACTER and MODULATION (SLOTS = FX1+FX2: live on both menus),
-SIDECHAIN_COMPRESSOR, TRANSIENT and EUCLID, the stock DELAY, CLOUDS VERB (FX2)
+SIDECHAIN_COMPRESSOR, TRANSIENT and EUCLID, the stock DELAY, GATE VERB (FX2)
 and REPITCH_REPEAT98_KYOTI. No bus and no SEND (fallback NONE). The other stock
 DSP effects give up their words; SIDECHAIN_COMPRESSOR keeps COMPRESSOR's.
 """
@@ -24,8 +24,8 @@ STATIONS = ("SPECTRUM", "CHARACTER", "MODULATION")
 REMIX = Remix(
     name="octabam-inserts",
     family="mods", proof=Proof.PORT, proof_note="",
-    doc="CORE + SPECTRUM, CHARACTER, MODULATION, SIDECHAIN_COMPRESSOR, TRANSIENT and EUCLID on FX1 and FX2, the stock DELAY, CLOUDS VERB on FX2, and REPITCH.",
-    modules=STATIONS + ("MODE DEFAULTS", "DELAY", "CLOUDS VERB", "REPITCH_REPEAT98_KYOTI") + INSERTS + CORE,
+    doc="CORE + SPECTRUM, CHARACTER, MODULATION, SIDECHAIN_COMPRESSOR, TRANSIENT and EUCLID on FX1 and FX2, the stock DELAY, GATE VERB on FX2, and REPITCH.",
+    modules=STATIONS + ("MODE DEFAULTS", "DELAY", "GATE VERB", "REPITCH_REPEAT98_KYOTI") + INSERTS + CORE,
     fallback="NONE",
     fx1=STATIONS + INSERTS,
     settings={("octabam.usb-audio-out", "LAYOUT"): Pin("MAIN CUE"),
