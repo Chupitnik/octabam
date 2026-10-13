@@ -1,8 +1,8 @@
 # `load-meter` — LOAD METER
 
 The frame interrupt's share of the ColdFire, each DSP core's busy time per
-frame and the cost of each effect call, for BRAIN's OTOP screen
-(`modules/brain`: BRAIN > OTOP).
+frame and the cost of each effect call, for BRAIN's PERFORMANCE screen
+(`modules/brain`: BRAIN > PERFORMANCE).
 
 The frame interrupt (vector `0x41`, handler `0x4000aad0`) runs about
 2,756 times a second, every 362.8 µs. LOAD METER stamps its entry and its
@@ -78,8 +78,8 @@ counted as bad and changes nothing. CF METER's page-lane route (an FX2
 insert printing values as audio) was the alternative; it takes a track and
 a slot, which this meter must not.
 
-**The screen** (BRAIN > OTOP), one list scrolled by UP and DOWN. First a bar
-per processor: `CF` the frame interrupt's share now with its peak since open
+**The screen** (BRAIN > PERFORMANCE, tabs LOAD and PROCS), a list scrolled by UP and DOWN. First a bar
+per processor: `CFIRE` the frame interrupt's share now with its peak since open
 as a mark, `DSP0` and `DSP1` each core's busy over its frame now with the
 peak mark; then `WORST FRAME` (the longest single run of the frame interrupt
 as a share of the 362.8 µs frame, `OVER` at 100%) and `DROPS` (the ESAI
@@ -179,7 +179,7 @@ the chip's; the numbers on a unit are a hardware-round item.
   traffic, nothing stock writes the claimed words but payload B's boot
   zero loop, and an injected burn (`LM_BURN` builds) raises each core's
   busy by N/2 counts.
-- `tools/verify/verify_brain.py` (BRAIN's gate) runs the OTOP screen on the
+- `tools/verify/verify_brain.py` (BRAIN's gate) runs the PERFORMANCE screen on the
   `brain` remix, which carries this module.
 - `tools/verify/verify_dspvectors.py`, `verify_twocore` and `make
   verify-bus` (audio bit-identity) for the DSP section.

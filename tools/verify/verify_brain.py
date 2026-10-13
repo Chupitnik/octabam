@@ -501,14 +501,18 @@ def main():
     def keys_script(keys):
         tt, lines = 1500, []
         for k, gap in keys:
+            if k.startswith("raw:"):			# a line for the script as it is
+                lines.append(f"{tt} {k[4:]}"); tt += gap
+                continue
             lines.append(f"{tt} key {MK[k]:#x} down"); tt += 40
             lines.append(f"{tt} key {MK[k]:#x} up"); tt += gap
         lines.append(f"{tt} quit")
         return "\n".join(lines) + "\n"
-    nav = [("no", 400), ("t1", 600), ("fx2", 1500), ("proj", 1200)] + [("down", 400)] * 4 + [("right", 800)]
-    nav += [("yes", 800)]     # DEFAULTS (the first row): its screen, the cursor on SAVE FX DEFAULT
-    runs = {"menu_save": nav + [("yes", 2500)],
-            "menu_clear": nav + [("yes", 2500), ("yes", 800), ("down", 400), ("yes", 2500)]}
+    # the page shortcut: hold the FX2 page key and press FUNC (a list: SAVE FX DEFAULT, CLEAR FX DEFAULT, ...)
+    hold = [("raw:key 0x26 down", 100), ("raw:key 0x2d down", 100), ("raw:key 0x2d up", 100), ("raw:key 0x26 up", 800)]
+    nav = [("no", 400), ("t1", 600), ("fx2", 1500)]
+    runs = {"menu_save": nav + hold + [("yes", 2500)],
+            "menu_clear": nav + hold + [("yes", 2500), ("yes", 1500)] + hold + [("down", 400), ("yes", 2500)]}   # SAVE, then CLEAR
     for name, keys in runs.items():
         mc, mafter, mlog, mlanes = OUT / f"{name}.img", OUT / f"{name}_after.img", OUT / f"{name}.txt", OUT / f"{name}_lanes.bin"
         r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
@@ -547,7 +551,7 @@ def main():
                         "--root-file", f"{OUT / 'mset_seed.work'}:BRAIN/card.work"], cwd=ROOT, capture_output=True, text=True)
     if r.returncode:
         sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
-    keys = [("no", 400), ("proj", 1200)] + [("down", 400)] * 4 + [("right", 800)] + [("down", 400)] * 2 + [("yes", 800), ("yes", 3000)]   # BRAIN > MIDI, MIDI LOG
+    keys = [("no", 400), ("proj", 1200)] + [("down", 400)] * 4 + [("right", 800)] + [("down", 400)] * 1 + [("yes", 800), ("right", 600), ("yes", 3000)]   # BRAIN > LOG, MIDI tab, MIDI LOG
     (OUT / "menu_settings.script").write_text(keys_script(keys))
     cmd = [EMU, "--image", image, "--card", mc, "--set", a.set_name, "--project", a.name, "--load-ms", "90000",
            "--mkii", "--live-script", OUT / "menu_settings.script", "--card-out", mafter]
@@ -627,7 +631,7 @@ def main():
     got = {v.key: v.data[0] for v in trecs[0].values()} if len(trecs) == 1 else {}
     check(f"templates: SAVE TEMPLATE from the shortcut writes one template record of the page "
           f"({len(trecs)}, name {trecs[0].name() if trecs else None!r})  {got}",
-          len(trecs) == 1 and trecs[0].store_id == brain.fx_store_id(ch) and trecs[0].name().startswith("TPL 01")
+          len(trecs) == 1 and trecs[0].store_id == brain.fx_store_id(ch) and trecs[0].name().startswith("CHAR 01")
           and got == {k: page[i] for i, k in enumerate(keys) if k})
     P = struct.unpack(">I", rd(FX1_TABLE + 4 * ch.menu.fx2_id, 4))[0]
     mins, cnts = struct.unpack(">12i", rd(P + 0x6a, 48)), struct.unpack(">12i", rd(P + 0x9a, 48))
@@ -705,7 +709,6 @@ def main():
             check(f"templates: the MIDI LOAD sends program {prog} on channel {chan} ({tx.hex(' ')[:60]})",
                   chan == 0 or prog >= 128 or pc in tx)
 
-    amp = stock["amp"]
     rd_stock = (ROOT / "out/raw/section_3_MAIN_OS.bin").read_bytes()
 
     # ---- shared: one panel run on a staged card ---------------------------
@@ -745,46 +748,104 @@ def main():
     def card_file(files, tail):
         return next((v for k, v in files.items() if k.upper().endswith(tail.upper())), None)
 
-    # ---- BRAIN > TEMPLATES: SAVE TEMPLATE, LOAD, RENAME, DELETE --------------
-    # The screen: SAVE TEMPLATE, then a heading per target and its card
-    # templates by name. card.work seeded with one stock.amp template TPL 07
-    # (ATK 5): the pane opens on it, the list is LOAD, RENAME, DELETE.
-    #   load    with T1's AMP page in view: its ATK becomes 5
+    # ---- BRAIN > TEMPLATES: APPLY TO..., RENAME, DELETE, edit, NEW ------------
+    # TEMPLATES has four tabs, PART first, then FX, MIDI, PROJECT; each template's screen is the
+    # actions (APPLY TO..., SET AS DEFAULT where the target has one, SAVE, RENAME, DELETE), a VALUES
+    # line, then its values. card.work seeded with one CHARACTER template TPL 07 (its first slot 5):
+    # the FX tab lists it under a heading.
+    #   load    APPLY TO..., the slot list (T1 FX1 first, CHARACTER there): T1's FX1 page slot 0 becomes 5
     #   rename  RENAME, the name editor (its cursor opens after the name):
     #           UP sets the character there ('0', measured under the port), YES
     #   delete  DELETE: the record leaves card.work
-    #   save    no card.work: the pane opens on SAVE TEMPLATE, YES, the name
-    #           editor prefilled TPL 01, YES: one stock.amp record, ATK = the page's
+    #   edit    RIGHT three times on the first value, SAVE: the record holds 8
+    #   new     no card.work: NEW PART TEMPLATE, YES on the name (PART 01): one stock.part2 record, the
+    #           Part's 6,322 bytes and the project's name
     tseed = OUT / "tpl_pane_seed.work"
-    tseed.write_bytes(brainfile.File(brainfile.CARD_WORK, [brainfile.Record(brainfile.TEMPLATE_REC, amp["id"],
-        payload=brainfile.prefix_bytes(brainfile.TEMPLATE_REC, layout=amp["layout"], name="TPL 07")
-        + brainfile.Value(1, brainfile.BYTE, b"\x05").encode())]).encode())
-    to_pane = [(0x1c, 1200)] + [(0x20, 400)] * 4 + [(0x21, 800)] + [(0x20, 400)] * 6 + [(0x31, 800)]
-    on_amp = [(0x32, 400), (0x10, 500), (0x23, 800)]
+    tseed.write_bytes(brainfile.File(brainfile.CARD_WORK, [brainfile.Record(brainfile.TEMPLATE_REC, brain.fx_store_id(ch),
+        payload=brainfile.prefix_bytes(brainfile.TEMPLATE_REC, layout=brain.fx_layout(ch), name="TPL 07")
+        + brainfile.Value(keys[0], brainfile.BYTE, b"\x05").encode())]).encode())
+    to_pane = [(0x1c, 1200)] + [(0x20, 400)] * 4 + [(0x21, 800)] + [(0x31, 800)]     # BRAIN > TEMPLATES (the first row), the PART tab
+    fx_tab = [(0x21, 400), (0x20, 400)]                                               # the FX tab, its first template
     def pane_recs(files):
         w = card_file(files, "BRAIN/CARD.WORK")
         return [(r.store_id, r.name(), {v.key: v.data[0] for v in r.values()})
                 for r in brainfile.parse(w).records if r.kind == brainfile.TEMPLATE_REC] if w else []
-    files, _, (atk0,) = ui_run("tpl_pane_load", on_amp + to_pane + [(0x20, 400), (0x31, 800), (0x31, 2500)],
-                               roots=((tseed, "BRAIN/card.work"),), dumps=((part_at + 0x8eea0, 1),))
-    check(f"templates: BRAIN > TEMPLATES, LOAD on TPL 07 with T1's AMP page in view sets its ATK to 5  {atk0.hex()}",
-          atk0[0] == 5)
-    files, _, _ = ui_run("tpl_pane_rename", [(0x32, 400)] + to_pane + [(0x20, 400), (0x31, 800), (0x20, 400), (0x31, 1200),
-                                                                      (0x33, 300), (0x31, 2500)],
-                         roots=((tseed, "BRAIN/card.work"),))
+    files, _, (drv0,) = ui_run("tpl_pane_load", [(0x32, 400)] + to_pane + fx_tab + [(0x31, 3000), (0x31, 800), (0x31, 800), (0x31, 2500)],
+                               roots=((tseed, "BRAIN/card.work"),), dumps=((part_at + 0x8eea6, 1),))
+    check(f"templates: BRAIN > TEMPLATES, APPLY TO... on TPL 07, T1 FX1, sets T1's FX1 slot 0 to 5  {drv0.hex()}",
+          drv0[0] == 5)
+    fid = brain.fx_store_id(ch)
+    files, _, _ = ui_run("tpl_pane_rename", [(0x32, 400)] + to_pane + fx_tab + [(0x31, 3000), (0x20, 500), (0x20, 500), (0x20, 500),
+                                                                      (0x31, 1200), (0x33, 300), (0x31, 2500)],
+                         roots=((tseed, "BRAIN/card.work"),))     # APPLY TO..., SET AS DEFAULT, SAVE, RENAME: the editor
     recs = pane_recs(files)
-    check(f"templates: BRAIN > TEMPLATES, RENAME through the name editor (UP, YES) renames TPL 07 to "
-          f"TPL 070, its value kept  {recs}", recs == [(amp["id"], "TPL 070", {1: 5})])
-    files, _, _ = ui_run("tpl_pane_delete", [(0x32, 400)] + to_pane + [(0x20, 400), (0x31, 800), (0x20, 400), (0x20, 400),
-                                                                      (0x31, 2500)],
-                         roots=((tseed, "BRAIN/card.work"),))
+    check(f"templates: BRAIN > TEMPLATES, RENAME on the template's screen renames TPL 07 through the name editor "
+          f"(UP, YES) to TPL 070, its value kept  {recs}", recs == [(fid, "TPL 070", {keys[0]: 5})])
+    files, _, _ = ui_run("tpl_pane_delete", [(0x32, 400)] + to_pane + fx_tab + [(0x31, 3000)] + [(0x20, 500)] * 4 + [(0x31, 2500)],
+                         roots=((tseed, "BRAIN/card.work"),))     # ... DELETE
     recs = pane_recs(files)
-    check(f"templates: BRAIN > TEMPLATES, DELETE removes TPL 07  {recs}", recs == [])
-    files, _, (atk1,) = ui_run("tpl_pane_save", on_amp + to_pane + [(0x31, 800), (0x31, 2500)],
-                               dumps=((part_at + 0x8eea0, 1),))
+    check(f"templates: BRAIN > TEMPLATES, DELETE on the template's screen removes TPL 07  {recs}", recs == [])
+    files, _, _ = ui_run("tpl_pane_edit", [(0x32, 400)] + to_pane + fx_tab + [(0x31, 3000)] + [(0x20, 400)] * 5 + [(0x21, 400)] * 3
+                                                                      + [(0x33, 400)] * 3 + [(0x31, 2500), (0x31, 2500)],
+                         roots=((tseed, "BRAIN/card.work"),))     # DOWN x5 to the first value (past the VALUES line), RIGHT x3, UP x3 to SAVE
     recs = pane_recs(files)
-    check(f"templates: BRAIN > TEMPLATES, SAVE TEMPLATE on T1's AMP page names it TPL 01 and stores the page  "
-          f"{recs}", len(recs) == 1 and recs[0][:2] == (amp["id"], "TPL 01") and recs[0][2].get(1) == atk1[0])
+    check(f"templates: BRAIN > TEMPLATES, the template's screen: RIGHT three times raises the first value 5 to 8 "
+          f"and SAVE writes it  {recs}", recs == [(fid, "TPL 07", {keys[0]: 8})])
+    files, _, _ = ui_run("tpl_pane_new", [(0x32, 400)] + to_pane + [(0x31, 1200), (0x31, 4000)])
+    w_ = card_file(files, "BRAIN/CARD.WORK")
+    prec = [r for r in brainfile.parse(w_).records if r.kind == brainfile.TEMPLATE_REC] if w_ else []
+    pv = prec[0].values() if len(prec) == 1 else []
+    check(f"templates: BRAIN > TEMPLATES, NEW PART TEMPLATE and YES on the name editor's PART 01 write one stock.part2 "
+          f"record: the Part's 6,322 bytes and the project's name  "
+          f"{[(r.store_id, r.name()) for r in prec]}",
+          len(prec) == 1 and prec[0].store_id == "stock.part2" and prec[0].name().startswith("PART 01")
+          and len(pv) == 2 and len(pv[0].data) == 6322 and pv[1].data.rstrip(b"\0") == a.name.encode())
+
+    # ---- a PART template: APPLY TO..., a section from a track onto another track ------------------
+    # card.work seeded with a PART template whose Part image is the project's Part with T1's FX1 page 1
+    # slot 0 = 77 and T1's AMP page 1 slot 0 = 66. APPLY TO..., FX (row 1), FROM T1, ONTO T2: T2's FX1
+    # page 1 slot 0 = 77 in the Part, T2's AMP page 1 untouched.
+    def blob_with(fn):
+        b = bytearray(6322)
+        for k in range(6322):
+            b[k] = (k * 7 + 3) & 0x7f
+        fn(b)
+        return bytes(b)
+    pblob = blob_with(lambda b: (b.__setitem__(0x126, 77), b.__setitem__(0x120, 66), b.__setitem__(0x00, 0), b.__setitem__(0x08, 0)))
+    def part_rec(kind, blob, name="PART 07"):
+        pay = brainfile.prefix_bytes(kind, layout=0x50525432, name=name) if kind == brainfile.TEMPLATE_REC \
+            else brainfile.prefix_bytes(kind, layout=0x50525432)
+        pay += brainfile.Value(1, brainfile.BLOB, blob).encode()
+        if kind == brainfile.TEMPLATE_REC:
+            pay += brainfile.Value(2, brainfile.BLOB, a.name.encode() + b"\0").encode()
+        return brainfile.Record(kind, "stock.part2", payload=pay)
+    pseed2 = OUT / "tpl_part_seed.work"
+    pseed2.write_bytes(brainfile.File(brainfile.CARD_WORK, [part_rec(brainfile.TEMPLATE_REC, pblob)]).encode())
+    parea = [(0x31, 3000), (0x31, 800), (0x20, 600), (0x31, 800), (0x20, 600), (0x31, 800), (0x20, 600), (0x31, 2500)]
+    # the template (PART tab, its first row after NEW), YES; APPLY TO...; FX; FROM T1; ONTO T2; OK
+    files, _, (db_, part_, w126, w120, t2fx, t2amp) = ui_run(
+        "tpl_part_apply", [(0x32, 400)] + to_pane + [(0x20, 400)] + parea,
+        roots=((pseed2, "BRAIN/card.work"),),
+        dumps=((0x46c82456, 4), (0x80000003, 1), (part_at + 0x8ed80 + 0x126, 1), (part_at + 0x8ed80 + 0x120, 1),
+               (part_at + 0x8ed80 + 0x126 + 24, 1), (part_at + 0x8ed80 + 0x120 + 24, 1)))
+    check(f"templates: PART template APPLY TO..., FX, FROM T1, ONTO T2: T2's FX1 slot 0 is 77 and T2's AMP slot 0 "
+          f"keeps its value (T2 FX1 {t2fx.hex()}, T2 AMP {t2amp.hex()}, T1 FX1 {w126.hex()} T1 AMP {w120.hex()} unchanged)",
+          t2fx[0] == 77 and t2amp[0] != 66)
+
+    # ---- the PART default: CREATE EMPTY PROJECT and every Part of every bank, the sample slots apart ----
+    dblob = blob_with(lambda b: (b.__setitem__(slice(0x22, 0x2a), bytes([1] * 8)), b.__setitem__(slice(0x2ca, 0x2f2), bytes([0x33] * 40))))
+    pdseed = OUT / "part_def_seed.work"
+    pdseed.write_bytes(brainfile.File(brainfile.CARD_WORK, [part_rec(brainfile.DEFAULT, dblob)]).encode())
+    keys_new = [(0x32, 400), (0x1c, 1000), (0x31, 1000), (0x31, 1000), (0x33, 600), (0x31, 1400), (0x31, 13000)]
+    files, _, _ = ui_run("part_def_new", keys_new, roots=((pdseed, "BRAIN/card.work"),))
+    banks = {k: v for k, v in files.items() if k.upper().endswith(".WORK") and "BANK" in k.upper() and a.name.upper() not in k.upper()}
+    probe = dblob[0x3e2:0x602]                  # the MIDI tracks' pages: a section the default carries, in one run
+    hits = {k: v.count(probe) for k, v in banks.items()}
+    check(f"PART default: CREATE EMPTY PROJECT writes the card's PART default into the Parts of the new project's "
+          f"banks (the working and the saved copy of each of four Parts: 8 in a bank file)  {sorted(hits.values())[:4]}...",
+          len(banks) >= 1 and all(n == 8 for n in hits.values()))
+    check("PART default: the default's sample slot bytes (0x33 x 40) are in none of the new project's banks",
+          not any(b"\x33" * 40 in v for v in banks.values()))
 
     # ---- MIDI knob names: NAME KNOB, the CTRL1 label, SAVE TEMPLATE ----------
     # MIDI mode, T1, the CTRL1 page; the shortcut, NAME KNOB (row 6), CC1, the
@@ -861,8 +922,8 @@ def main():
     # new project's own values are 0 and 10, measured under the port).
     ps_keys = [1 + o for o in range(0x70) if o == 0x24 or 0x28 <= o <= 0x37 or 0x3f <= o <= 0x54
                or 0x56 <= o <= 0x6a]
-    keys = [(0x32, 400), (0x1c, 1200)] + [(0x20, 400)] * 4 + [(0x21, 800), (0x31, 800),
-                                                               (0x20, 400), (0x20, 400), (0x31, 2500)]   # DEFAULTS: SAVE NEW PROJECT
+    keys = [(0x32, 400), (0x1c, 1200)] + [(0x20, 400)] * 4 + [(0x21, 800)] + [(0x31, 800)] + [(0x34, 400)] * 6 + [(0x21, 400)] * 6 + [
+        (0x31, 1200), (0x31, 4000), (0x20, 400), (0x31, 2500)]  # PROJECT tab: NEW PROJECT TPL, YES on the name; its screen: APPLY TO PROJECT, SET AS DEFAULT
     files, _, (ram,) = ui_run("pset_save", keys, dumps=((0x80000000, 0x70),))
     work_ = card_file(files, "BRAIN/CARD.WORK")
     prec = [r for r in brainfile.parse(work_).records
@@ -923,9 +984,19 @@ def main():
         brainfile.SETTINGS, "octabam.brain",
         payload=brainfile.Value(1, brainfile.BINARY, b"\x01").encode())]).encode())
     into = [(0x1c, 500)] + [(0x20, 500)] * 4 + [(0x21, 500)]     # PROJ, BRAIN's pane
-    (mon,) = live_run("midimon", [(0x32, 500), "midi B0 07 14", "midi C0 02", "midi 91 24 64"]
-                      + into + [(0x20, 500)] * 2 + [(0x31, 500)], 2000, (("mon_buf", 96),), seed=logon)
-    got = [mon[i * 32:i * 32 + 32].split(b"\0")[0].decode("ascii", "replace") for i in range(3)]
+    (mon, mcnt, ata, bts) = live_run("midimon", [(0x32, 500), "midi B0 07 14", "midi C0 02", "midi 91 24 64"]
+                                     + into + [(0x20, 500)] * 4 + [(0x31, 500), (0x21, 500)], 2000,
+                                     (("mon_buf", 96), ("midi_cnt", 24), ("ata_cmds", 12), ("brain_ts", 96)), seed=logon)
+    mc = struct.unpack(">6I", mcnt)
+    ac = struct.unpack(">3I", ata)
+    check(f"io: the MIDI counters count one note, one controller and one program change  {mc}",
+          mc[0] == 1 and mc[1] == 1 and mc[2] == 1)
+    ts = struct.unpack(">24I", bts)
+    sums = ts[1::2]
+    check(f"cpu: the scheduler hook charged time to the idle task and to {sum(1 for x in sums if x)} slots in all  {list(sums)}",
+          sums[10] > 0 and sum(1 for x in sums if x) >= 3)
+    check(f"io: the ATA hook counted the card's reads while the project loaded  {ac}", ac[0] > 0)
+    got = [mon[i * 32:i * 32 + 32].split(b"\0")[0].decode("ascii", "replace") for i in range(3)][::-1]   # newest first
     check(f"midimon: BRAIN > MIDI shows the last three messages decoded  {got}",
           got[0].startswith("CH01 CC") and got[0].replace(" ", "").endswith("7=20")
           and got[1].startswith("CH01 PC") and got[2].startswith("CH02 NOTE"))

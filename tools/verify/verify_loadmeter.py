@@ -123,7 +123,7 @@ def main():
             shutil.copy2(f, copy / f.name)
 
     into = [(0x1c, 500)] + [(0x20, 500)] * 4 + [(0x21, 500)]                 # PROJ, BRAIN's pane
-    open_load = [(0x32, 500)] + into + [(0x20, 500)] * 3 + [(0x31, 500)]      # BRAIN > OTOP
+    open_load = [(0x32, 500)] + into + [(0x20, 500)] * 3 + [(0x31, 500)]      # BRAIN > PERFORMANCE (the fourth row)
 
     def run(tag, image, lmd, keys, wait, extra=()):
         card = OUT / f"{tag}.img"

@@ -72,6 +72,13 @@ def image_name(remix=None, build=None) -> str:
     return re.sub(r"[^A-Z0-9 ._-]", "", raw.upper()).strip()[:IMAGE_NAME_MAX].strip() or "OCTABAM"
 
 
+def remix_label(remix=None) -> str:
+    """The remix's last path part, upper case, as the IMAGE tab of ABOUT shows it (at most 14 characters)."""
+    import os
+    raw = pathlib.PurePath(remix or os.environ.get("REMIX", "?")).name
+    return re.sub(r"[^A-Z0-9 ._-]", "", raw.upper())[:14] or "?"
+
+
 def has_brain(remix) -> bool:
     return BRAIN_KEY in remix.modules
 

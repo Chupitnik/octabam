@@ -13,7 +13,11 @@ HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 FLAGS = ['-mcpu=5475', '-msoft-float', '-O2', '-ffreestanding', '-fno-builtin',
          '-fno-common', '-fno-jump-tables', '-fno-asynchronous-unwind-tables',
-         '-fno-ident', '-fomit-frame-pointer']
+         '-fno-ident', '-fomit-frame-pointer',
+         # a list popup calls its handlers with no argument pushed: a tail call that stores its own
+         # argument in the incoming slot (`move.l %d0,%sp@(4)` / `bra`) overwrote the caller's
+         # return address (NEW FX TEMPLATE's list, 13 Oct 2026: return to address 4)
+         '-fno-optimize-sibling-calls']
 
 
 def generate():

@@ -29,6 +29,21 @@ loads with `0x95048 = 0x0f` while Part 3's working copy equals its saved
 copy byte for byte, and Parts 1, 2 and 4 differ from theirs by 1, 11 and
 3 bytes.
 
+### 1a. The sample slots a Part names ✅ (13 Oct 2026)
+
+A Part names the sample slots its machines play: five bytes a track at
+`Part + 0x2ca + 5t`, between the SRC page-2 array (`+0x1da..+0x2ca`) and
+the page-2 arrays (`+0x2f2`). Index 0 is the Static slot, 1 the Flex slot,
+4 the Pickup slot (2 and 3 unused); the byte is the slot number less one, and
+`0x80..0x87` is recorder buffer 1-8. Read on the running port on
+OCTABAM89_setgate (T3 STATIC `0x15` = slot 22, T7 FLEX `0x86` = recorder
+buffer 7, its Pickup byte `0x86` too). In a bank file the same bytes are at
+`0x2d3` in the Part record (`tools/hw/ot_project.py` `SLOT_OFF`): the file's
+Part record starts 9 bytes before the RAM Part's first byte (the machine
+bytes: file `0x2b`, RAM `0x22`). The slot's file, trim and attributes are the
+project's (`project.work` `[SAMPLE]` blocks, manual 4.3 and 13.2.4), so these
+bytes mean the same sample only within one project's slot lists.
+
 ## 2. The routines
 
 | routine | does | |
@@ -36,7 +51,7 @@ copy byte for byte, and Parts 1, 2 and 4 differ from theirs by 1, 11 and
 | `0x40029a4c(src, p)` | Part paste: `src` → working Part of the current bank and its CS1 copy, sets the unsaved bit (RAM and CS1) and the edited flags; when `p` is the current Part, tail-jumps to `0x40009094(current bank, p)` | 📖 |
 | `0x4004a908(p)` | Part Save: working → saved (and CS1), clears the unsaved bit, sets has-saved; re-applies when `p` is current | 📖 |
 | `0x4004a9d0(p)` | Part Clear: `0x40005638` initialises working and saved, writes the name `PART<n>` (format `0x400b4200`), clears the bits, ends in Part Save (`bra 0x4004a908`) | 📖 |
-| `0x4004aab4(p)` | Part Reload: returns 0 without a saved copy; else saved → working (and CS1), clears the unsaved bit; for the current Part keeps the eight machine bytes at working `+0x22` from before, calls `0x40009848(bank, p)` and the machine transition `0x400972fc(p, track, old)` per track | 📖 |
+| `0x4004aab4(p)` | Part Reload: returns 0 without a saved copy; else copies the eight machine bytes of the working Part (`+0x22`) to the stack, saved → working (and CS1), clears the unsaved bit; for the current Part calls `0x40009848(bank, p)` and then `0x400972fc(p, track, old)` for each of the eight tracks, `old` the machine byte copied before (read from the code 13 Oct 2026; this is the only stock path that runs the machine transition, and KITS' LOAD KIT uses it) | 📖 |
 | `0x4004a8a4(p)` | the current pattern's Part = `p` (RAM and CS1), edited flags, `0x40027e00`, `0x40009094(current bank, p)` | 📖 |
 | `0x40009094(bank, p)` | apply a Part to the engine: writes `0x80001828/9`, copies the Part's pages into the engine, the LFO designer records (section 9) | ✅ |
 | `0x40009e00(bank, p)` | the pattern-change apply: `0x80001828/9`, the scene bytes, the rest as `0x40009094` | ✅ |

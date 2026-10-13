@@ -217,9 +217,8 @@ def main():
     key(KEY_PROJ, 400)                                 # an MKII: the reset sends the panel `60 02`
     for _ in range(4):
         key(KEY_DOWN)                                  # root: PROJECT SYSTEM CONTROL MIDI [BRAIN]
-    key(KEY_YES, 300)                                  # into BRAIN's pane: the cursor on DEFAULTS
-    for _ in range(4):
-        key(KEY_DOWN)                                  # IMAGE CHECK, LOAD, MIDI, REMIXES
+    key(KEY_YES, 300)                                  # into BRAIN's pane: the cursor on TEMPLATES
+    key(KEY_DOWN)                                      # TEMPLATES, REMIXES
     key(KEY_YES, 400)                                  # its screen: the cursor on the image
     key(KEY_YES, 600)                                  # STOCK140 picked: the dialog
     key(KEY_YES, 3000)                                 # the dialog: boot it
