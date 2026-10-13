@@ -7383,8 +7383,8 @@ flash D). Yves reported it and copied the take's folder off the card.
   320 longs a frame into buffers addressed the same way (the uncached
   alias, the same CACR) inside the frame interrupt, and streaming costs
   it 14 µs a frame with no voices playing and 25 µs with seven
-  (`modules/usb-audio-out-tracks-main-cue/README.md`, his MKII, 4 Oct
-  2026): at most 45 to 80 ns a store, its instructions and descriptor
+  (`docs/firmware/ARCHITECTURE.md` "ColdFire time per frame on a unit",
+  his MKII, 4 Oct 2026): at most 45 to 80 ns a store, its instructions and descriptor
   writes included. At that rate flash D's 14.3 M byte stores take 0.6 to
   1.1 s, and their 18 M instructions about 0.12 s more (at the hook's
   measured 6.9 ns an instruction), against 8.5 s measured. The rest is
