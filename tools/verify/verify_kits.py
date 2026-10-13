@@ -35,6 +35,10 @@ pattern content beyond pattern 1 playing.
             pool), unsaved; the library's Kit 10 unchanged. With MIDI
             SCENES each edited slot also holds a scene lock (table byte
             0x015): slot 2's comes back with Kit 10, the other slots' stay.
+  freload   FUNC+CUE with an edit on pattern 1's slot (its unsaved bit
+            clear, so stock's reload does nothing): the slot is its Kit.
+  statusnew NEW PROJECT on the panel: the status line is "001 ---"
+            (stock draws "Pt:1 ONE"); the plane is dumped, not compared.
   noasg     pattern 3 with no Kit on slot 2 (Kit 10); PTN+TRIG 2 (Kit 1,
             Part byte on slot 2), then PTN+TRIG 3: pattern 3 still plays
             Kit 10.
@@ -77,6 +81,13 @@ pattern content beyond pattern 1 playing.
             the Kit above is a copy; FUNC+STOP again: it is back.
   lclear    SAVE KIT open, DOWN x3, FUNC+PLAY: that Kit is empty; again:
             it is back.
+  lcopylive LOAD KIT open on the current Kit, whose slot carries an edit:
+            FUNC+REC, UP, FUNC+STOP: the Kit above is the slot's Part with
+            the edit, not the library's record.
+  follow    LOAD KIT open, PTN+TRIG 2 (Kit 4): the list's cursor moves to
+            Kit 4.
+  lclearlive LOAD KIT open on the current Kit, FUNC+PLAY: the Kit is empty
+            and the playing slot is a cleared Part at once.
   swback    Kit 3 on pattern 3 and Kit 4 on pattern 4, playing, PTN 3, 4, 3, 4:
             each pattern keeps its Kit and its slot holds it.
   ptncopy   FUNC+REC (pattern 1), pattern 14, FUNC+STOP: pattern 14
@@ -558,6 +569,11 @@ def main():
     s.down("func"); s.tap("stop", 300); s.up("func", 600); add("lundo", s)       # the second paste undoes
     s = Script(); s.tap("no"); s.tap("part", 800); s.hold("func", "rec"); s.tap("up", 200)
     s.hold("func", "stop", gap=600); add("lcopy", s)
+    s = Script(); s.tap("no"); s.tap("part", 800); s.hold("func", "rec"); s.tap("up", 200)
+    s.hold("func", "stop", gap=600); add("lcopylive", s, [(b3 + WORK + EDIT_OFF, EDIT_VAL)])
+    s = Script(); s.tap("no"); s.tap("part", 800); s.hold("func", "play", gap=1500); add("lclearlive", s)
+    s = Script(); s.tap("no"); s.tap("part", 800); s.hold("ptn", 1, gap=1500); s.wait(1500)
+    add("follow", s, [(pa(1), 3)], more_dumps=f";{sym['MSEL']:#x},4=" + str(OUT / "follow_msel.bin"))
     s = Script(); s.tap("no"); s.hold("func", "part", gap=800)
     for _ in range(3):
         s.tap("down", 150)
@@ -587,7 +603,7 @@ def main():
                                        s.up("stop"), s.up("func", 800)))
     add("pclone", s, [(pa(0), 5)])
     s = Script(); s.tap("no"); s.down("ptn"); s.down("func"); s.tap("right", 300); s.up("func"); s.up("ptn", 2000)
-    add("fright", s, [(pa(0), 5)])
+    add("fright", s, [(pa(0), 5)], more_dumps=f";0x460d1742,4=" + str(OUT / "fright_ptnwin.bin"))
 
     def inactive(s, again=False):
         s.tap("no"); s.down("ptn"); s.down("func")
@@ -624,6 +640,11 @@ def main():
                 s.tap("down", 200)
             s.tap("yes", 1200); s.tap("yes", 1500)
     newb = f";{BLOB:#x},{BSTRIDE:#x}={OUT / 'NAME_b1.bin'}"
+    s = Script(); s.tap("no"); s.hold("func", 0x2a, gap=1500); s.wait(1500)       # FUNC+CUE
+    add("freload", s, [(b3 + WORK + EDIT_OFF, EDIT_VAL)])
+    s = Script(); s.tap("no"); s.tap(0x1c, 1000); s.tap("yes", 1000); s.tap("yes", 1000); s.tap("up", 600)
+    s.tap("yes", 1400); s.tap("yes", 13000); s.wait(1500)
+    add("statusnew", s, more_dumps=f";{LCD:#x},1024=" + str(OUT / "statusnew_lcd.bin"))
     s = Script(); newproj(s); s.tap("play", 2000)
     for p_ in (1, 2):
         s.hold("ptn", p_); s.until(ENG_PART, 1)
@@ -901,6 +922,15 @@ def main():
                   f"slots {[x + 1 for x in rest]} kept theirs ({kept}), the library's Kit 10 has no lock ({kl[LOCK_IDX]:#x})",
                   tab[sl * 4096 + LOCK_IDX] == EDIT_VAL + 1 and tab[4096 + LOCK_IDX] == 0xff and all(kept)
                   and kl[LOCK_IDX] == 0xff)
+    if exists("freload"):
+        clean("freload")
+        b, im = b3_("freload"), img("freload")
+        sl = b[PBYTE]
+        check(f"freload: FUNC+CUE with an edit on the playing slot {sl + 1} whose unsaved bit is clear: the slot is "
+              f"Kit {BANK * 4 + sl + 1} again ({slot(b, sl) == kit(im, BANK * 4 + sl)})",
+              slot(b, sl) == kit(im, BANK * 4 + sl))
+    if exists("statusnew"):
+        clean("statusnew")      # the plane (statusnew_lcd.bin) reads "001 ---" where stock draws "Pt:1 ONE": read by eye, 13 Oct 2026
     if exists("noasg"):
         clean("noasg")
         b, im = b3_("noasg"), img("noasg")
@@ -1061,6 +1091,31 @@ def main():
         k = BANK * 4 + s_
         check(f"lcopy: Kit {k} (above Kit {k + 1}) is a copy of it",
               im[O_LIB + (k - 1) * REC:O_LIB + k * REC] == b0[O_LIB + k * REC:O_LIB + (k + 1) * REC])
+    if exists("lcopylive"):
+        clean("lcopylive")
+        im, b = img("lcopylive"), b3_("lcopylive")
+        s_ = cur_slot(b)
+        k = BANK * 4 + s_
+        check(f"lcopylive: Kit {k} (above Kit {k + 1}) is the playing slot's Part with its edit "
+              f"({kit(im, k - 1) == slot(b, s_)}, byte {kit(im, k - 1)[EDIT_OFF]:#x}); Kit {k + 1} has not got it "
+              f"({kit(im, k)[EDIT_OFF]:#x})",
+              kit(im, k - 1) == slot(b, s_) and kit(im, k - 1)[EDIT_OFF] == EDIT_VAL and kit(im, k)[EDIT_OFF] != EDIT_VAL)
+    if exists("lclearlive") and exists("base"):
+        clean("lclearlive")
+        im, b, b0 = img("lclearlive"), b3_("lclearlive"), b3_("base")
+        s_ = cur_slot(b)
+        k = BANK * 4 + s_
+        check(f"lclearlive: LOAD KIT's cursor on the current Kit {k + 1}, FUNC+PLAY: the Kit is empty "
+              f"({not valid(im, k)}), the playing slot {s_ + 1} is a cleared Part (no Kit in RESID: "
+              f"{im[O_RESID + BANK * 4 + s_] == 0xff}, Part changed: {slot(b, s_) != slot(b0, s_)}), pattern 1 keeps "
+              f"its assignment ({im[O_ASSIGN + BANK * 16] + 1})",
+              not valid(im, k) and im[O_RESID + BANK * 4 + s_] == 0xff and slot(b, s_) != slot(b0, s_)
+              and im[O_ASSIGN + BANK * 16] == k)
+    if exists("follow"):
+        clean("follow")
+        msel = struct.unpack(">I", (OUT / "follow_msel.bin").read_bytes())[0]
+        check(f"follow: LOAD KIT open, PTN+TRIG 2 (Kit 4): the cursor is on Kit 4's row ({msel}, row 0 is UNDO KIT)",
+              msel == 4)
     if exists("lundo") and exists("base"):
         clean("lundo")
         im, b0 = img("lundo"), img("base")
@@ -1101,6 +1156,9 @@ def main():
         same = all(b[i] == b[13 * PSTRIDE + i] for i in range(PSTRIDE) if i != PBYTE)
         check(f"fright: pattern 14 = pattern 1 ({same}), plays Kit {k2 + 1}, a copy of Kit {k1 + 1}",
               same and k2 not in (k1, 0xff) and kit(im, k2) == kit(im, k1))
+        win = struct.unpack(">I", (OUT / "fright_ptnwin.bin").read_bytes())[0]
+        check(f"fright: PTN released after PTN+FUNC+RIGHT: SELECT PATTERN not opened (0x460d1742 = {win}, 2 when it is)",
+              win != 2)
 
     if exists("inactive"):
         clean("inactive")

@@ -2,7 +2,7 @@
 
 255 Kits per project. A Kit is a saved Part; each pattern plays the Kit
 assigned to it, through the stock Part slots. `Kind.CF_PATCH`: one DRAM
-unit (`kits.s`), 23 detours, nothing on the DSP. The firmware facts it
+unit (`kits.s`), 16 detours and STORE's events, nothing on the DSP. The firmware facts it
 stands on are [`docs/firmware/PARTS.md`](../../docs/firmware/PARTS.md).
 
 Credit: Em ([emuyia](https://github.com/emuyia)) designed Kits on the
@@ -85,7 +85,7 @@ which is not what an MD or MnM Kit holds.
 | LOAD KIT | PART | FUNC+MIDI |
 | SAVE KIT | FUNC+PART | FUNC+MIDI, then FUNC+BANK |
 | quick save (the Kit under the cursor, its name kept) | FUNC+PART, then FUNC+YES | FUNC+MIDI, FUNC+BANK, then FUNC+YES |
-| reload the current Kit | FUNC+CUE (stock Part Reload) | FUNC+CUE |
+| reload the current Kit from the library (KIT RELOADED) | FUNC+CUE | FUNC+CUE |
 | the pasted pattern plays a copy of its Kit in the next empty Kit | FUNC+PASTE+PART (PART while STOP is held after the paste) | FUNC+PASTE+MIDI |
 | save the Kit, copy it and the pattern to the next empty ones, play the copy | PTN+FUNC+RIGHT | PTN+FUNC+RIGHT |
 | copy / paste / clear an inactive pattern of the current bank (paste or clear again: undo) | hold PTN, FUNC and the pattern's TRIG; REC / STOP / PLAY | the same |
@@ -112,11 +112,25 @@ which is not what an MD or MnM Kit holds.
   stock.
 - In either list, FUNC+REC copies the Kit under the cursor, FUNC+STOP
   pastes onto it, FUNC+PLAY clears it; the same paste or clear again on
-  the same Kit undoes it.
-- The status line's Part field shows the current slot's Kit as `NNN
-  name` (Octakit's form; measured on the port's LCD: `009 ONE`). The
-  stock Part name is the Kit's first six characters (its field is seven
-  bytes).
+  the same Kit undoes it. A copy is a snapshot of the Part: for the
+  current pattern's Kit (or the current slot's) it is the live Part, edits
+  included; EMPTY KIT when there is nothing to copy, and the earlier copy
+  stays. A paste may land on the Kit it was copied from. A clear wipes
+  the whole record. A paste, clear or undo on the current pattern's Kit
+  applies at once: the Kit is loaded, or the Part cleared as the stock
+  Part Clear does.
+- With a KITS list open, a pattern change moves its cursor to that
+  pattern's Kit (LOAD KIT: below UNDO KIT; SAVE KIT: the first empty Kit
+  when the pattern has none).
+- The status line's Part field shows the current pattern's Kit as `NNN
+  name` (Octakit's form; measured on the port's LCD: `009 ONE`), `NNN ---`
+  when that Kit is cleared, and `NNN ---` with the slot's own number (bank
+  * 4 + Part + 1) when none is assigned, as in a NEW PROJECT (`001 ---`
+  read from the plane; stock draws `Pt:1 ONE`). The stock Part name is the
+  Kit's first six characters (its field is seven bytes).
+- PTN+FUNC+RIGHT saves into the pattern's own Kit, the slot's only when
+  it has none, and PTN's release then opens no SELECT PATTERN
+  (`0x460d173e`, the flag stock sets in the PATTERN+TRIG handler).
 
 ## How it works
 
