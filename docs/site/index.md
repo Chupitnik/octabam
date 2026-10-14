@@ -43,8 +43,6 @@ Start here:
 - [Build and flash](build-flash.md) — from nothing installed to a flashed unit.
 - [BRAIN](brain.md) — the on-unit screens: templates, settings, defaults, and
   switching remixes from the card.
-- [Modules reference](reference/modules.md) — every module, credited to its
-  author, with its proof status.
 - [Safety and recovery](safety.md) — the recovery procedure and its limits.
 
 The repository: https://github.com/sambanks/octabam
