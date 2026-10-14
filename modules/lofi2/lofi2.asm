@@ -717,8 +717,14 @@ lf_nomod:
 ; r7+displacement. That is the whole reason BodeShift's sections cost what
 ; they do (21 words against 6 here).
 ;
-; PARITY-SPLIT STATE. Each section is H(z) = (c + z^-2)/(1 + c z^-2):
+; PARITY-SPLIT STATE. Each section is H(z) = (c - z^-2)/(1 - c z^-2):
 ;   y[n] = c*(x[n] + y[n-2]) - x[n-2]
+; Olli Niemitalo's 90-degree allpass section, so c = a^2. His published
+; values are the a's (chain A 0.6923877778065, 0.9360654322959,
+; 0.9882295226860, 0.9987488452737; chain B 0.4021921162426,
+; 0.8561710882420, 0.9722909545651, 0.9952884791278); loading a unsquared
+; bends the I/Q difference off 90 degrees and costs some 30 dB of image
+; rejection at 3-5 kHz. verify_lofi2 gates the image across the band.
 ; Only the n-2 values are read, so even and odd samples are two independent
 ; recursions. Each parity keeps its own [y[n-2], x[n-2]] per section, and a
 ; sample overwrites its own pair with [y[n], x[n]], which are exactly what
@@ -744,29 +750,29 @@ lf_nomod:
         move    a1,n1                   ;  has no EOR #imm site (#704 review)
 
         move    x:(r7+$3d),x1          ; chain A-L input
-; ---- chain A-L section 0: allpass, c = 0.6923877778065 ----
-        move    #>$58a02a,y1
+; ---- chain A-L section 0: allpass, c = a^2 = 0.4794008348558 ----
+        move    #>$3d5d02,y1
         mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
         mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
         sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
         move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
-; ---- chain A-L section 1: allpass, c = 0.9360654322959 ----
-        move    #>$77d0fe,y1
+; ---- chain A-L section 1: allpass, c = a^2 = 0.8762184935393 ----
+        move    #>$7027ed,y1
         mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
         mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
         sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
         move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
-; ---- chain A-L section 2: allpass, c = 0.9882295226860 ----
-        move    #>$7e7e4e,y1
+; ---- chain A-L section 2: allpass, c = a^2 = 0.9765975895082 ----
+        move    #>$7d0126,y1
         mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
         mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
         sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
         move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
-; ---- chain A-L section 3: allpass, c = 0.9987488452737 ----
-        move    #>$7fd701,y1
+; ---- chain A-L section 3: allpass, c = a^2 = 0.9974992559355 ----
+        move    #>$7fae0e,y1
         mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
         mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
         sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
@@ -779,29 +785,29 @@ lf_nomod:
         mpy     x0,y1,b                 ; I*cos: b is free while the chains run,
         move    b,y0                    ;  and y0 is untouched by them (limited, as
         move    x:(r7+$3d),x1          ;  the old park was); chain B-L input
-; ---- chain B-L section 0: allpass, c = 0.4021921162426 ----
-        move    #>$337b08,y1
+; ---- chain B-L section 0: allpass, c = a^2 = 0.1617584983677 ----
+        move    #>$14b481,y1
         mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
         mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
         sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
         move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
-; ---- chain B-L section 1: allpass, c = 0.8561710882420 ----
-        move    #>$6d9704,y1
+; ---- chain B-L section 1: allpass, c = a^2 = 0.7330289323415 ----
+        move    #>$5dd3e4,y1
         mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
         mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
         sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
         move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
-; ---- chain B-L section 2: allpass, c = 0.9722909545651 ----
-        move    #>$7c7408,y1
+; ---- chain B-L section 2: allpass, c = a^2 = 0.9453497003291 ----
+        move    #>$790138,y1
         mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
         mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
         sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
         move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
-; ---- chain B-L section 3: allpass, c = 0.9952884791278 ----
-        move    #>$7f659d,y1
+; ---- chain B-L section 3: allpass, c = a^2 = 0.9905991566845 ----
+        move    #>$7ecbf4,y1
         mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
         mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
         sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
@@ -816,29 +822,29 @@ lf_nomod:
         move    a,x:(r7+$35)            ; v L
 
         move    x:(r7+$3e),x1          ; chain A-R input
-; ---- chain A-R section 0: allpass, c = 0.6923877778065 ----
-        move    #>$58a02a,y1
+; ---- chain A-R section 0: allpass, c = a^2 = 0.4794008348558 ----
+        move    #>$3d5d02,y1
         mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
         mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
         sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
         move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
-; ---- chain A-R section 1: allpass, c = 0.9360654322959 ----
-        move    #>$77d0fe,y1
+; ---- chain A-R section 1: allpass, c = a^2 = 0.8762184935393 ----
+        move    #>$7027ed,y1
         mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
         mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
         sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
         move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
-; ---- chain A-R section 2: allpass, c = 0.9882295226860 ----
-        move    #>$7e7e4e,y1
+; ---- chain A-R section 2: allpass, c = a^2 = 0.9765975895082 ----
+        move    #>$7d0126,y1
         mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
         mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
         sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
         move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
-; ---- chain A-R section 3: allpass, c = 0.9987488452737 ----
-        move    #>$7fd701,y1
+; ---- chain A-R section 3: allpass, c = a^2 = 0.9974992559355 ----
+        move    #>$7fae0e,y1
         mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
         mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
         sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
@@ -850,29 +856,29 @@ lf_nomod:
         mpy     x0,y1,b
         move    b,y0
         move    x:(r7+$3e),x1          ; chain B-R input
-; ---- chain B-R section 0: allpass, c = 0.4021921162426 ----
-        move    #>$337b08,y1
+; ---- chain B-R section 0: allpass, c = a^2 = 0.1617584983677 ----
+        move    #>$14b481,y1
         mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
         mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
         sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
         move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
-; ---- chain B-R section 1: allpass, c = 0.8561710882420 ----
-        move    #>$6d9704,y1
+; ---- chain B-R section 1: allpass, c = a^2 = 0.7330289323415 ----
+        move    #>$5dd3e4,y1
         mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
         mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
         sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
         move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
-; ---- chain B-R section 2: allpass, c = 0.9722909545651 ----
-        move    #>$7c7408,y1
+; ---- chain B-R section 2: allpass, c = a^2 = 0.9453497003291 ----
+        move    #>$790138,y1
         mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
         mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
         sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
         move    a,x:(r2)+n2             ; y[n-2] slot <- y[n]; r2 to the next X slot
         move    a,x1
-; ---- chain B-R section 3: allpass, c = 0.9952884791278 ----
-        move    #>$7f659d,y1
+; ---- chain B-R section 3: allpass, c = a^2 = 0.9905991566845 ----
+        move    #>$7ecbf4,y1
         mpy     y1,x1,a   x:(r1)+,x0    ; a = c*in       ; x0 = y[n-2]
         mac     x0,y1,a   x:(r1)+,x0    ; += c*y[n-2]    ; x0 = x[n-2]
         sub     x0,a      x1,x:(r2)-    ; a = y[n]       ; x[n-2] slot <- in
