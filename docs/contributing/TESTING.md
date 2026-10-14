@@ -118,8 +118,8 @@ The two tables above.
 | `verify_ccfeedback` | CC FEEDBACK | shared | the knob-change sweep enters the stock CC emitter once per changed byte, gated as stock gates | `.venv` |
 | `verify_kits` | KITS | once, on the smallest carrier | staging through the Part slots, LOAD/SAVE KIT and the list ops, kits.work over a save, reboot and power cycle, migration, Octakit import, a rejected bank file | a project (OT_PROJECT), the port |
 | `verify_scenes` | MIDI SCENES | once, on the smallest carrier | MIDI lock scenarios (hold-to-lock, readout, unlock, XF morph, scene apply and release, Part clear / copy / paste) with MIDI OUT bytes and frames, against stock and, with `--oracle`, against bkkbrls-del's MIDISC2.1 image; `--persist` (final gate, not in `make check`): `scenes.work` / `.strd` over a save, reboot and power cycle with CS1, a refused file under IGNORE / OVERWRITE / BACKUP, a 2.x project read once, Kits carrying the locks. Cannot see: the hardware, the sequencer sites (phase 3) | port, project |
-| `verify_usb_in` | USB AUDIO IN AB, CD, ABCD | image | the host's channels land bit-exact on their RX slots, the others stay the jacks', the recorder ring fills, the jacks return at alt 0 | port, `.venv` |
-| `verify_usb_align` | USB AUDIO OUT TRACKS MAIN CUE | image | MAIN and CUE are in phase with the tracks in the twenty-channel stream (lag 0) | port, `.venv` |
+| `verify_usb_in` | USB INPUTS AB, CD, ABCD | image | the host's channels land bit-exact on their RX slots, the others stay the jacks', the recorder ring fills, the jacks return at alt 0 | port, `.venv` |
+| `verify_usb_align` | USB LAYOUT TRACKS MAIN CUE | image | MAIN and CUE are in phase with the tracks in the twenty-channel stream (lag 0) | port, `.venv` |
 | `verify_cfmeter` | CF METER | per remix | the DSP meter under the port with T8's FX2 = CF METER: frames counted within 8 of the frames run; spin min <= max and > 0; period min <= max and > 0; DBRN 40 lowers the spin minimum with the period maximum unchanged (within 10 %); DBRN 127 raises the period maximum past 1.5 x run 1's. Cannot see: the unit's cycle costs (the port prices each instruction at one step) and the ESAI's real underrun behaviour | `.venv`, port, project |
 | `verify_charkey` | CHARACTER | shared | KEY = T1 on both cores: a host-fed T3 (core 1) and T6 (core 0, also under four skews) duck in a burst; KEY = T1 with the host unfed holds no gain reduction; no host holds none; SELF is bit-identical fed or not; the master at KEY = T1 equals KEY = SELF; the host's own output is unchanged by Characters reading it. Cannot see: the chip's timing, anything the ColdFire does (knobs are poked into r6) | `dsp_host` |
 | `verify_character_txtr`, `verify_charkey_txtr` (`modules/character-txtr/`) | CHARACTER TXTR | shared | `verify_character` and `verify_charkey` run on the TXTR module (a `Gate` takes no arguments, so each names the module) | `dsp_host` |
@@ -240,8 +240,8 @@ dear={"DRV": 127, "FOLD": 127, "COMP": 127, "MIX": 127, "WDTH": 127, "SAT": 0},
 **The test remixes are left out** (30 Sep 2026): no remix under
 `remixes/test/` is picked by `make reach` in either tier, as a carrier, the
 floor, the cover or identity. A change to a module that only test remixes
-carry (CF METER, EUCLID, MINIVERB, TAPE ECHO, most USB AUDIO IN/OUT
-variants) reaches the selftest and no remix check, and the listing says
+carry (CF METER, EUCLID, MINIVERB, TAPE ECHO, most USB variants)
+reaches the selftest and no remix check, and the listing says
 so; `TESTS=1` brings the test remixes back.
 
 **Two tiers.** The default is QUICK, for working without losing the
@@ -609,8 +609,8 @@ Typical changes (with `JOBS=4`, kept shards):
 | change | remixes | wall |
 |---|---|---|
 | a module or remix README, or a manifest's or `remix.py`'s display fields | none | seconds (`verify_docs`) |
-| one USB IN or OUT module | its few `usb-io-*` remixes (+ bottleservice if it carries it) | 5-15 min |
-| USB MIDI (every USB remix) | ~24 | 15-20 min, floored by bottleservice |
+| one USB LAYOUT or INPUTS | its few `usb-io-*` remixes (+ bottleservice if it carries it) | 5-15 min |
+| USB (every USB remix) | ~24 | 15-20 min, floored by bottleservice |
 | the build | the cover + identity's moved remixes | 25-40 min |
 
 The floor of most runs is bottleservice's half, and inside it the Octakit
@@ -641,7 +641,7 @@ their results go in the PR body.
   is not evidence a race is gone. A local red is a defect.
 - **The cycle budget.** The emulator renders an engine the chip cannot
   afford; `make cycles` bounds it statically (instructions, no contention).
-  Hook-only DSP sections (USB AUDIO IN's inject) are not in the price.
+  Hook-only DSP sections (USB's audio-in inject) are not in the price.
 - **The dispatcher's facts.** `dsp_host` hands each effect an r7 and r6 it
   computes; logic keyed on them is measured under the port
   (`--dsp-pcwatch`).
