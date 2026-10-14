@@ -318,21 +318,18 @@ out/emu/ot_emu --image out/mainos_bus.bin --card out/stress-run/card.img \
 
 Check for `run ended REACHED` and nonzero audio. On hardware, copy the generated `.work` and `.strd` files into a project directory under your set, and keep the generated `AUDIO` folder inside that project so `AUDIO/STRESS_LOOP.wav` resolves. Select A01, then switch through A02-A04. Lower monitoring level before starting: eight tracks at their dearest settings sum loudly. Watch for a freeze, dropout, incorrect Part/effect mode, or a parameter that stops following locks or LFOs. Repeat after each feature change and compare with the same image and project. The emulator run checks loading and short playback; a long hardware soak and manual pattern switching remain separate checks.
 
-## The burn knob (hardware)
+## The burn knob (hardware, retired 14 Oct 2026)
 
-`make burn` / `make burn-image BUILD=N` (`BURN=1` with `SPEC=1`: the
-shipping remix plus a `BURN` knob on SEND's second slot). SEND is on every
-track of every core, so either core's ceiling can be measured on demand:
-set up the configuration, sweep that SEND's `BURN` until the audio breaks,
-and `24 × BURN` = cycles/sample spare on that core in that configuration
-(a three-word body, `dsp/burn_send.inc`; the reverb's old two-block probe
-was 32/step, the original 16). `verify_burn.py` proves the knob inert at 0
-and 127 and the step exact on both cores. The difference between two
-configurations is the cost of the change, the only way to price a stock
-effect (instruction count is not cycles: one rewrite moved instructions
-508 → 512 while cycles fell 735 → 731). A configuration that freezes at
-`BURN = 0` is already over budget. The current numbers it produced are
-`docs/firmware/CHIP.md` section 2.
+A temporary diagnostic, not a shipping feature: `make burn` built the
+shipping remix plus a `BURN` knob on SEND's second slot (`BURN=1` with
+`SPEC=1`), so either core's ceiling could be measured on demand by
+sweeping that SEND's `BURN` until the audio broke (`24 × BURN` =
+cycles/sample spare on that core in that configuration). Removed because
+it cost payload A the words LOAD METER and PLOCKS P2 later needed, and
+nobody was running the sweep any more; recover it with
+`git log --all -- tools/verify/verify_burn.py dsp/burn_send.inc`. The
+measurements below are kept for their numbers, from the ORIGINAL probe
+(the reverb's own burn blocks, predating the SEND knob):
 
 Measured with the original probe (before the 22 Sep 2026 clock
 measurement, on a 4,535-cycle frame):

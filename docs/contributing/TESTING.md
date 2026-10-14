@@ -105,7 +105,6 @@ The two tables above.
 | `verify_onebus` | REVERB SERVER, DELAY SERVER | shared | both sends on both cores: each host's wet print, WET passthrough sample-exact, the T8 refusal, stored old bytes inert, four skews | `dsp_host` |
 | `verify_grains` | DELAY SERVER | per remix | `Remix.grains` changes GRAIN only: the pricer sees it, every other case bit-identical | `dsp_host` |
 | `verify_tempo` | DELAY SERVER | per remix | the delay's tempo snap lands on the tempo word the frame builder publishes | `dsp_host` |
-| `verify_burn` | SEND | per remix | the RIG BURN probe image is the shipping one plus an inert, exact knob | `dsp_host` |
 | `verify_character`, `verify_spectrum`, `verify_modulation` | the three stations | shared | each station against arithmetic you can predict or a float reference: bypass bit-exact, every mode, bounded resonance, the FX1-only promise | `dsp_host` |
 | `verify_miniverb` | MINIVERB | image | eight instances isolated, dirty memory, buffer guards, audio gates | `dsp_host` |
 | `verify_brain` | CORE | image | the card store under the port: card-layer defaults land on a chooser select (none, card.work, recovered, damaged, wrong layout, duplicate), a mode record through MODE DEFAULTS, SAVE AS DEFAULT as an engine job (records, kept bytes, card.strd, a fresh card's folder, the second boot), stock's load-time clamp; `generate_brain.py --check` | `.venv`, port, project |
