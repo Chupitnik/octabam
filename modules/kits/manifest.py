@@ -25,9 +25,9 @@ MODULE = Module(
     key="KITS",
     kind=Kind.CF_PATCH,
     category=Category.PARTS, author="sambanks", author_url="https://github.com/sambanks",
-    proof=Proof.HARDWARE, proof_note="Sam's MKII (image A6, 6 Oct 2026): the Octakit import, ems-octakit #5, STOP/PTN+TRIG/PLAY with the Rytm, a rejected bank file, power cycles; `verify_kits` under the port",
+    proof=Proof.HARDWARE, proof_note="Sam's MKII (image A6, 6 Oct 2026): importing Octakit-format kit files, ems-octakit #5, STOP/PTN+TRIG/PLAY with the Rytm, a rejected bank file, power cycles; `verify_kits` under the port",
     doc="255 Kits per project: PART = LOAD KIT, FUNC+PART = SAVE KIT (MKI: FUNC+MIDI, "
-        "then FUNC+BANK); each pattern plays its Kit through the stock Part slots. After Em's Octakit.",
+        "then FUNC+BANK); each pattern plays its Kit through the stock Part slots. Replaces the earlier Octakit implementation.",
     linked=(Linked("kits", "modules/kits/kits.s", dram=True, include=kits_inc),),
     detours=(
         Detour(0x400A0570, H("4fefffec48d7007c"), "kits", "kits_sched",

@@ -1,7 +1,7 @@
 # `cfmeter-tracks` — CF METER with USB AUDIO OUT TRACKS
 
 [`cfmeter`](../cfmeter/README.md) with [USB AUDIO OUT
-TRACKS](../../../modules/usb-audio-out-tracks/README.md) in place of USB
+TRACKS](../../../modules/usb-audio-out/README.md#tracks) in place of USB
 AUDIO OUT TRACKS MAIN CUE, everything else the same: the ColdFire's
 frame-interrupt time with this layout, read out over USB from T8 on
 channels 15/16. T8's channels are post-FX, pre-fader, as in `cfmeter`.

@@ -112,7 +112,6 @@ class State:
         # (worst per-core cycles, what our code may spend, the mix that
         # produced it) -- tools/build/cycle_count.py against this selection.
         self.cycles: tuple[int, int, dict] | None = None
-        # ⚠️ `enter` stopped swapping; this line did not.
         self.msg = "enter adds · r hears it · ? for keys"
         self.knobs: dict[str, dict[str, int]] = {}
         self.loaded_name = ""
@@ -120,18 +119,7 @@ class State:
 
     # ---- the default: an unmodified unit --------------------------------
     def load_stock(self):
-        """The chooser an UNMODIFIED unit shows: every stock FX2 effect, no
-        modules of ours. The honest starting point -- you add to what the box
-        already does rather than to somebody else's selection.
-
-        ⚠️ IT BUILDS -- to A 0/2724 · B 0/2724, not one
-        word placed, all three reverbs alive: the unit's own chooser rebuilt
-        from our tables. It could not, until the fallback stopped having to
-        be a module of ours; ids this selection does not implement now
-        resolve to the firmware's own NONE (schema.NO_FALLBACK), which is
-        what an unassigned track shows on a stock unit anyway. Until then
-        the remixer opened on a selection it had to apologise for.
-        """
+        """Load the stock FX1 and FX2 chooser lists with no modules selected."""
         from remix import stock
         self.sel = {m.key for m in stock.MODULES}
         self.order = [m.key for m in stock.MODULES]
@@ -157,10 +145,7 @@ class State:
 
     # ---- per-module knob values -----------------------------------------
     def knobs_for(self, mod) -> dict[str, int]:
-        """This module's current knob values, seeded from its manifest
-        defaults the first time it is asked for. Manifest defaults are the
-        honest baseline -- a stale default polluted every shimmer measurement
-        until Round 12."""
+        """Return this module's knob values, initialized from manifest defaults."""
         from remix import rig
         if mod.key not in self.knobs:
             self.knobs[mod.key] = rig.default_knobs(mod)
@@ -168,17 +153,7 @@ class State:
 
     @property
     def harvest(self) -> list[str]:
-        """The stock effects this selection gives up, in address order.
-
-        ⚠️ DERIVED FROM THE CHOOSERS, not toggled. Taking an effect off both
-        of the unit's menus IS the decision to give up its words -- "remove
-        from the chooser" and "harvest" were the same act described twice,
-        and the second one needed its own key, its own field and its own
-        contiguity rule. It reproduces every shipped remix exactly: FX1
-        lists ten of the thirteen and the three reverbs are FX2-only, so a
-        remix that lists none of them on FX2 harvests exactly those three,
-        which is what the build has always done.
-        """
+        """Return stock effects absent from both chooser lists, in address order."""
         from remix import stock
         return list(stock.region_of(
             stock.harvested(set(self.order) | set(self.fx1))))
@@ -300,24 +275,12 @@ class State:
         return [m for m in self.selected if m.menu is not None]
 
     def auto_fallback(self):
-        """The fallback to use when none is set explicitly.
+        """Choose a safe fallback for unimplemented FX2 ids, if one exists.
 
-        THE FIRMWARE'S OWN NONE, whenever this selection has no bus. An
-        unimplemented id then resolves to the descriptor a stock chooser
-        carries at row 0 and to the payload's null stub -- an unassigned
-        track is simply OFF, exactly as on an unmodified unit -- and it costs
-        no words. That is the honest answer for an insert collection, which
-        used to be made to carry SEND (215-250 words) for a bus client
-        nothing in the image reads. See schema.NO_FALLBACK, which is also
-        what refuses this beside a bus participant: with a server or a SEND
-        in the image, an unassigned track running nothing would leave the
-        rotation unflipped and the accumulators uncleared.
-
-        With a bus, SEND is the safe catch-all -- aliasing to it makes the
-        id a harmless dry passthrough rather than garbage -- so prefer it. If
-        there is exactly one menu-bearing module, it is the only choice.
-        Otherwise there is no safe automatic pick (any real effect would
-        PROCESS the unknown id), so return None and let problems() ask.
+        Without a bus participant, NONE leaves the track off. With a bus,
+        SEND is required to maintain bus rotation and clearing. If neither
+        SEND nor a unique safe menu module is available, return None so
+        `problems()` can report the missing choice.
         """
         if not any(on_the_bus(m) for m in self.selected):
             return NO_FALLBACK

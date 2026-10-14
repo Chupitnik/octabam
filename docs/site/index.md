@@ -11,13 +11,11 @@ build, byte for byte. No firmware is distributed here: a built image contains
 Elektron's OS, so you build it yourself, on your machine.
 
 !!! warning "This is not official Elektron firmware"
-    octabam is community software and is not supported by Elektron. Over
-    several months, hundreds of people have used octabam remixes and made
-    their own. We have no reports of an irrecoverable brick; every reported
-    failure to boot has been recovered with the Startup Menu's emergency
-    MIDI flash. A failed flash can still leave the installed OS unable to
-    boot until recovery. Keep a known-good stock OS image available. The
-    project maintainers are not responsible for damage or data loss. See
+    octabam is community software and is not supported by Elektron. A failed
+    flash can leave the installed OS unable to boot until stock OS is
+    reinstalled. Recovery requires a working Startup Menu, a DIN MIDI
+    interface, and a copy of the stock OS. Keep these available before
+    flashing. See
     [Safety and recovery](safety.md) before flashing.
 
     **Do not share a built image.** A built `.bin` or `.syx` contains
