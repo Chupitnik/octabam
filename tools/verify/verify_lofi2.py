@@ -33,12 +33,14 @@ path, so the harness's own gains cancel.
                   and the output passes through the dry on the way: some
                   16-sample window where it is within 1% FS of the MIX 0
                   render (the steady wet differs from it by ~12% FS).
-  SHIFT sidebands UP and DOWN (MIX 127, RANGE HIGH, FREQ 30) on 1 kHz and 10 kHz
-                  tones, at a 16- and a 13-sample block: the wanted sideband
-                  on the right side, the other under -25 dB (this tree:
-                  -29.6 / -30.7 dB), one carrier across all eight renders
-                  within 0.5 Hz; and UP -> DOWN while playing (block 600):
-                  the lower sideband after the duck, the other under -25 dB.
+  SHIFT sidebands UP and DOWN (MIX 127, RANGE HIGH, FREQ 30) on 1, 3, 5, 10 and
+                  15 kHz tones, at a 16- and a 13-sample block: the wanted
+                  sideband on the right side, the other under -40 dB
+                  (analytic, squared coefficients: -46 to -55 dB), one
+                  carrier across all twenty renders within 0.5 Hz; and
+                  UP -> DOWN while playing (block 600): the lower sideband
+                  after the duck, the other under -40 dB. 3-5 kHz is where
+                  unsquared coefficients show (-19 to -22 dB).
                   10 kHz is what catches the Hilbert sections running in z^-1
                   (the parity toggle failing: -12 dB there, still -33 dB at
                   1 kHz); the 13-sample block catches a parity that does not
@@ -245,8 +247,10 @@ check("MODE RING -> UP: passes through the dry", quiet <= lim,
 # amplitudes by fit_amp. 1 kHz and 10 kHz: a network whose sections ran in z^-1
 # instead of z^-2 (the parity toggle failing) still rejects at 1 kHz (-32.7 dB
 # under the harness) and fails at 10 kHz (-12.2); a parity that does not carry
-# across blocks fails at a 13-sample block (about -2 dB). This tree: -29.6 dB at
-# 1 kHz and -30.7 at 10 kHz, at 16 and at 13.
+# across blocks fails at a 13-sample block (about -2 dB). 3, 5 and 15 kHz and
+# the -40 dB line catch Niemitalo's coefficients loaded unsquared (13 Oct 2026):
+# -29.6 and -30.7 dB at 1 and 10 kHz passed -25, while 3-5 kHz sat at -19 to
+# -22. Squared, the analytic image is -46 to -55 dB at these tones.
 def fit_amp(y, f, a, b):
     w = 2 * math.pi * f / SR
     sc = ss = cc = ys = yc = 0.0
@@ -272,7 +276,7 @@ def sidebands(y, f0, a, b):
 shift = dict(MIX=127, RANGE=1, FREQ=30, FDBK=0)
 fcs = {}
 for frames in (16, 13):
-    for f0 in (1000.0, 10000.0):
+    for f0 in (1000.0, 3000.0, 5000.0, 10000.0, 15000.0):
         tone = sine(1.0, f=f0)
         for name, mode, side in (("UP", 2, +1), ("DOWN", 1, -1)):
             y, _ = render(tone, frames=frames, MODE=mode, **shift)
@@ -280,8 +284,8 @@ for frames in (16, 13):
             fc = side * (fw - f0)
             fcs.setdefault(f0, []).append(fc)
             check(f"SHIFT {name} at {f0:.0f} Hz, block {frames}: the {'upper' if side > 0 else 'lower'} "
-                  f"sideband, the other under -25 dB",
-                  fc > 0 and rej < -25.0, f"wanted {fw:.2f} Hz, other {rej:+.1f} dB")
+                  f"sideband, the other under -40 dB",
+                  fc > 0 and rej < -40.0, f"wanted {fw:.2f} Hz, other {rej:+.1f} dB")
 spread = max(max(v) - min(v) for v in fcs.values())
 check("SHIFT: one carrier across UP, DOWN and both block lengths (within 0.5 Hz)", spread < 0.5,
       f"carrier {sum(fcs[1000.0]) / len(fcs[1000.0]):.2f} Hz, spread {spread:.3f} Hz")
@@ -289,8 +293,8 @@ check("SHIFT: one carrier across UP, DOWN and both block lengths (within 0.5 Hz)
 LONG1K = sine(1.6, f=1000.0)
 swY, _ = render(LONG1K, schedule=[(0, {}), (SW, {"MODE": 1})], MODE=2, **shift)
 fw, rej = sidebands(swY, 1000.0, SW * FRAMES + SR // 8, len(swY) - 16)
-check("SHIFT UP -> DOWN while playing: the lower sideband after the duck, the other under -25 dB",
-      fw < 1000.0 and rej < -25.0, f"wanted {fw:.2f} Hz, other {rej:+.1f} dB")
+check("SHIFT UP -> DOWN while playing: the lower sideband after the duck, the other under -40 dB",
+      fw < 1000.0 and rej < -40.0, f"wanted {fw:.2f} Hz, other {rej:+.1f} dB")
 
 # ---- SRR: the rate against stock's, and a turn ------------------------------
 
