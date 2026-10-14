@@ -43,7 +43,7 @@ sequencer and not the tempo", "A ten-character page-2 label faults the unit", "E
 ## A ten-character page-2 label faults the unit when its knob turns: EXCEPTION VEC:04 ADDR 4E007890 ✅ measured, fixed
 
 - **Seen:** Bryan T's MKII, September 2026 (reported 13 Sep), LOFI2 with its MODE select labelled `RING` / `SHIFT UP` / `SHIFT DOWN` (`Formatter.STEPPED`): turning MODE threw `EXCEPTION VEC:04 ADDR:4E007890`, an illegal instruction at an address outside the OS's `0x400xxxxx` range.
-- **Cause (inferred):** the label overran the buffer the firmware passes to the display formatter (`void fmt(char *buf, int value)`, `docs/firmware/PARAM_PAGES.md` section 7), whose length is not measured; the copy is not located. Same family as the `abbr` overrun (`AGENTS.md`).
+- **Cause (inferred):** the label overran the buffer the firmware passes to the display formatter (`void fmt(char *buf, int value)`, `docs/firmware/PARAM_PAGES.md` section 7), whose length is not measured; the copy is not located. Same family as the `abbr` overrun (`TRAPS.md`).
 - **Fix:** labels `RING` / `DOWN` / `UP`; ran on the unit through images 96-99 (October 2026). Five-character labels run on hardware (BusDelay `CLEAN` / `GRAIN` / `REVRS`, BusVerb `PLATE`, TEMPO SYNC `1/16T`); six to nine are unmeasured. The schema does not bound label length.
 
 ## USB MIDI clock moves the sequencer and not the tempo: time stretch, LFOs and FX ignore it ✅ fixed (#633), confirmed on Kazeko's MKI
@@ -433,19 +433,19 @@ Entries from here to the end of the file (5 Oct 2026) were recorded in other doc
 
 ## Line-F exception (VEC:0B) when a parameter is LFO-modulated: a 5-character `abbr` ✅ measured
 
-- **Seen:** 2 Sep 2026, Bryan T's `modules/hello/` (removed 27 Sep): the descriptor drew correctly and behaved under manual knob use; the moment a parameter was LFO-modulated it threw a line-F exception (VEC:0B) at PC `0x48454C4C` = `"HELL"`. Presented as "custom effects can't be modulated". Source: `AGENTS.md`.
+- **Seen:** 2 Sep 2026, Bryan T's `modules/hello/` (removed 27 Sep): the descriptor drew correctly and behaved under manual knob use; the moment a parameter was LFO-modulated it threw a line-F exception (VEC:0B) at PC `0x48454C4C` = `"HELL"`. Presented as "custom effects can't be modulated". Source: `TRAPS.md`.
 - **Cause:** `abbr` is a 5-byte field holding four characters plus a terminator; `fullname` is 13 bytes holding twelve, and the build tag is appended after the string. A name that fills its field leaves no NUL. A faulting PC made of the field's own ASCII is a smashed return address, so the copy destination is fixed-size (inferred, the copy is not located; the length rule is measured: all 30 stock page descriptors are ≤4 characters with byte 5 zero).
 - **Fix:** `schema.MenuEntry` refuses both over-lengths and `build_bus.py` re-checks the string it writes, tag included (this caught two diagnostic delay names, `BusDlyRPLY` and `BusDlyNOCF`, that had filled all 13 bytes since 24 Aug 2026).
 
 ## A cloned descriptor draws as the donor's control: three of six page-2 slots wrong ✅ measured, fixed (17 Aug 2026)
 
-- **Seen:** 17 Aug 2026 flash: BusDelay clones SPRING REV, and the formatter fix-up in `build_bus.py` was gated to the reverb. WOW inherited SPRING TYPE's word-label renderer (a three-entry table), was asked to draw 0..127, and drew no knob at all; MODE inherited SPRING BAL's bipolar pair and drew as a balance dial reading −64…−60 instead of a 5-way select. Source: `AGENTS.md`.
+- **Seen:** 17 Aug 2026 flash: BusDelay clones SPRING REV, and the formatter fix-up in `build_bus.py` was gated to the reverb. WOW inherited SPRING TYPE's word-label renderer (a three-entry table), was asked to draw 0..127, and drew no knob at all; MODE inherited SPRING BAL's bipolar pair and drew as a balance dial reading −64…−60 instead of a 5-way select. Source: `TRAPS.md`.
 - **Cause:** a descriptor's display formatter overrides its value count, and a cloned descriptor inherits every field not explicitly written from the donor. Every field the checks examined was right.
 - **Fix:** `verify_menu` checks the renderer against the count (`count < 128` → the enumerated pair with `0x12a` zero; `128` → both formatters zero). `Formatter.PLAIN` zeroes a clone's formatter words (`CHANGELOG.md`, 5 Oct 2026).
 
 ## The unit hangs when a module keeps state at r7 `$84` or above ✅ measured
 
-- **Seen:** BusDelay's chain write address, WET glide state, write offset, REVERSE cap and last-seen rotation sat at `$84..$88`; on a host track with a sample playing, the unit hung (images 39–42 per `CHANGELOG.md` image 41; header map in `modules/busdelay/delay_server.asm`). Source: `AGENTS.md`, `docs/firmware/CHIP.md` section 5.
+- **Seen:** BusDelay's chain write address, WET glide state, write offset, REVERSE cap and last-seen rotation sat at `$84..$88`; on a host track with a sample playing, the unit hung (images 39–42 per `CHANGELOG.md` image 41; header map in `modules/busdelay/delay_server.asm`). Source: `TRAPS.md`, `docs/firmware/CHIP.md` section 5.
 - **Cause:** `r7 $84..$8a` holds the unit's own per-track state between our calls (a host track with a sample playing); per-call scratch there is fine, state across calls is not.
 - **Fix:** nothing at `$84` or above ("NEVER WRITTEN", 21 Sep 2026); new per-track state goes in a free slot of the module's own block (`$00..$83`) or the Y state table.
 

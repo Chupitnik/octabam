@@ -52,7 +52,7 @@ Idempotent. What to install before it: [BUILDING.md section 0](../guide/BUILDING
 
 | tool | from | what it is |
 |---|---|---|
-| `dsp_asm` | `vendor/dsp56300` | the DSP56300 assembler. It mis-encodes some instructions silently (`AGENTS.md`'s trap list). `tools/patches/dsp56300.patch` adds the chip's one-word displaced move (displacement −64..63, data-ALU register); a word or cycle figure recorded before 14 Sep 2026 counts such a move as 2 |
+| `dsp_asm` | `vendor/dsp56300` | the DSP56300 assembler. It mis-encodes some instructions silently (see [TRAPS.md](TRAPS.md#trap-asm)). `tools/patches/dsp56300.patch` adds the chip's one-word displaced move (displacement −64..63, data-ALU register); a word or cycle figure recorded before 14 Sep 2026 counts such a move as 2 |
 | `dsp_host` | `tools/harness/dsp_host/` (staged into `vendor/dsp56300` and built there) | the emulator harness written here: runs assembled effects on the dsp56300 emulator core. `tools/harness/README.md` |
 | `emu_bringup.py` | `tools/emu/` | Tier-0 ColdFire bring-up: boots the MAIN OS image on Unicorn's CFV4E core to the RTOS handoff (the remixer's emulator view). Needs `unicorn`: `make emu-setup` (uv, the `emu` extra). `tools/emu/README.md` |
 | `ot_emu` | `tools/emu/ot_emu/` (`make emu-cf`) | the headless C++ port of the machine: boots the built image, loads a project from a staged card, runs the sequencer and both DSP cores. `tools/emu/README.md` |
@@ -72,7 +72,7 @@ clean assembly of wrong machine code. Every `build_bus.assemble()` call
 runs `dsp_asm -list` against an independent `dsp56kDisassemble` decode of
 the same bytes and compares mnemonics (Jannik Aßfalg, PR #380, 22 Sep
 2026): a mismatch fails the build. `mpy` encoded as `mpysu` is the one
-mismatch the shipping code carries on purpose (AGENTS.md: second operand
+mismatch the shipping code carries on purpose ([TRAPS.md](TRAPS.md#trap-asm): second operand
 always non-negative at every site); those sites are counted per module in
 `build_bus.MPYSU_AUDITED`, a count that differs from the table fails the
 build with the site list, and a matching count prints nothing. A build
@@ -81,6 +81,65 @@ candidate engine) prints its counts instead of enforcing the table.
 `NOROUNDTRIP=1` disables the check. It cannot see a resolver picking the
 wrong ADDRESS for a symbolic operand (both tools decode the bytes dsp_asm
 wrote), the label-prefix trap: that one is still read by hand.
+
+### A private `dsp_host` for a branch that changes it
+
+`scripts/setup.sh` builds `dsp_host` from a COPY staged into
+`vendor/dsp56300/source/dsp_host/`, so in a worktree the shared binary is
+the main checkout's, whatever the branch's `tools/harness/dsp_host/dsp_host.cpp`
+says, and `dsp_host` ignores an option it does not know. A branch that
+changes `dsp_host.cpp` builds it in an isolated tree, never into `vendor/`:
+
+```
+cat > /tmp/hostpr/CMakeLists.txt <<EOF
+cmake_minimum_required(VERSION 3.10)
+project(hostpr CXX)
+set(CMAKE_CXX_STANDARD 17)
+add_subdirectory(/ABS/PATH/TO/main/vendor/dsp56300 dsp56300)
+add_executable(dsp_host_pr /ABS/PATH/TO/worktree/tools/harness/dsp_host/dsp_host.cpp)
+target_include_directories(dsp_host_pr PRIVATE /ABS/PATH/TO/main/vendor/dsp56300/source)
+target_link_libraries(dsp_host_pr PRIVATE dsp56kEmu)
+EOF
+cmake -S /tmp/hostpr -B /tmp/hostpr/build -DCMAKE_BUILD_TYPE=Release && cmake --build /tmp/hostpr/build --target dsp_host_pr -j8
+```
+
+then point the harness at it (`benchmark_reverbs.HOST`, `send_probe`'s
+host path) for that run.
+
+### The vendored pin and the DMA de-renewal (22 Sep 2026)
+
+On 22 Sep 2026 `vendor/dsp56300`'s pin moved from `c051afad` (28 Jul) to
+`8ccdd843` (21 Sep, 144 commits later), prompted by reading
+`markandrus/octemu`'s independent RE and finding upstream had absorbed
+several of our own fixes in that span. `tools/patches/dsp56300.patch`
+dropped the hunks upstream now carries itself (MPYRI/MACRI, the DCOL
+12-bit width, "serve a DMA request raised before the channel was
+enabled", 2D/no-update DMA address modes, the assembler's
+TFR/CMP/CMPM/Tcc JJJ=000 encoding, JIT MPYI sign-extension, CCR overflow
+flags) and kept what is still ours (the AGU pre-decrement fix, the
+one-word displaced move, the DMA dual-counter reload, the host-stepped
+mode, the shared window, the unmapped-register hooks). Gated on: upstream's
+own `dsp56kTestRunner` suite, `scripts/refhash.sh check` against a
+pre-repin baseline (24 cases), `verify-bus`, `verify-spectrum-ident`,
+`verify-twocore`, and `make check` with a real project under the port
+(`verify_set`) -- all bit-identical or passing. Our own AGU fix is still
+an open, uncommented upstream PR (#13, since 8 Sep).
+
+Also 22 Sep 2026: measured whether a same-value `DCR` rewrite ever lands
+while a self-clearing DMA window is still open (octemu's independent
+QEMU fix names this a re-arm, not a no-op, that the vendored emulator was
+silently dropping). Instrumented `DmaChannel::setDCR` in an isolated
+clone, ran a real project 1200 frames under the port: DCR2 (the ESAI
+feed, `0xcc6220`, rewritten every idle-loop pass at `P:0x099`) landed
+with the window open on 1199 of 1200 rewrites. Ported octemu's renewal
+(`m_deRenewed`, in `setDCR`/`finishTransfer`) — but its block-dump
+against the same project, same frame count, is **bit-identical** with or
+without the fix, so it is landed defensively (matches the DMA manual's
+own semantics, costs nothing, `verify-twocore` and every gate stay
+green) rather than as a fix for an observed symptom. Not octemu's other
+DE-renewal hunk (disabling `HostTransmitData` as a request source):
+`ot_emu` drives HDI08 directly, never through a `DmaChannel`, so that
+half doesn't apply here (checked, not inferred).
 
 ## 2. Acquiring and unpacking an OS
 

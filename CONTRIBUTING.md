@@ -240,7 +240,7 @@ is a PR that changes the SHA and the version comment beside it.
 
 ## Etiquette
 
-- Read the traps in `AGENTS.md` before trusting an assembler, an
+- Read the traps in `docs/contributing/TRAPS.md` before trusting an assembler, an
   emulator, or a null result.
 - Collisions are refused by name; `make modules` prints the matrix. If
   your module cannot share an image with another although no claim

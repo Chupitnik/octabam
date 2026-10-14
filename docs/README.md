@@ -22,7 +22,8 @@ Where each doc is, by who reads it. A module's own page is
 | [contributing/TESTING.md](contributing/TESTING.md) | every gate, what it proves and cannot see; `make check`, `make reach`, shards, `make accept`, bit-identity, CI |
 | [contributing/TOOLING.md](contributing/TOOLING.md) | every tool by pipeline stage, and which README each tool directory has |
 | [contributing/FAILURE_MODES.md](contributing/FAILURE_MODES.md) | what has gone wrong on a unit: symptom, cause, fix, the gate that catches it |
-| [../AGENTS.md](../AGENTS.md) | working rules and the traps that have cost real work (for people and coding agents) |
+| [contributing/TRAPS.md](contributing/TRAPS.md) | the trap register: what has cost real work in the code, build, emulators and harness — symptom, fix, the gate that catches it |
+| [../AGENTS.md](../AGENTS.md) | working rules, worktrees, build and check, and the trap index (for people and coding agents) |
 
 ## The tools
 

@@ -281,4 +281,4 @@ damping state in the instance's own Y region.
   nor housekeeping; one server per bank is a design rule. ❌ "A single word
   written to `Y:0x34000` from payload A corrupts that track's audio":
   falsified by that bisect (its ADDR = 0 is `0x34000`).
-- Assembler traps: `AGENTS.md` "Traps that have already cost real work".
+- Assembler traps: `contributing/TRAPS.md` "Traps that have already cost real work".

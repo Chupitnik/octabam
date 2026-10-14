@@ -653,7 +653,7 @@ that third.
   knew only the fractional layout. Found by Jannik Aßfalg; `test_emac.cpp`
   holds both layouts.
 - **MACSR S/U** is bit 6 and selects 16-bit rounding in fractional mode
-  (see `AGENTS.md`); `test_emac.cpp`. The firmware sets `MACSR = 0x20`
+  (see `docs/contributing/TRAPS.md`); `test_emac.cpp`. The firmware sets `MACSR = 0x20`
   (fractional) at `0x4000cf60` and `0x4000d3ae`; the level chain at
   `0x4000ccae` runs at `0x60`.
 - **The uncached aliases** `0x4F…` and `0x4E…` are folded onto the cached
@@ -693,7 +693,7 @@ make emu-unicorn                     # the EMAC-fixed Unicorn
   `tools/patches/unicorn_emac_fractional.patch` and builds the m68k-only
   library into `.venv/lib/unicorn-emac/`. `emu_bringup` loads it through
   `LIBUNICORN_PATH`. The patch fixes five defects of stock Unicorn 2.1.4;
-  `AGENTS.md` has the detail:
+  `docs/contributing/TRAPS.md` has the detail:
   - the fractional-mode product is halved;
   - `msac` adds;
   - MAC-with-load reads Rx from the wrong word;

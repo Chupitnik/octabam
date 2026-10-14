@@ -202,7 +202,7 @@ dear={"DRV": 127, "FOLD": 127, "COMP": 127, "MIX": 127, "WDTH": 127, "SAT": 0},
    makes the forbidden write, or an input that must change the output.
 4. **Build into your own scratch** (`tempfile.mkdtemp` or `out/<gate>/`),
    never fixed `/tmp` names: two builds on one machine read each other's
-   files (AGENTS.md).
+   files ([TRAPS.md](TRAPS.md#trap-tmp-race)).
 5. **Under the port, load as few times as you can.** An Octakit project
    load is ~32 s emulated, about a minute of wall time. Three port features
    exist so a gate pays for one:
@@ -670,7 +670,7 @@ their results go in the PR body.
   listening (`tools/harness/README.md`, the listening protocol).
 
 `docs/contributing/FAILURE_MODES.md` is the register of what has gone wrong on a
-unit; `AGENTS.md` the traps that produced clean assembly of wrong machine
+unit; `TRAPS.md` the traps that produced clean assembly of wrong machine
 code.
 
 ## 13. Before a pull request

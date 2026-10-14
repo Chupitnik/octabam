@@ -222,7 +222,7 @@ module's page is `modules/<name>/README.md`, each remix's
 
 ```
 CONTRIBUTING.md    your first PR, the module contract, the oracle rule, the gates, what CI checks
-AGENTS.md          instructions and traps for coding agents (CLAUDE.md imports it)
+AGENTS.md          working rules and the trap index for coding agents (CLAUDE.md imports it; the full register: docs/contributing/TRAPS.md)
 .github/           CI (Ubuntu + macOS, SHA-pinned actions), the PR template
 modules/           the contributions, one directory each, each with its README
 remixes/           one directory per remix: remix.py (the selection, in chooser order) and README.md; README.md here is the index
