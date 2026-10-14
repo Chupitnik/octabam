@@ -836,3 +836,22 @@ the binaries' architecture.
 report (the hints name `tools/harness/send_probe.py`), which refhash
 correctly flagged with every artifact identical. Re-save only after proving
 the artifact lines match.
+
+<a name="trap-nm-order"></a>
+
+### Same-named labels across DRAM units resolve by nm table order
+
+**Same-named labels across DRAM units resolve by nm table order.** The
+platform runtime served every unit's refs and detours from one flat symbol
+table of the whole link; `_nm` collapsed same-named symbols by nm output
+order, so three units each defining `cave` (TEMPO SYNC's global, RECORDER
+LOOP FIX's local, RLEN PLEN's local) resolved to whichever definition the
+merge happened to leave last. Merging the four USB modules into one (15
+Oct 2026) flipped that order and the record writer's per-frame `jsr` was
+wired into RECORDER LOOP FIX's spacing code; verify_brain stormed to the
+auto-map limit (busiest pc 0x40004c40 x4194177). The base image was
+correct by table-order luck. The fix: `link_runtime` builds a per-unit
+symbol table from each unit's own object (`objdump -t`) placed by the
+link's `-Map`; a detour or ref naming a symbol its unit does not define
+is refused. `test_linked_defsyms.UnitTableTests` pins the scoping;
+`scripts/refhash.sh` proves the change moved no image.
