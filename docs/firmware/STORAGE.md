@@ -96,7 +96,7 @@ under the port on stock 1.40C;
   🟡 The browser's load writes `end` = the file's length (`0x40095d90..5dd8`,
   read from the code, not driven through the browser).
 
-## 5. Project settings 📖 (read from the image, 7 Oct 2026; not run)
+## 5. Project settings ✅ (read from the image, 7 Oct 2026; not run)
 
 `project.work` carries a `[SETTINGS]` block, parsed in `0x40086c00..0x40088288`
 (the `TEMPOx24` key is referenced at `0x40086d72`) and written by `0x40088288`

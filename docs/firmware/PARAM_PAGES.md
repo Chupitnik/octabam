@@ -304,7 +304,7 @@ track:
 | page 2, read by the dial | `DB + 0x8f072 + t·30` | LFO PMTR×3 WAVE×3 · AMP · FX1 (`+0x8f07e`) · FX2 (`+0x8f084`) · LFO MULT×3 TRIG×3 (`+0x8f08a`) |
 | page 2, PLAYBACK editor storage | `DB + 0x8ef5a + t·30 + 6·machine + slot` | indexed by `0x460d5c30` |
 
-Audio-track page homes, offsets from `DB + p·0x18b2` 📖 (read 7 Oct 2026,
+Audio-track page homes, offsets from `DB + p·0x18b2` ✅ (read 7 Oct 2026,
 `t` = audio track, nothing run under the port):
 
 | page | page 1 | page 2 | page-2 editor |

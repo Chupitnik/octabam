@@ -214,7 +214,7 @@ in `d3`, the current LFO *n* (`0x460d1a32`), and branches on
 | 2–3 MULT / TRIG | `part + 0x30a + 30·t` | `part + 0x500 + 36·t` (❌ was `0x300`) |
 | 4–5 SPD / DEP | `part + 0x11a + 24·t` | `part + 0x3e8 + 32·t` (❌ was `0x268 + 36·t`) |
 
-then `+ 3·(slot & 1) + n`. 📖 Re-read 10 Oct 2026: the MIDI offsets are
+then `+ 3·(slot & 1) + n`. ✅ Re-read 10 Oct 2026: the MIDI offsets are
 the `addal` immediates `0x8f268` (`0x40057598`), `0x8f280` (`0x400575c8`) and
 `0x8f168` (`0x400575f4`) from the bank base, i.e. `0x4e8`, `0x500` and `0x3e8`
 from `part`; the SPD / DEP path (`0x400575da`) shifts the track by 5 (stride

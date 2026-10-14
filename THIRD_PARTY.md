@@ -83,9 +83,9 @@ ingest record with the notes exchanged verbatim is
 `git show 3ceba41:docs/history/EXTERNAL_INGEST.md`. All were derived from
 the officially distributed OS 1.40C (`section_3_MAIN_OS.bin` SHA-256
 `164f3122…`, base `0x40000400`). Modules that arrived as code: midisc and Octakit are in the
-firmware-modification table above; REPITCH (repeat98, `modules/repitch`) is
-in the README's module table, and its licence is not stated in this file or
-in the module; no `modules/octalab` exists in the tree, and nordseele's
+firmware-modification table above; REPITCH (repeat98, `modules/repitch`)
+was removed 14 Oct 2026 at its author's request; no `modules/octalab`
+exists in the tree, and nordseele's
 octalab appears here as the `octalab-notes` rows below.
 
 | received | from | what | where it lives |

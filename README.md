@@ -60,7 +60,7 @@ from the card (section 5).
 | module | author | what it does | proof |
 |---|---|---|---|
 | [**CHARACTER**](modules/character/README.md) | [sambanks](https://github.com/sambanks) | FX1 station: fold, saturation, tilt, compressor, width. | on hardware: Sam's MKII |
-| [**CHARACTER TXTR**](modules/character-txtr/README.md) | [sambanks](https://github.com/sambanks) | Character plus TXTR (Airwindows Pockey2): fold, texture, saturation, tilt, compressor, width. For testing: 4x this beside the reverb is unmeasured on hardware. | `make check` |
+| [**CHARACTER TXTR**](modules/character-txtr/README.md) | [sambanks](https://github.com/sambanks) | Character plus TXTR (Airwindows Pockey2): fold, texture, saturation, tilt, compressor, width. | `make check` |
 | [**EUCLID**](modules/euclid/README.md) | [repeat98](https://github.com/repeat98) | Euclidean LP/BP/HP/notch/amp sequencer: swing, envelope, gate, random and loop. | local render: its own render gates; not on hardware |
 | [**GATE VERB**](modules/gateverb/README.md) | [Emilie Gillet (Mutable Instruments), ported here](https://github.com/pichenettes/eurorack) | A gated plate reverb (Griesinger topology, after the reverb stage of Mutable Instruments Clouds): amount, input gain, time, diffusion, tone, gate. One FX2 slot per instance. | local render: `verify_gateverb` (dsp_host, against a float model of Clouds' reverb); not on a unit |
 | [**LOFI2**](modules/lofi2/README.md) | [Bryan T](https://github.com/bryantysinger) | Ring mod or frequency shifter, then sample-rate and bit reduction. | on hardware: Bryan T's MKII, images 96-99 (Oct 2026, this tree): tracks 1 and 5, five instances at once; `_bt_oct` build 11 (12 Oct 2026, the 414-cycle loop): eight in SHIFT at once, four per core, UP/DOWN switched while playing |
@@ -170,13 +170,15 @@ is the map of what is free and what was measured.
 address and compares, and refuses on any drift.
 
 **Where a module's state lives.** An effect's twelve knobs are Part
-parameters and stay in the Part. Personal material (KITS's library,
-octalab's grooves) is in files the module owns and formats. A module's
-settings (menu options, a USB profile) have no shared home yet; the store
-for settings, defaults and templates is designed in
+parameters and stay in the Part. Personal material (KITS's library) is in
+files the module owns and formats. A module's settings (menu options, a USB
+profile) live in BRAIN (`modules/brain`), the settings, defaults and
+templates store: SETTINGS, MIDI LOG, DEFAULTS, the project pair and TOOLS,
+designed in
 [docs/proposals/BRAIN.md](docs/proposals/BRAIN.md) (6 Oct 2026, starting
 from nordseele's
-[OTX proposal](docs/proposals/OTX_PROJECT_PROPOSAL.md)), and is not implemented.
+[OTX proposal](docs/proposals/OTX_PROJECT_PROPOSAL.md)). Measured under the
+port only; not on a unit.
 
 ## Checking without a flash
 

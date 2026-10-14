@@ -48,7 +48,8 @@ REPITCH in [REPITCH.md](firmware/REPITCH.md)).
 ## Proposals
 
 [proposals/](proposals/): [BRAIN.md](proposals/BRAIN.md), the design for
-settings, defaults and templates (6 Oct 2026, not implemented), and the two
+settings, defaults and templates (6 Oct 2026; `modules/brain` builds it and
+measures it under the port, not on a unit), and the two
 OTX documents it starts from, nordseele's shared settings store (draft, not
 implemented): [OTX_PROJECT_PROPOSAL.md](proposals/OTX_PROJECT_PROPOSAL.md)
 and [OTX_MODULE_GUIDELINES.md](proposals/OTX_MODULE_GUIDELINES.md).

@@ -181,7 +181,7 @@ per-row state so held chords (FUNC+…) work. **Encoders** are rows
 **The LEDs** are the `0x2r <mask>` rows: `key_map.json` names each LED as
 `[row, bit]`; `/leds` returns the 17 row bytes.
 
-The older jump-table path (`press_key_live`, `RTOS_FORK.md` section 9) is kept in
+The older jump-table path (`press_key_live`, `git show 3ceba41:docs/history/RTOS_FORK.md` section 9) is kept in
 the server as `press()` — it calls a key's handler directly, which changes
 state but does not redraw under route A, so the UART path is the real one.
 

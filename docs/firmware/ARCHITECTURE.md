@@ -1,8 +1,8 @@
 # Elektron Octatrack firmware architecture (OS 1.40C, ColdFire side)
 
 Hardware, OS format, kernel, storage, audio engine, sequencer and memory
-map, as verified. ✓ = checksum from the firmware itself, byte-exact
-decompilation or direct disassembly; ~ = inferred. The DSP side is
+map, as verified. ✅ = checksum from the firmware itself, byte-exact
+decompilation or direct disassembly; 🟡 = inferred. The DSP side is
 `docs/firmware/DSP.md`; the tools are in `docs/contributing/TOOLING.md`.
 
 ## 1. Summary
@@ -23,14 +23,14 @@ pipeline.
 
 | Component | Detail | Confidence |
 |---|---|---|
-| CPU | Freescale ColdFire **MCF5445AVR266** (32-bit, big-endian, 266 MHz) | ✓ (board photo; the on-chip ATA controller at MBAR `0xFC04_51xx` is the MCF5445x's) |
-| Audio DSP | Freescale Symphony **DSP56721** (`DSPB56721AG`): two DSP5636x cores, 200 MHz each, no external memory controller | ✓ (board photo) |
-| RAM | 128 MB SDRAM at `0x40000000` (`docs/contributing/PLACEMENT.md`) | ✓ |
-| Storage | CompactFlash (FAT16/32), OS and data; boots to DEMO without CF | ✓ |
-| NOR flash | CS0 at `0x00000000`, 8 MB decode; Spansion S29GL-N ID check, size not read (section 3a) | ~ |
-| Expansion bus | FlexBus (chip selects for ATA, DSP, RAM) | ✓ |
+| CPU | Freescale ColdFire **MCF5445AVR266** (32-bit, big-endian, 266 MHz) | ✅ (board photo; the on-chip ATA controller at MBAR `0xFC04_51xx` is the MCF5445x's) |
+| Audio DSP | Freescale Symphony **DSP56721** (`DSPB56721AG`): two DSP5636x cores, 200 MHz each, no external memory controller | ✅ (board photo) |
+| RAM | 128 MB SDRAM at `0x40000000` (`docs/contributing/PLACEMENT.md`) | ✅ |
+| Storage | CompactFlash (FAT16/32), OS and data; boots to DEMO without CF | ✅ |
+| NOR flash | CS0 at `0x00000000`, 8 MB decode; Spansion S29GL-N ID check, size not read (section 3a) | 🟡 |
+| Expansion bus | FlexBus (chip selects for ATA, DSP, RAM) | ✅ |
 
-## 3. OS format and update chain ✓
+## 3. OS format and update chain ✅
 
 Elektron distributes a ZIP with two transports of the same OS, a `.bin`
 and a `.syx`; both wrap one compressed container that decompresses to the
@@ -58,7 +58,7 @@ MK1-era files (inferred); octabam images keep code 0178.
 
 UI → write flow: OS UPGRADE menu → confirm → `os_upgrade` (stops audio,
 "WORKING PLEASE WAIT", enqueues a task) → scans the CF, validates →
-`os_apply_flash` (critical section) → writes NOR → reboot. ✓ Read 29 Sep
+`os_apply_flash` (critical section) → writes NOR → reboot. ✅ Read 29 Sep
 2026 (`docs/proposals/FIRMWARE_SWITCHER.md`): the menu handler
 `0x400636bc` stops playback (`0x40063660`) and defers `0x4006370c` →
 `0x40080640`, which lists `/*.BIN` (`0x4007f598`) and keeps the best
@@ -75,7 +75,7 @@ this doc's "something resets the unit from there, probably a watchdog":
 an MKII sat in that kind of spin until a power-cycle, OS SWITCH build 1,
 29 Sep 2026.)
 
-## 3a. NOR flash ~
+## 3a. NOR flash 🟡
 
 Read from the 1.40C MAIN OS image (objdump listing, absolute-operand
 scan), 24 Sep 2026, after Andreas (Discord) reported an 8 MB NOR with
@@ -105,13 +105,13 @@ image.
 
 | Flash range | Contents | Source |
 |---|---|---|
-| `0x000000..0x003fff` | bootstrap, linked at 0; its copy sits in the OS image at `~0x400de7dc..0x400e21e0` and carries the "BOOTSTRAP UPGRADE" string and the SysEx OS upgrade path. ✓ The OS entry programs `0x400dea4c..0x400e1ec4` into it from `0` when NOR's version word `0x3ffc` is below the image's `0x400dea48` (`0x0408` in 1.40C), or the PLL reads other than 264 MHz (`0x40000432..0x4000044c` → `0x4000f9b4`) | ~ / ✓ |
-| `0x004000..0x1fffff` | the OS region: the OS's sector table at `0x400a91c0` has 37 entries, `0x4000`, `0x6000..0xe000` (6 × 8 KB), `0x10000..0x1f0000` (31 × 64 KB) = 2,080,768 B. The bootstrap's SysEx path programs the OS from `0x4000` (`0x400e011a..`, `pea %a0@(16384)`, +2 per word). The table is followed by "ELFU" and the `.bin` cipher constants (section 3) | ~ |
-| `0x1ffffa..0x1fffff` | three words: magic `0x1234` at `0x1ffffa`, two words after it; the bootstrap also programs `0xabcd`/`0xdcba` markers here | ~ |
-| `0x200000..` | magic "EFGH", a count n, then n × 28-byte records, copied to `0x46ceb400` by `0x4001b9b4`; contents unidentified | ~ |
-| above the EFGH table | no reference in the OS image | ~ |
+| `0x000000..0x003fff` | bootstrap, linked at 0; its copy sits in the OS image at `~0x400de7dc..0x400e21e0` and carries the "BOOTSTRAP UPGRADE" string and the SysEx OS upgrade path. ✅ The OS entry programs `0x400dea4c..0x400e1ec4` into it from `0` when NOR's version word `0x3ffc` is below the image's `0x400dea48` (`0x0408` in 1.40C), or the PLL reads other than 264 MHz (`0x40000432..0x4000044c` → `0x4000f9b4`) | 🟡 / ✅ |
+| `0x004000..0x1fffff` | the OS region: the OS's sector table at `0x400a91c0` has 37 entries, `0x4000`, `0x6000..0xe000` (6 × 8 KB), `0x10000..0x1f0000` (31 × 64 KB) = 2,080,768 B. The bootstrap's SysEx path programs the OS from `0x4000` (`0x400e011a..`, `pea %a0@(16384)`, +2 per word). The table is followed by "ELFU" and the `.bin` cipher constants (section 3) | 🟡 |
+| `0x1ffffa..0x1fffff` | three words: magic `0x1234` at `0x1ffffa`, two words after it; the bootstrap also programs `0xabcd`/`0xdcba` markers here | 🟡 |
+| `0x200000..` | magic "EFGH", a count n, then n × 28-byte records, copied to `0x46ceb400` by `0x4001b9b4`; contents unidentified | 🟡 |
+| above the EFGH table | no reference in the OS image | 🟡 |
 
-~ The window holds the OS PACKED: the bootstrap unpacks it from NOR `0x4012`
+🟡 The window holds the OS PACKED: the bootstrap unpacks it from NOR `0x4012`
 (its depacker at `0x207e` skips an 8-byte header; the OS image carries the
 same routine at `0x400e0aca`, which `tools/remix/loader.S` calls) into
 `0x40000400`, and stock 1.40C's `.bin` is 470 KB. Roughly 1.6 MB of the
@@ -120,7 +120,7 @@ window is unused by 1.40C, and OS UPGRADE refuses a file over 1 MB + 12 B.
 2,080,768 B window; 968,208 B of the window is unused" -- it measured the
 unpacked image against the window that holds the packed one.)
 
-✓ **The reset path** (the bootstrap, read at its copy in the image, 29 Sep
+✅ **The reset path** (the bootstrap, read at its copy in the image, 29 Sep
 2026): reset vector `0x2d4a` → PLL, RAMBAR1 → `0x2920` (GPIO, the SDRAM
 controller at `0x288e`: precharge, two refreshes, mode register; the panel
 link; the Startup Menu on a held key) → `0x22a2` (caches on, unpack NOR
@@ -128,7 +128,7 @@ link; the Startup Menu on a held key) → `0x22a2` (caches on, unpack NOR
 0x8000050a,-(%sp) ; jsr 0x40000400`. Nothing on it clears or tests SDRAM
 outside the Startup Menu's TESTMODE (`0x784`, `0x834`), so what the OS
 image does not cover keeps its contents across a reset if the refresh gap
-is short enough (~, unmeasured). A second entry at `0x22ea` unpacks from
+is short enough (🟡, unmeasured). A second entry at `0x22ea` unpacks from
 RAM `0x40200000` instead, behind a `halt` (a debugger path; `0x10adc0de`).
 `modules/remix-switch` builds on this path.
 
@@ -136,7 +136,7 @@ RAM `0x40200000` instead, behind a `halt` (a debugger path; `0x10adc0de`).
 
 - The OS executes from SDRAM (load base `0x40000400`, section 7), not in place
   from flash. Code stored in flash runs only after something copies it to
-  RAM: the bootstrap does this for the OS region (✓ `0x22a2` → `0x207e`, above); anything above
+  RAM: the bootstrap does this for the OS region (✅ `0x22a2` → `0x207e`, above); anything above
   `0x200000` needs its own loader (the DRAM platform's boot detour is
   where one would sit, `docs/contributing/PLACEMENT.md`).
 - An image up to 2,080,768 B fits the region the OS already erases and
@@ -185,7 +185,7 @@ RAM `0x40200000` instead, behind a `halt` (a debugger path; `0x10adc0de`).
   image ran (BOOT TRACE, builds 4-14; the dialog reported the switch,
   build 14, 29 Sep 2026).
 
-## 4. Kernel: a proprietary preemptive microkernel ✓
+## 4. Kernel: a proprietary preemptive microkernel ✅
 
 No third-party RTOS signatures (banner `ElektronOctatrack DPS-1`).
 
@@ -206,7 +206,7 @@ clears the reschedule bit and re-arms the PIT `0xFC08_0000` (reload
 The ATA async queues and the audio voice mailboxes are its message
 queues.
 
-## 5. Storage: the ATA/CompactFlash stack ✓
+## 5. Storage: the ATA/CompactFlash stack ✅
 
 ```
 filesystem → async command queue (FUN_4001568c, +event) → dispatcher (FUN_40015098)
@@ -221,7 +221,7 @@ device `b8` (`|0xE0` = LBA), command `bc`, status `d8` (BSY/DRDY/DRQ). ATA
 host control in the MBAR `0xFC04_51xx`. Above it: the filesystem vtable,
 the slot loader and the card's files, `STORAGE.md`.
 
-## 6. Audio engine and sequencer ✓
+## 6. Audio engine and sequencer ✅
 
 Engine data structures, all in the `0x80000000` RAM window:
 

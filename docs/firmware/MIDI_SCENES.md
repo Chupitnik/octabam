@@ -2,7 +2,7 @@
 
 OS 1.40C, ColdFire side. Phase 0 of the MIDI SCENES rewrite. Base
 `0x40000400`. ✅ measured under the port (`ot_emu`, OCTABAM89_setgate,
-bank 3, Part 1, T1 a MIDI track on channel 11); 📖 read from disassembly
+bank 3, Part 1, T1 a MIDI track on channel 11); ✅ read from disassembly
 of the stock image or of bkkbrls-del's MIDISC2.1 image (stock +
 `release21.json`). The oracle runs are `tools/verify/verify_scenes.py`.
 
@@ -63,11 +63,11 @@ playing, B19..B27, B31. To find out for each: a fixture with MIDI trigs
 Stock tests the long in the scene-hold dispatch `0x400534ce`,
 `0x40052ece`, the encoder presses `0x40053a9e`, `0x40054392` (each
 `tstl 0x80000012 / bne` jumping to the audio-only path) and the per-track
-and per-page scene-base paths `0x400343bc` ... 📖 (disassembled).
+and per-page scene-base paths `0x400343bc` ... ✅ (disassembled).
 
 ## 3. Stock: MIDI tracks have no scene locks
 
-📖 Stock's scene block is `Part + 0x8f3e2 + scene·0x100 + track·0x20`, 16
+✅ Stock's scene block is `Part + 0x8f3e2 + scene·0x100 + track·0x20`, 16
 scenes × 8 tracks × 32 B, audio tracks only (`MIDI.md` Appendix C).
 His R21 replaces four `addi.l #0x8f3e2` scene-base sites (`0x400343e8`,
 `0x4003448e`, `0x40034764`, `0x40034950`).
@@ -93,10 +93,10 @@ writes (b1: record `+21` = 100, Part `+0x3e2+21` = 0).
 
 `0x46c78960` ✅ (stock): written by `0x4009c110`, inside `0x4009b964`, as a
 32-byte copy per track of the lane `0x46c7a6f0 + 32·t` (`lea 0x46c7a6f0`,
-`0x4009c100`; track stride 32). 📖 It is the per-track param lane the LFO /
+`0x4009c100`; track stride 32). ✅ It is the per-track param lane the LFO /
 sequencer step code reads ("post-trig LFO input" in the inventory).
 
-### CC send `0x4009eec8(track, flat, value, quiet)` 📖
+### CC send `0x4009eec8(track, flat, value, quiet)` ✅
 
 Callers (stock): `0x40054f6e` (the page-1 knob path), `0x40055426` (panel
 write), a table entry at `0x40043a9e`. His adds `0x400d2ad6` (its mix).
@@ -113,7 +113,7 @@ A value equal to the cache is not sent. Messages go to `0x40010bc8(len,
 buf)` (UART0 queue); `ch` = record `+0x20` − 1; a track whose channel is
 0 is skipped. A `ba 01 vv` in section 1 is this path ✅.
 
-### MIDI Part push `0x4009ec70(bank, part)` 📖 + ✅ call order
+### MIDI Part push `0x4009ec70(bank, part)` ✅ + ✅ call order
 
 Per track with channel ≠ 0 sends bank select MSB (CC 0) / LSB (CC 32) and
 program change from setup `+1`, `+4`, `+2` when they differ from the
@@ -124,7 +124,7 @@ done in `0x46c7aa22` / `0x46c76900`. Callers: `0x4000961e` (apply),
 
 ## 5. The MIDI sequencer and the switch path
 
-📖 `0x400a1e0c` is the sequencer tick (vector `0x60`, `KERNEL.md`);
+✅ `0x400a1e0c` is the sequencer tick (vector `0x60`, `KERNEL.md`);
 `0x400a1608` is its per-step MIDI routine (called from `0x400a1ed6` and
 `0x400a1f10`; argument = restart flag) and `0x4009f794` the MIDI note /
 CC-loop routine called at its end (`0x400a1dfe`). Identities of his sites:
@@ -158,7 +158,7 @@ Active-lock mask `0x8000664e + 4·t` (u32 per track, bit i = param i of the
 track is locked by the playing step): writers ✅ by `--watch-mem` on stock:
 `0x400095d2` (zeroed per track in the apply `0x40009094`), `0x40055348`
 (a sys-task clear), `0x400a1cac` (the tick clears it before the 30-param
-loop); 📖 the only setter is `0x400a1d24`. Readers: `0x40009c92`
+loop); ✅ the only setter is `0x400a1d24`. Readers: `0x40009c92`
 (`0x40009848`, the Reload apply) and the tick. His `0x400d6b14` reads it
 (B13). Value 0 throughout section 1 ✅.
 
@@ -183,7 +183,7 @@ clamps: LEG 0-1, MODE 0-6, SPD 0-95, RNGE 0-7 (B1). Enable bitmaps
 
 ## 7. Event handlers behind his B26..B28 sites
 
-📖 The main task's event jump table `0x40061cfa` (type−1): `0x40062216` is
+✅ The main task's event jump table `0x40061cfa` (type−1): `0x40062216` is
 in the type `0x14` case (`0x400621a6`): store the Part byte to
 `0x80000003` and `0x100b14cf`, call `0x400972fc(part, track, old)` per
 track, then `0x400326a0`. `0x400622aa` is in type `0x15` (bank switch) and
@@ -210,7 +210,7 @@ The boot detour `0x40000518` is reached at instruction 4.38 M
 stock image: `0x40009094` 19.1 M, `0x40025aa2` 18.8 M, `0x4001fbd0` 42.1 M,
 `0x400622c6` 45.8 M; `0x400622aa`, `0x40087d44`, `0x40087eac`,
 `0x40062216` were not reached in a load (reached by UI/bank/project
-actions, 📖). The RTOS handoff is at 10.17 M. Every one of his 52 hook
+actions, ✅). The RTOS handoff is at 10.17 M. Every one of his 52 hook
 sites sits in the main/sys/engine tasks, the sequencer tick or the frame
 ISR, all of which run after the boot detour; the sequencer tick and
 frame ISR are armed by the transport start. No site was found that
@@ -227,11 +227,11 @@ Closed here:
 
 | gap | status |
 |---|---|
-| track record layout `0x46c76dc0` / `0x46c78960` | section 4 (record ✅ dump; `0x46c78960` ✅ writer, reader 📖) |
-| sequencer sites `0x400a169a`, `0x400a19da`, `0x400a1d32`, `0x400a3c2a` | section 5 📖 |
-| MIDI Part push `0x4009ec70` | section 4 📖; call order ✅ |
+| track record layout `0x46c76dc0` / `0x46c78960` | section 4 (record ✅ dump; `0x46c78960` ✅ writer, reader ✅) |
+| sequencer sites `0x400a169a`, `0x400a19da`, `0x400a1d32`, `0x400a3c2a` | section 5 ✅ |
+| MIDI Part push `0x4009ec70` | section 4 ✅; call order ✅ |
 | CC send `0x4009eec8` vs emitter `0x40033e3c` | section 4: `0x4009eec8` is the MIDI-track emitter (cache `0x46c76100`, queue `0x40010bc8`); `0x40033e3c` is the audio-track CC-out (`MIDI.md` Appendix D), a separate path ✅ (CC 48 echoes through the second, CC 1 through the first) |
-| active-lock mask `0x8000664e` | section 5 ✅ writers, 📖 setter |
+| active-lock mask `0x8000664e` | section 5 ✅ writers, ✅ setter |
 | page map, knob ranges | section 6 ✅ |
 | which switch path sets the Part step 1 plays | section 5 ✅ |
 | stock scene storage for MIDI tracks | section 3 ✅ none |
@@ -273,7 +273,7 @@ comparisons against the oracle pass:
   oracle and the rewrite in all seven scenarios: the compare cannot see
   B4's LED half or B5.
 
-📖 From the 2.1 image (disassembly), what the rewrite reproduces:
+✅ From the 2.1 image (disassembly), what the rewrite reproduces:
 
 - B9: the release hook's replacement (`0x400d7b14`) executes stock's own
   sequence at `0x40054cb6..0x40054cd2` (`clr.l 0x460d1694`, `clr.l
@@ -315,7 +315,7 @@ PLAY, then PTN + TRIG 2:
 | `midi-scenes` before them | 59 (5,347) |
 
 79 = the mix of Part 2 at XF 128: his mix runs on the playing pattern's
-Part at the switch. 📖 His path (disassembled): `0x400a3c2a` records a
+Part at the switch. ✅ His path (disassembled): `0x400a3c2a` records a
 queued pattern's (bank, Part, step time) when it differs from the mix Part;
 `0x400a169a` publishes it when the step time passes; `0x400a44f4` takes the
 playing pattern's Part byte at the switch tick; `0x400a4ba0` and `0x4006221c` (after `0x40062216`'s call, which `batch-bugfixes` detours; `0x40062224` and `0x40062226` are branch targets)

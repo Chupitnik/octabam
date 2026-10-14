@@ -80,8 +80,8 @@ without them, `verify_docs` a stale copy). `proof` is one of `CHECK`,
 the gate. A remix declares `family` (`rig`, `effects`, `mods`,
 `reference`, `probes`) and the same `proof` pair.
 
-Settings a module keeps on the card (a checkbox, a profile) go in the
-brain once it exists (`docs/proposals/BRAIN.md`), and until then in no
+Settings a module keeps on the card (a checkbox, a profile) go in BRAIN
+(`modules/brain`; `docs/proposals/BRAIN.md` is the design), and in no
 file of the module's own; `docs/contributing/MODULES.md` "Settings on the
 card".
 
