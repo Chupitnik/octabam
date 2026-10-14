@@ -176,43 +176,20 @@ same. Say what would falsify a claim. Do not write "found it" for something
 you have inferred, and when a retraction lands, propagate it to every document
 that repeated the old number — not just the one you were editing.
 
-## History
+## Removed files stay cited
 
-The tree was pruned hard in the octabam refactor: ~350 files of ColdFire
-archaeology, emulator scratch and 89 `reverbN.asm` voicing snapshots were
-removed. They are all still reachable — that is why the history was carried
-across rather than starting fresh. Comments still cite probes like
-`dsp/baseprobe.asm` or `dsp/ymemprobe.asm` as the provenance of a
-measurement; those statements remain true. Recover one with:
+The tree was pruned hard in the octabam refactor (~350 files of ColdFire
+archaeology, emulator scratch, voicing snapshots) and `docs/history/` (18
+closed records) was removed 16 Sep 2026; all are still reachable in git.
+Comments cite removed probes (`dsp/baseprobe.asm`, `dsp/ymemprobe.asm`) as
+the provenance of a measurement, and those statements remain true. Recover
+one with:
 
 ```bash
 git log --all --oneline -- dsp/baseprobe.asm
 git show <sha>:dsp/baseprobe.asm
 ```
 
-Leave those citations alone — rewriting them to remove a filename would
-erase how the number was obtained, which is the opposite of the point.
-
-Regroups, for resolving old citations (`git log --follow` crosses the moves):
-
-- 10 Sep 2026: `tools/` into `build/ verify/ harness/ emu/ hw/ patches/`
-  (plus `remix/` and `scratch/`), `docs/` into `remixer/ firmware/ effects/
-  history/`. Older commit messages and memory notes name the flat paths.
-- 30 Sep 2026: docs regrouped by reader (`docs/guide/`,
-  `docs/contributing/`, `docs/firmware/`, a README beside each tool).
-  Old paths: `docs/remixer/X.md` is `docs/contributing/X.md` (MODULES,
-  PLACEMENT, TESTING, TOOLING, FAILURE_MODES; ACCEPTANCE is TESTING section
-  8) or `docs/guide/` (REMIXER; FLASHING is BUILDING), EMU is
-  `tools/emu/README.md`, HARNESS `tools/harness/README.md`; Tim Hastie's
-  port log (O14i–O24) is
-  `git show 666b6154:docs/firmware/COLDFIRE_PORT.md`.
-- 16 Sep 2026: `docs/history/` (18 closed records) was removed; a citation
-  of the form `docs/history/RTOS_FORK.md section 10.16` is read with
-  `git show 3ceba41:docs/history/RTOS_FORK.md`.
-- 22 Sep 2026: `vendor/dsp56300` repinned (`c051afad` → `8ccdd843`) and the
-  DMA de-renewal measurement — `docs/contributing/TOOLING.md` section 1.
-
-`make verify-docs` (in CI) refuses a link or a `docs/…`/`tools/…`/
-`modules/…`/`remixes/….md` path that does not resolve; a citation of a
-removed file uses `git show <sha>:<path>`. The remix index is
-`remixes/README.md`.
+Leave those citations alone — rewriting one to remove a filename erases
+how the number was obtained. A citation of a removed file uses the form
+`git show <sha>:<path>` (`docs/history/` records: sha `3ceba41`).
