@@ -31,7 +31,9 @@ track's threshold. The Digitakt 2's threshold recording, on an Octatrack.
 
 - A second press while armed cancels.
 - A press while recording stops the take (THR behaves as ONE2 there).
-- The start is immediate: QREC is not applied (its byte is LEV).
+- The start is immediate: QREC is not applied, by design. Its byte is
+  LEV, and a start quantised to the next beat would cut off the attack
+  the threshold just caught.
 - On a track not set to THR, nothing changes: RECORDING SETUP 2 shows QREC
   and QPL, and both edit as stock.
 - A Part saved with THR loads on stock 1.40C as TRIG HOLD, with its LEV as
@@ -133,8 +135,9 @@ from the card, `CHANGELOG.md`):
   + REC AB and REC AB alone), and so does THR5 (ONE, and THR armed inside
   the page), RLEN 16 and MAX alike (12 Oct). ❌ Retracted: "the REC keys do
   not record while a recording page is open" and "armed inside one, THR
-  starts only sometimes", read on THR1, THR3 and THR4 (11 Oct); most
-  likely a take still running (inferred; `docs/contributing/FAILURE_MODES.md`).
+  starts only sometimes", read on THR1, THR3 and THR4 (11 Oct). The cause,
+  measured 13 Oct: GRID RECORDING was on; stock's REC keys do nothing
+  inside RECORDING SETUP then (`docs/contributing/FAILURE_MODES.md`).
 - The first boot after the first flash ran 1.40C's own BOOTSTRAP UPGRADE.
   The bootstrap an octabam image carries is stock's, byte for byte (the
   entry's helper buffer moved to `0x41495de0`, above the platform reserve).
@@ -150,7 +153,7 @@ from the card, `CHANGELOG.md`):
 
 ## Open
 
-- QREC with THR (a quantised start), REC CD, an MKI.
+- REC CD, an MKI.
 - `0x400828e0` names TRIG values (N/A past 2); which screen draws it is
   not known. `0x40068a94` and `0x40068b0c` are PERSONALIZE's DEFAULT TRIG
   MODE and DEFAULT REC MODE (`0x80000094`, `0x80000098`; ONE, ONE2,

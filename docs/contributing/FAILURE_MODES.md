@@ -17,7 +17,7 @@ sequencer and not the tempo", "A ten-character page-2 label faults the unit", "E
 
 - **The claim (11 Oct 2026, THR1, THR3 and THR4 on Chupitnik's MKII):** with RECORDING SETUP 1 or 2 open, REC AB and TRACK + REC AB recorded nothing under TRIG ONE, and THR armed there started only sometimes.
 - **Retracted (12 Oct 2026, the same unit):** stock 1.40C, flashed from the card, records with either page open (TRIG ONE, TRACK 1 + REC AB and REC AB alone), and so do THR5 (the module's commit; ONE, and THR armed inside the page) and THR6. RLEN 16 and RLEN MAX alike.
-- **What the reading most likely was (inferred, not traced):** a take still running, which a press under ONE2 or THR stops, read as "nothing records". Under RLEN MAX a take never ends by itself, and nothing on the screen showed which tracks were recording or armed.
+- **What the reading was (measured, 13 Oct 2026):** GRID RECORDING. Stock 1.40C's REC keys do nothing while GRID RECORDING (`0x460d1736`) is on and a RECORDING SETUP page is open (`0x460d5db4 == 3`, set as the page opens, `0x4002ff4a`, cleared as it closes, `0x4002ef0a`): TRACK + REC tests both at `0x400836e4`, REC AB at `0x40030ed0`. On the unit, with RECORD lit, the REC keys record nothing inside either page, whatever TRIG; with RECORD off they record; a reboot clears it (GRID RECORDING starts off). THR7 (12 Oct) was read the same way and was the same thing. ❌ The earlier inference, "a take still running", is retracted.
 
 ## Crackle on core B, then tracks 1-4 silent: a `rep` in an effect's proc ✅ measured on two units, fixed in their modules; octabam's 20 sites fixed in code, hardware open
 
