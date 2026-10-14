@@ -1,32 +1,37 @@
 #!/usr/bin/env python3
-"""STEMS in MAIN MENU, key by key under the port, on both panels.
+"""STEMS under PROJECT in MAIN MENU, key by key under the port, on both panels.
 
     python3 tools/verify/verify_stems_menu.py [remix]      (default: stems)
 
 Builds the remix and the fixtures (STEMS_TEMPLATE), then boots the image
 twice under `ot_emu --interactive` on a copy of the one-track fixture card:
 as an MKII (MAIN MENU = PROJ) and as an MKI (FUNC+MIXER). Each boot:
-- the cursor walks the five categories, STEMS fifth;
+- the cursor walks the stock root categories (four, or five with BRAIN);
+  STEMS is not among them;
 - SYSTEM opens and the cursor reaches OS UPGRADE, the recovery path; ENTER
   is never pressed there;
-- STEMS opens on REC; DOWN lands on T1 and UP on REC, the status row
-  skipped both ways; DOWN reaches 24 BIT and stays there: PEAK, the last
-  row, is never reached (a row with action 0 is skipped one at a time and
-  never moved onto at the end, STEM_REC.md 16.1);
+- PROJECT opens, DOWN reaches STEMS (last row), YES opens the STEMS list
+  on REC; DOWN lands on T1 and UP on REC, the status row skipped both ways;
+  DOWN reaches 24 BIT and stays there: PEAK, the last row, is never reached
+  (a row with action 0 is skipped one at a time and never moved onto at the
+  end, STEM_REC.md 16.1);
 - every track row turned off in turn leaves T8 on (the last source
   stays); with MAIN on, T8 can go off and MAIN can't; the three switches
   flip and say so; T3 off, then every other track on again;
 - REC arms (CANCEL, ARMED) and cancels (REC, READY), then arms;
-- with the menu closed, PLAY; the menu reopened on STEMS shows STOP and
+- with the menu closed, PLAY; the menu reopened on STEMS (PROJECT >
+  STEMS again after the frame hook restored PROJECT) shows STOP and
   REC mm:ss, and a key later the seconds have moved on (the menu redraws
   on keys only, STEM_REC.md 16.1); T3 is locked;
 - with the menu closed, STOP; the take ends DONE, and its folder holds
   seven tracks and MAIN, T3's missing;
 - every text the module can show, drawn in the status row, ends left of
-  the pane's clip edge, and STEMS left of the root column's.
+  the pane's clip edge, and STEMS left of the PROJECT column's (checked
+  before the take — post-take --dsp runs wedge the interactive port);
 The keys, as measured (STEM_REC.md 16.1): YES enters a list, LEFT goes
-back to the root, NO closes the whole menu; LEFT then RIGHT redraws the
-menu and keeps the list's cursor. A PNG of the screen at each step goes to
+back a level, NO closes the whole menu. STEMS is opened by stems_enter
+(not a child pointer); while it is shown, DOWN then UP redraws and keeps
+REC. A PNG of the screen at each step goes to
 out/stems_runs/menu-<model>-*.png. Pass or fail comes from memory, never
 from a picture.
 
@@ -44,8 +49,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import verify_stems as vs  # noqa: E402
 from stems_panel import MENU_FOCUS, MenuPort, diff_box  # noqa: E402
 
-ROOT_DESC, SYSTEM_DESC, SEL = 0x400cbd8c, 0x400cbd1c, 0x0c
+ROOT_DESC, PROJECT_DESC, SYSTEM_DESC, SEL = 0x400cbd8c, 0x400cbcac, 0x400cbd1c, 0x0c
 OS_UPGRADE = 1                  # SYSTEM's row 1 (MAINMENU.md 2)
+STEMS_PROJ_ROW = 15             # PROJECT's appended STEMS row (stock 15 → 16)
 ENTER, BACK, CLOSE = "yes", "left", "no"
 WORK = pathlib.Path("out/stems_runs")
 ERRS = ["RING FULL", "PATH FAILED", "OPEN FAILED", "SAME MINUTE", "WRITE FAILED",
@@ -60,87 +66,161 @@ def texts(p, s):
 
 
 def redraw(p):
-    """LEFT then RIGHT: to the root and back into the list, which redraws
-    the menu and keeps the list's cursor (the menu redraws on keys only)."""
-    p.press(BACK)
-    p.press("right")
+    """Force a menu redraw while STEMS is showing: DOWN then UP keeps REC
+    selected. Do not LEFT — that returns to the root, restores PROJECT, and
+    YES would hit REC (stems_action) instead of re-entering STEMS."""
+    p.press("down", settle=80)
+    p.press("up", settle=80)
 
 
-def box_of(p, label_at, scratch, text):
+def box_of(p, label_at, scratch, text, redraw_fn=redraw):
     p.poke(scratch, text.encode("latin1") + b"\0")
     p.poke(label_at, scratch.to_bytes(4, "big"))
-    p.run(300)
-    redraw(p)
+    # Short emulated settle + hard wall cap: widths must not wedge on DSP.
+    p.run(40, wall=1.5)
+    redraw_fn(p)
     return p.screen()
 
 
 def widths(p, s, model):
-    """Every text in the status row, and STEMS in the root column, against
+    """Every text in the status row, and STEMS in the PROJECT column, against
     24 Ws: each must end left of the clip edge. The label pointers are put
-    back after. The focus is in the STEMS list, its cursor on REC."""
+    back after. Call while STEMS is open (idle — before a take): post-take
+    --dsp runs starve the interactive port. Cursor on REC."""
     scratch = s["stems_fpath"]
-    for label_at, pane, items in ((s["stems_rows"] + vs.ROW_LEN, "the list pane", TEXTS),
-                                  (p.long(ROOT_DESC + 0x18) + vs.ROW_LEN * 4, "the root column", ["STEMS"])):
-        keep = p.long(label_at)
-        empty = box_of(p, label_at, scratch, "")
-        clip = diff_box(empty, box_of(p, label_at, scratch, "W" * 24))
-        over = []
-        for t in items:
-            b = diff_box(empty, box_of(p, label_at, scratch, t))
-            if clip is None or b is None or b[1] >= clip[1]:
-                over.append((t, b[1] if b else None))
-        p.poke(label_at, keep.to_bytes(4, "big"))
-        redraw(p)
-        vs.check(f"{model}: every text ends inside {pane}", clip is not None and not over,
-                 f"clip {clip[1] if clip else None}, over {over}")
+    # --- list pane (STEMS rows, still swapped onto PROJECT) ---
+    label_at = s["stems_rows"] + vs.ROW_LEN
+    keep = p.long(label_at)
+    empty = box_of(p, label_at, scratch, "")
+    clip = diff_box(empty, box_of(p, label_at, scratch, "W" * 24))
+    over = []
+    for t in TEXTS:
+        b = diff_box(empty, box_of(p, label_at, scratch, t))
+        if clip is None or b is None or b[1] >= clip[1]:
+            over.append((t, b[1] if b else None))
+    p.poke(label_at, keep.to_bytes(4, "big"))
+    redraw(p)
+    vs.check(f"{model}: every text ends inside the list pane", clip is not None and not over,
+             f"clip {clip[1] if clip else None}, over {over}")
+
+    # --- PROJECT column: STEMS label only visible after PROJECT is restored ---
+    grown_rows = p.long(s["stems_proj_save"] + 0x18)
+    label_at = grown_rows + vs.ROW_LEN * STEMS_PROJ_ROW
+    keep = p.long(label_at)
+    p.press(BACK)                                   # root; frame hook restores PROJECT
+    p.run(80, wall=2.0)
+    p.press("right")                                # PROJECT, cursor on STEMS (saved sel)
+
+    def redraw_proj(p):
+        p.press("up", settle=80)
+        p.press("down", settle=80)                  # stay on STEMS, force redraw
+
+    empty = box_of(p, label_at, scratch, "", redraw_proj)
+    clip = diff_box(empty, box_of(p, label_at, scratch, "W" * 24, redraw_proj))
+    over = []
+    for t in ("STEMS",):
+        b = diff_box(empty, box_of(p, label_at, scratch, t, redraw_proj))
+        if clip is None or b is None or b[1] >= clip[1]:
+            over.append((t, b[1] if b else None))
+    p.poke(label_at, keep.to_bytes(4, "big"))
+    redraw_proj(p)
+    vs.check(f"{model}: every text ends inside the PROJECT column", clip is not None and not over,
+             f"clip {clip[1] if clip else None}, over {over}")
+    p.press(ENTER)                                  # back into STEMS (REC) for the take
+
+
+def enter_stems(p, s, model):
+    """From the root with PROJECT selected: YES into PROJECT, DOWN to STEMS,
+    YES to swap PROJECT's rows onto stems_rows (REC selected)."""
+    p.press(ENTER)                                  # PROJECT
+    vs.check(f"{model}: PROJECT opens", p.long(MENU_FOCUS) == PROJECT_DESC,
+             f"focus {p.long(MENU_FOCUS):#x}")
+    # Stock PROJECT: 11 selectable rows (separators skipped), then STEMS.
+    # Cursor opens on CHANGE (row 1); 11 DOWNs land on STEMS (row 15).
+    for _ in range(11):
+        p.press("down")
+    shot_sel = p.long(PROJECT_DESC + SEL)
+    vs.check(f"{model}: PROJECT cursor reaches STEMS", shot_sel == STEMS_PROJ_ROW,
+             f"selection {shot_sel}")
+    p.press(ENTER)
+    # stems_enter repoints PROJECT onto stems_rows; focus stays PROJECT.
+    vs.check(f"{model}: STEMS opens on REC",
+             p.long(MENU_FOCUS) == PROJECT_DESC and sel(p, PROJECT_DESC) == 0
+             and p.long(PROJECT_DESC + 0x18) == s["stems_rows"],
+             f"focus {p.long(MENU_FOCUS):#x}, selection {sel(p, PROJECT_DESC)}, "
+             f"rows {p.long(PROJECT_DESC + 0x18):#x}")
+
+
+def reopen_stems(p, s, model):
+    """After NO closed the menu (frame hook restored PROJECT): from the root,
+    YES into PROJECT (saved selection is still STEMS), YES into STEMS."""
+    if (p.long(MENU_FOCUS) == PROJECT_DESC
+            and p.long(PROJECT_DESC + 0x18) == s["stems_rows"]):
+        return
+    if p.long(MENU_FOCUS) != ROOT_DESC:
+        p.press(BACK)
+        p.run(400)
+    while sel(p, ROOT_DESC) != 0:
+        p.press("up")
+    p.press(ENTER)                                  # PROJECT; sel restored to STEMS
+    vs.check(f"{model}: PROJECT reopens on STEMS",
+             p.long(MENU_FOCUS) == PROJECT_DESC and sel(p, PROJECT_DESC) == STEMS_PROJ_ROW,
+             f"focus {p.long(MENU_FOCUS):#x}, selection {sel(p, PROJECT_DESC)}")
+    p.press(ENTER)                                  # stems_enter
+    vs.check(f"{model}: STEMS reopens on REC",
+             p.long(MENU_FOCUS) == PROJECT_DESC and sel(p, PROJECT_DESC) == 0
+             and p.long(PROJECT_DESC + 0x18) == s["stems_rows"],
+             f"focus {p.long(MENU_FOCUS):#x}, selection {sel(p, PROJECT_DESC)}, "
+             f"rows {p.long(PROJECT_DESC + 0x18):#x}")
+
+
+def sel(p, desc):
+    return p.long(desc + SEL)
 
 
 def walk(model, s, fx):
     card = WORK / f"menu-{model}.img"
     shutil.copyfile(fx["card"], card)
-    lst = s["stems_list"]
     with MenuPort(vs.IMAGE, card, fx["set"], fx["project"], model == "mkii",
                   log_path=WORK / f"menu-{model}.log") as p:
         def shot(name):
             p.png(WORK / f"menu-{model}-{name}.png")
 
-        def sel(desc):
-            return p.long(desc + SEL)
-
         p.settle()
         p.open_menu()
         shot("root")
-        seen = [sel(ROOT_DESC)]
-        for _ in range(4):
+        root_n = p.long(ROOT_DESC)
+        seen = [sel(p, ROOT_DESC)]
+        for _ in range(root_n - 1):
             p.press("down")
-            seen.append(sel(ROOT_DESC))
-        shot("stems")
-        vs.check(f"{model}: MAIN MENU opens on the root and the cursor walks five categories",
-                 p.long(MENU_FOCUS) == ROOT_DESC and seen == [0, 1, 2, 3, 4], f"{seen}")
-        for _ in range(3):
-            p.press("up")                               # SYSTEM
+            seen.append(sel(p, ROOT_DESC))
+        shot("root-last")
+        vs.check(f"{model}: MAIN MENU opens on the root and the cursor walks {root_n} categories",
+                 p.long(MENU_FOCUS) == ROOT_DESC and seen == list(range(root_n)), f"{seen}")
+        # SYSTEM is always root selection 1 (PROJECT=0, SYSTEM=1, ...).
+        while sel(p, ROOT_DESC) != 1:
+            p.press("up")
         p.press(ENTER)
         p.press("down")
         shot("os-upgrade")
         vs.check(f"{model}: SYSTEM opens and the cursor reaches OS UPGRADE",
-                 p.long(MENU_FOCUS) == SYSTEM_DESC and sel(SYSTEM_DESC) == OS_UPGRADE,
-                 f"focus {p.long(MENU_FOCUS):#x}, selection {sel(SYSTEM_DESC)}")
+                 p.long(MENU_FOCUS) == SYSTEM_DESC and sel(p, SYSTEM_DESC) == OS_UPGRADE,
+                 f"focus {p.long(MENU_FOCUS):#x}, selection {sel(p, SYSTEM_DESC)}")
         p.press(BACK)                                   # the root, SYSTEM selected
-        for _ in range(3):
-            p.press("down")                             # STEMS
-        p.press(ENTER)
-        vs.check(f"{model}: STEMS opens on REC", p.long(MENU_FOCUS) == lst and sel(lst) == 0,
-                 f"focus {p.long(MENU_FOCUS):#x}, selection {sel(lst)}")
+        while sel(p, ROOT_DESC) != 0:
+            p.press("up")                               # PROJECT
+        enter_stems(p, s, model)
+        shot("stems")
         p.press("down")
-        down = sel(lst)
+        down = sel(p, PROJECT_DESC)
         p.press("up")
-        up = sel(lst)
+        up = sel(p, PROJECT_DESC)
         vs.check(f"{model}: DOWN from REC lands on T1 and UP from T1 on REC", (down, up) == (vs.ROW_TRK0, 0),
                  f"{(down, up)}")
         walked = []
         for _ in range(16):
             p.press("down")
-            walked.append(sel(lst))
+            walked.append(sel(p, PROJECT_DESC))
         shot("last")
         last = 16
         vs.check(f"{model}: DOWN reaches 24 BIT and stays there, never on the PEAK row",
@@ -193,6 +273,7 @@ def walk(model, s, fx):
                  f"mask {mask:#04x}, {trows}")
         for _ in range(8):
             p.press("up")                               # T8 -> T1, then REC
+        widths(p, s, model)                              # before the take: idle DSP, STEMS on REC
         p.press(ENTER)
         a = texts(p, s)[:2] + [p.long(s["stems_state"])]
         p.press(ENTER)
@@ -202,19 +283,21 @@ def walk(model, s, fx):
         vs.check(f"{model}: REC arms and cancels", a == ["CANCEL", "ARMED", vs.ST_ARMED]
                  and c == ["REC", "READY", vs.ST_IDLE] and p.long(s["stems_state"]) == vs.ST_ARMED,
                  f"{a}, {c}")
-        p.press(CLOSE)                                  # NO in a list closes the menu
+        p.press(CLOSE)                                  # NO closes the menu; frame hook restores PROJECT
         p.press("play", settle=1500)
         p.open_menu()
+        reopen_stems(p, s, model)
         t0 = texts(p, s)
         before = p.screen()
         shot("recording")
-        p.run(2500)
+        p.run(2500, wall=30)
         redraw(p)
         t1 = texts(p, s)
         after = p.screen()
         shot("recording-later")
         vs.check(f"{model}: reopened on STEMS: STOP and REC mm:ss, and a key later the seconds moved on",
-                 p.long(MENU_FOCUS) == lst and t0[0] == "STOP" and t0[1].startswith("REC ")
+                 p.long(MENU_FOCUS) == PROJECT_DESC and p.long(PROJECT_DESC + 0x18) == s["stems_rows"]
+                 and t0[0] == "STOP" and t0[1].startswith("REC ")
                  and t1[1].startswith("REC ") and t1[1] > t0[1] and diff_box(before, after) is not None,
                  f"{t0[:2]} -> {t1[:2]}")
         for _ in range(3):
@@ -227,16 +310,14 @@ def walk(model, s, fx):
         for _ in range(60):
             if p.long(s["stems_state"]) == vs.ST_IDLE:
                 break
-            p.run(500)
+            p.run(500, wall=5)
         p.open_menu()
+        reopen_stems(p, s, model)
         t = texts(p, s)
         shot("done")
         vs.check(f"{model}: after STOP: IDLE, REC and DONE mm:ss",
                  p.long(s["stems_state"]) == vs.ST_IDLE and t[0] == "REC" and t[1].startswith("DONE "),
                  f"state {p.long(s['stems_state'])}, {t[:3]}")
-        for _ in range(3):
-            p.press("up")                               # T3 -> T2 -> T1 -> REC, rows 0-6 showing
-        widths(p, s, model)
         p.card_flush()
     names = [n.upper() for n, _ in vs.take_files(str(card))]
     vs.check(f"{model}: the take holds seven tracks and MAIN, T3's missing",

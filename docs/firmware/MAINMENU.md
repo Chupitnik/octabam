@@ -63,13 +63,17 @@ A fifth root category fits without touching the engine: the root window is
 five tall (`init(&0x400cbd90, 5, count)` at `0x40064c70`) and stock fills
 four. BRAIN adds its category this way (rows pointer `0x400cbda4` repointed
 to a five-row array in DRAM, count `0x400cbd8c` 4 → 5, its child descriptor
-shipped initialised with 7 visible rows); STEMS does the same through a
-`TableGrow`, so the two are refused together. A pane can be rebuilt each
-time MAIN MENU opens from a detour at `0x40064c32`, the opener's new-window
-path (skipped while the menu is already up), before the window is created:
-its row count and cursor may change there (REMIX SWITCH's rows in BRAIN's
-pane, sanderlegit). ✅ drawn and driven under the port, 29 Sep 2026 (OS
-SWITCH's own category then) and 8 Oct 2026 (`verify_remixswitch`, BRAIN).
+shipped initialised with 7 visible rows). STEMS used to do the same through
+a `TableGrow` of the root, so the two were refused together; it now grows
+PROJECT instead (count `0x400cbcac` 15 → 16, row action `stems_enter`
+repoints PROJECT onto `stems_rows` because YES never follows `+0x10` from
+a non-root list — section 4), so it coexists with BRAIN. A pane can be rebuilt
+each time MAIN MENU opens from a detour at `0x40064c32`, the opener's
+new-window path (skipped while the menu is already up), before the window
+is created: its row count and cursor may change there (REMIX SWITCH's rows
+in BRAIN's pane, sanderlegit). ✅ drawn and driven under the port, 29 Sep
+2026 (OS SWITCH's own category then) and 8 Oct 2026 (`verify_remixswitch`,
+BRAIN); STEMS under PROJECT, `verify_stems_menu` / `stems-brain`.
 
 Root rows: window descriptor set, child set, action 0. Leaf rows: window 0,
 child 0, action or page id set.
@@ -169,12 +173,15 @@ there passed a static zero-check and a no-project boot and faulted on
 added: a null-action row is a heading the cursor skips; a row inside a
 pane cannot descend (`+0x10` read on the root only); the descriptor must
 ship initialised. `RANDOMIZE PAGE` = `0x4005b9c0`, via `0x400bab22`.
-STEMS (`modules/stems`, 29 Sep 2026) is a fifth category run under the
-port on the MKII and the MKI by real keys (`verify_stems_menu`): the root
-grown by a `TableGrow` of the four stock rows plus its own and a `Poke` of
-the count; the list, its eleven rows and the icon in DRAM; labels switched
-by one aligned pointer write, from the actions and from an RTOS task.
-Unflashed; `STEM_REC.md` section 16.
+STEMS (`modules/stems`) sits under PROJECT: a `TableGrow` of the fifteen
+stock PROJECT rows plus STEMS and a `Poke` of the count 15 → 16; YES on
+STEMS runs `stems_enter`, which swaps PROJECT's rows onto the STEMS list
+in DRAM (the engine is two levels only — section 4). Earlier builds (29 Sep 2026)
+grew the root as a fifth category; that placement is retired so BRAIN can
+own the fifth root slot. Port: MKII and MKI keys (`verify_stems_menu`);
+coexistence remix `stems-brain`. Hardware proof of the take path remains
+Yves's MKII (STEMS1–STEMS3) under the earlier root placement.
+`STEM_REC.md` section 16.
 
 ## 6. Opening a parameter page from a handler ✅
 

@@ -1,6 +1,6 @@
 """STEM REC -- tracks to the card while the sequencer plays, streamed.
 
-MAIN MENU > STEMS > REC arms a recording, or starts one if the
+MAIN MENU > PROJECT > STEMS > REC arms a recording, or starts one if the
 sequencer is running; selecting it again stops it, and so does the
 sequencer stopping or 60 minutes. T1 to T8, MAIN, CUE, AB and CD turn
 sources on and off (the eight tracks at boot; locked during a take);
@@ -27,9 +27,12 @@ free top of the platform reserve, so the module costs no sample memory
 beyond what any DRAM remix already gives up. A third region, `stems_buf`,
 holds fourteen 512-byte sector-0 copies (the header's fix).
 
+Placement: STEMS is a row under PROJECT (not a fifth MAIN MENU root
+category), so BRAIN can own the root's fifth slot. The ledger refuses two
+modules growing MAIN MENU's root.
+
 On hardware: STEMS1 to STEMS3 on Yves's MKII (docs/firmware/STEM_REC.md
-section 17). No module upstream hooks the frame site or grows MAIN MENU's
-root (29 Sep 2026); the ledger refuses one that does, by name.
+section 17) used the earlier root placement; PROJECT placement is port-gated.
 """
 
 import pathlib
@@ -49,14 +52,15 @@ FRAME_STOCK = bytes.fromhex("4ebae68c" "46fc2700")
 ATA_FIRST_SITE = 0x40014CFE
 ATA_FIRST_STOCK = bytes.fromhex("207946c8c594")
 
-# MAIN MENU's root (docs/firmware/MAINMENU.md sections 1-5): count at
-# +0x00, row array pointer at +0x18. TableGrow copies the four stock
-# categories from the user's image at build time and appends STEMS: a
-# category row has a window (its icon) and a child (its list), no action,
-# no getter, id 0. The STEMS list and its rows are in stems.s.
-ROOT_DESC = 0x400CBD8C
-ROOT_ROWS = 0x400CC698
-ROOT_N, ROW_WORDS = 4, 6
+# MAIN MENU > PROJECT (docs/firmware/MAINMENU.md §2): list descriptor
+# 0x400cbcac (count at +0x00, row array at +0x18), stock 15 rows at
+# 0x400cc308. TableGrow copies those rows and appends STEMS: label +
+# action stems_enter (YES from a non-root list never follows +0x10;
+# stems_enter repoints PROJECT onto stems_rows so the pane redraws).
+# Window/getter/child/id zero. The STEMS rows are in stems.s.
+PROJECT_DESC = 0x400CBCAC
+PROJECT_ROWS = 0x400CC308
+PROJECT_N, ROW_WORDS = 15, 6
 
 # Core 0's gain table (X:0x6c00, 258 words, 3 bytes each, little-endian)
 # from the USER'S stock slice at build time: the OS reuses the RAM the
@@ -81,7 +85,7 @@ MODULE = Module(
     proof=Proof.HARDWARE, proof_note="Yves's MKII: STEMS1 (30 Sep 2026), T1-T8 for about two minutes; "
         "STEMS3 (6 Oct 2026), T1-T8 after the fader, MAIN and AB at 16 and 24 bits",
     doc="Multitrack recording to the card: each track (after its fader), MAIN, CUE and the "
-        "inputs as separate WAV files, 16 or 24 bits, up to 60 minutes. MAIN MENU > STEMS.",
+        "inputs as separate WAV files, 16 or 24 bits, up to 60 minutes. MAIN MENU > PROJECT > STEMS.",
     linked=(Linked("stems", "modules/stems/stems.s", dram=True, include=gtab_inc),),
     detours=(Detour(FRAME_SITE, FRAME_STOCK, "stems", "stems_frame_hook",
                     "per-frame tap: the enabled tracks into the ring, then the stock routine",
@@ -89,14 +93,14 @@ MODULE = Module(
              Detour(ATA_FIRST_SITE, ATA_FIRST_STOCK, "stems", "stems_ata_first",
                     "the PIO write's first sector, pointer and count advanced first",
                     kind="jmp"),),
-    tables=(TableGrow("MAIN MENU root + STEMS", old=ROOT_ROWS,
-                      count=ROOT_N * ROW_WORDS,
-                      symbols=(("stems", "stems_cat_label"), ("stems", "stems_icon"),
-                               ("stems", "stems_zero"), ("stems", "stems_zero"),
-                               ("stems", "stems_list"), ("stems", "stems_zero")),
-                      refs=((ROOT_DESC + 0x18, ROOT_ROWS),)),),
-    pokes=(Poke(ROOT_DESC, expect=(ROOT_N).to_bytes(4, "big"),
-                write=(ROOT_N + 1).to_bytes(4, "big"), note="MAIN MENU categories 4 -> 5 (STEMS)"),),
+    tables=(TableGrow("PROJECT + STEMS", old=PROJECT_ROWS,
+                      count=PROJECT_N * ROW_WORDS,
+                      symbols=(("stems", "stems_cat_label"), ("stems", "stems_zero"),
+                               ("stems", "stems_enter"), ("stems", "stems_zero"),
+                               ("stems", "stems_zero"), ("stems", "stems_zero")),
+                      refs=((PROJECT_DESC + 0x18, PROJECT_ROWS),)),),
+    pokes=(Poke(PROJECT_DESC, expect=(PROJECT_N).to_bytes(4, "big"),
+                write=(PROJECT_N + 1).to_bytes(4, "big"), note="PROJECT rows 15 -> 16 (STEMS)"),),
     requires=("MEMORY",),
     dram_regions=(DramRegion("stems_ring", 0x800000),
                   DramRegion("stems_stack", 0x2000),

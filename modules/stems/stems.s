@@ -8,7 +8,7 @@
 | Every stock address below, with its evidence: docs/firmware/STEM_REC.md.
 |
 | Three parts share the state words below:
-|   stems_action      MAIN MENU > STEMS > REC, in the UI task; stems_source_action
+|   stems_action      PROJECT > STEMS > REC, in the UI task; stems_source_action
 |                     T1-T8, MAIN, CUE, AB, CD; stems_switch_action the format
 |   stems_frame_hook  the per-frame tap, in the audio interrupt at IPL 5
 |   stems_task        our own RTOS task: the ring to the card, while recording
@@ -360,14 +360,19 @@ bus_src:    .long   BUS, BUS+0x80, IN_AB_OFF, IN_CD_OFF
             .long   IN_AB_OFF+IN_A_OFF, IN_AB_OFF+IN_B_OFF, IN_CD_OFF+IN_A_OFF, IN_CD_OFF+IN_B_OFF
         .balign 2
 
-| ---- the STEMS category (git show 4d2d6456:docs/superpowers/specs/2026-09-28-stem-rec-menu-design.md)
-| A fifth MAIN MENU category. The manifest's TableGrow gives the root a row
-| pointing at stems_cat_label, stems_icon and stems_list. The list and its
-| rows live here, in DRAM: the menu engine writes the list's cursor
-| fields, and STEM REC rewrites the rows' labels. A label changes by one
-| aligned long write to the row's +0x00, so a redraw reads a whole old
-| label or a whole new one. The menu redraws on keys only (STEM_REC.md
-| 16.1): a label the task changes shows at the next key.
+| ---- the STEMS list (git show 4d2d6456:docs/superpowers/specs/2026-09-28-stem-rec-menu-design.md)
+| Under PROJECT (not a fifth root category): the manifest's TableGrow
+| appends a PROJECT row with stems_cat_label and stems_enter. The stock
+| menu is two levels only (MAINMENU.md 4): YES from PROJECT runs the row
+| action and never follows +0x10, and poking MENU_FOCUS alone does not
+| rebind the pane. stems_enter repoints PROJECT's own descriptor onto
+| stems_rows (BRAIN's in-list swap), so the next redraw shows STEMS; the
+| frame hook restores PROJECT when the focus is back on the root or the
+| menu has closed. The list and its rows live here, in DRAM: the menu
+| engine writes PROJECT's cursor fields while STEMS is shown, and STEM
+| REC rewrites the rows' labels. A label changes by one aligned long
+| write to the row's +0x00, so a redraw reads a whole old label or a
+| whole new one. The menu redraws on keys only (STEM_REC.md 16.1).
         .equ    ROW_LEN,       24           | a menu row (MAINMENU.md 1)
         .equ    MENU_ROWS,     18
         .equ    MENU_VISIBLE,  7            | a submenu pane's rows
@@ -379,12 +384,17 @@ bus_src:    .long   BUS, BUS+0x80, IN_AB_OFF, IN_CD_OFF
 | in a row, and never moves onto a last one (STEM_REC.md 16.1), so the
 | status row sits alone between REC and T1, and PEAK is the last row.
         .equ    LIST_SEL,      0x0c         | a list's absolute selection: the row under the cursor
-        .global stems_cat_label, stems_icon, stems_icon_p0, stems_icon_p1, stems_list, stems_rows, stems_zero
-        .equ    stems_zero, 0               | the root row's action, getter and id
+        .equ    MENU_FOCUS_AT, 0x400cbda8   | pointer to the list under the cursor (MAINMENU.md 4)
+        .equ    PROJECT_DESC,  0x400cbcac   | MAIN MENU > PROJECT list
+        .equ    ROOT_DESC,     0x400cbd8c   | MAIN MENU root
+        .equ    MENU_WINDOW,   0x400cbf4c   | 0 when MAIN MENU is closed
+        .global stems_cat_label, stems_icon, stems_icon_p0, stems_icon_p1, stems_list, stems_rows, stems_zero, stems_enter
+        .global stems_proj_live, stems_proj_save
+        .equ    stems_zero, 0               | window/action/getter/child/id when unused
 stems_cat_label:
         .asciz  "STEMS"
         .balign 4
-stems_icon:                                 | 19 x 9, two planes (MAINMENU.md 1)
+stems_icon:                                 | 19 x 9, two planes (MAINMENU.md 1); unused under PROJECT
         .long   0x13, 0x09, 0x01, stems_icon_p0, stems_icon_p1
 stems_icon_p0:                              | a record dot: one long a column, the column in its top byte
         .long   0, 0, 0, 0, 0, 0
@@ -394,7 +404,63 @@ stems_icon_p1:                              | the stock icons' second plane, eve
         .rept   19
         .long   0xff800000
         .endr
-stems_list:                                 | shipped filled in: the boot's set-up covers only stock lists
+| PROJECT > STEMS: YES runs this (action(0)). Saves PROJECT's descriptor
+| once, then points it at stems_rows with REC selected. Focus stays on
+| PROJECT so the stock redraw shows the new rows.
+stems_enter:
+        tst.l   stems_proj_live
+        bne.s   .Le_install
+        lea     PROJECT_DESC,%a0
+        lea     stems_proj_save,%a1
+        move.l  (%a0)+,(%a1)+               | 7 longs = 0x1c
+        move.l  (%a0)+,(%a1)+
+        move.l  (%a0)+,(%a1)+
+        move.l  (%a0)+,(%a1)+
+        move.l  (%a0)+,(%a1)+
+        move.l  (%a0)+,(%a1)+
+        move.l  (%a0)+,(%a1)+
+        moveq   #1,%d0
+        move.l  %d0,stems_proj_live
+.Le_install:
+        moveq   #MENU_ROWS,%d0
+        move.l  %d0,PROJECT_DESC
+        clr.l   PROJECT_DESC+0x04
+        clr.l   PROJECT_DESC+0x08
+        clr.l   PROJECT_DESC+LIST_SEL
+        moveq   #MENU_VISIBLE,%d0
+        move.l  %d0,PROJECT_DESC+0x10
+        moveq   #MENU_ROWS,%d0
+        move.l  %d0,PROJECT_DESC+0x14
+        lea     stems_rows,%a0
+        move.l  %a0,PROJECT_DESC+0x18
+        clr.l   stems_list+LIST_SEL
+        rts
+| Restore PROJECT after LEFT to the root or a menu close (frame hook).
+stems_proj_maybe_restore:
+        tst.l   stems_proj_live
+        beq.s   .Lpr_out
+        move.l  MENU_FOCUS_AT,%d0
+        cmp.l   #ROOT_DESC,%d0
+        beq.s   .Lpr_do
+        tst.l   MENU_WINDOW
+        bne.s   .Lpr_out
+.Lpr_do:
+        lea     stems_proj_save,%a0
+        lea     PROJECT_DESC,%a1
+        move.l  (%a0)+,(%a1)+
+        move.l  (%a0)+,(%a1)+
+        move.l  (%a0)+,(%a1)+
+        move.l  (%a0)+,(%a1)+
+        move.l  (%a0)+,(%a1)+
+        move.l  (%a0)+,(%a1)+
+        move.l  (%a0)+,(%a1)+
+        clr.l   stems_proj_live
+.Lpr_out:
+        rts
+        .balign 4
+stems_proj_live: .long 0
+stems_proj_save: .space 0x1c
+stems_list:                                 | mirror of the STEMS list shape; selection lives on PROJECT while shown
         .long   MENU_ROWS, 0, 0, 0, MENU_VISIBLE, MENU_ROWS, stems_rows
 stems_rows:                                 | label, window, action, getter, child, page id
         .long   lbl_rec,   0, stems_action, 0, 0, 0
@@ -597,7 +663,7 @@ stems_ui_state:
 stems_source_action:
         lea     -8(%sp),%sp
         movem.l %d2-%d3,(%sp)
-        move.l  stems_list+LIST_SEL,%d3
+        move.l  PROJECT_DESC+LIST_SEL,%d3   | STEMS is shown via PROJECT's descriptor
         subq.l  #ROW_SRC0,%d3               | source k, 0..11
         moveq   #NSRC,%d0
         cmp.l   %d0,%d3
@@ -652,7 +718,7 @@ stems_source_action:
 stems_switch_action:
         lea     -8(%sp),%sp
         movem.l %d2-%d3,(%sp)
-        move.l  stems_list+LIST_SEL,%d3
+        move.l  PROJECT_DESC+LIST_SEL,%d3   | STEMS is shown via PROJECT's descriptor
         subi.l  #ROW_SW0,%d3                | switch k, 0..2
         moveq   #3,%d0
         cmp.l   %d0,%d3
@@ -712,6 +778,7 @@ stems_switch_action:
 | entry, and the hook with the stock frame routine after it (stems_st_on).
         .global stems_frame_hook
 stems_frame_hook:
+        bsr.w   stems_proj_maybe_restore
         tst.l   stems_state
         beq.w   .Lh_idle            | IDLE: the mirror only, and stock
         move.l  %d0,-(%sp)

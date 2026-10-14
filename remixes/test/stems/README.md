@@ -5,10 +5,10 @@ the inputs to the card as separate WAV files.
 
 ## What is in it
 
-- **STEM REC** (yvesrosius) — MAIN MENU > STEMS records a take to
-  `<set>/AUDIO/YYMMDD-HHMM/`, one file per source, 16 or 24 bits.
+- **STEM REC** (yvesrosius) — MAIN MENU > PROJECT > STEMS records a take
+  to `<set>/AUDIO/YYMMDD-HHMM/`, one file per source, 16 or 24 bits.
   [The module page](../../../modules/stems/README.md) says how to use it
-  and what is open.
+  and what is open. Under PROJECT so it coexists with BRAIN.
 - **The 14 stock effects**, listed so the FX2 chooser is stock's.
 
 ## Status
