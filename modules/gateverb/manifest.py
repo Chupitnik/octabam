@@ -1,4 +1,4 @@
-"""CLOUDS VERB -- the reverb of Mutable Instruments Clouds, as an FX2 insert.
+"""GATE VERB -- a gated plate reverb for FX2, built on the reverb stage of Mutable Instruments Clouds.
 
 Clouds' reverb stage (clouds/dsp/fx/reverb.h, MIT, Emilie Gillet 2014): a
 Griesinger/Dattorro plate of four input allpasses and a loop of two halves,
@@ -10,31 +10,35 @@ extent (Claims.buffer_words) and never writes them.
 
 The five knobs are Clouds' own setters: AMNT (amount), GAIN (input gain), TIME
 (reverb time), DIFF (the allpass coefficient), TONE (the damping lowpass).
-Defaults are the Clouds module's values.
+Defaults are the Clouds module's values. A sixth knob, GATE, holds the wet
+output for 2048 + 256 k samples after the input falls quiet and then closes it
+over 128 samples; the tank keeps ringing underneath (0 is off).
 """
 from remix.schema import (BusRole, Category, Claims, DspSection, Formatter, Gate, Harness,
                           Kind, MenuEntry, Module, Param, Proof, YBase)
 
 MODULE = Module(
-    name="clouds-verb", key="CLOUDS VERB", kind=Kind.DSP_EFFECT,
+    name="gateverb", key="GATE VERB", kind=Kind.DSP_EFFECT,
     category=Category.TRACK, author="Emilie Gillet (Mutable Instruments), ported here",
     author_url="https://github.com/pichenettes/eurorack",
-    proof=Proof.RENDER, proof_note="`verify_cloudsverb` (dsp_host, against a float model of Clouds' reverb); not on a unit",
-    doc="Clouds' Griesinger plate reverb: amount, input gain, time, diffusion, tone. One FX2 slot per instance.",
+    proof=Proof.RENDER, proof_note="`verify_gateverb` (dsp_host, against a float model of Clouds' reverb); not on a unit",
+    doc="A gated plate reverb (Griesinger topology, after the reverb stage of Mutable Instruments Clouds): amount, input gain, time, diffusion, tone, gate. One FX2 slot per instance.",
     menu=MenuEntry(fx2_id=0x14, replaces="PLATE REV", donor_desc=0x400d5594,
-                   abbr=b"CLVB", fullname=b"Clouds Verb", build_tag=False),
+                   abbr=b"GVRB", fullname=b"Gate Verb", build_tag=False),
     params=(
         Param(b"AMNT", 40, active=True, formatter=Formatter.PLAIN, doc="dry/wet; 0 is exactly dry"),
         Param(b"GAIN", 51, active=True, formatter=Formatter.PLAIN, doc="input gain; Clouds' 0.2 at 51"),
         Param(b"TIME", 64, active=True, formatter=Formatter.PLAIN, doc="loop gain 0.35..0.98"),
         Param(b"DIFF", 100, active=True, formatter=Formatter.PLAIN, doc="allpass coefficient 0..0.8; Clouds' 0.625 at 100"),
         Param(b"TONE", 90, active=True, formatter=Formatter.PLAIN, doc="damping lowpass coefficient 0.05..1; Clouds' 0.7 at 90"),
-        *(Param() for _ in range(7)),
+        Param(b"GATE", 0, active=True, formatter=Formatter.PLAIN,
+              doc="0 off; k holds the wet 2048 + 256 k samples after the input falls quiet, then closes"),
+        *(Param() for _ in range(6)),
     ),
-    dsp=DspSection(asm="modules/clouds-verb/clouds_verb.asm", priority=11,
+    dsp=DspSection(asm="modules/gateverb/gateverb.asm", priority=11,
                    bus_role=BusRole.NONE, ybase=YBase.NEVER,
                    r7_latch_slot=None, gate_label=None),
     claims=Claims(stock_instance_buffer=True, buffer_words=16120),
     harness=Harness(layout_char="H", is_server=False),
-    gates=(Gate('tools/verify/verify_cloudsverb.py', remix_arg=False, venv=True),),
+    gates=(Gate('tools/verify/verify_gateverb.py', remix_arg=False, venv=True),),
 )

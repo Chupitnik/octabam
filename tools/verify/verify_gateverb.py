@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""CLOUDS VERB under dsp_host, against a float model of Clouds' reverb.
+"""GATE VERB under dsp_host, against a float model of Clouds' reverb.
 
-    .venv/bin/python3 tools/verify/verify_cloudsverb.py
+    .venv/bin/python3 tools/verify/verify_gateverb.py
 
-Builds remix `clouds-verb`, dumps payload A and runs one instance at track 1's
+Builds remix `gateverb`, dumps payload A and runs one instance at track 1's
 FX2 slot (`-r7 2 -alloc 1`, Y:0x4000). Gates:
   clear     the first 52 calls (the ring is cleared 310 words a call) pass the
             input through untouched
@@ -29,8 +29,8 @@ import send_probe  # noqa: E402
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 os.chdir(ROOT)
 HOST = "vendor/dsp56300/build/source/dsp_host/dsp_host"
-REMIX = "clouds-verb"
-IMAGE, MEM = "out/mainos_bus.bin", "out/dsp/_cloudsverb_A.mem"
+REMIX = "gateverb"
+IMAGE, MEM = "out/mainos_bus.bin", "out/dsp/_gateverb_A.mem"
 TMP = pathlib.Path("out/_cvgate"); TMP.mkdir(parents=True, exist_ok=True)
 FRAMES = 16
 CLEAR_CALLS = 52
@@ -59,13 +59,13 @@ def build_dump():
     env = dict(os.environ, REMIX=REMIX, XBUS="1", SPEC="1"); env.setdefault("BUILD", "0")
     r = subprocess.run([sys.executable, "tools/build/build_bus.py"], env=env, capture_output=True, text=True)
     if r.returncode:
-        sys.exit(f"verify_cloudsverb: building {REMIX} failed:\n{(r.stdout + r.stderr)[-1500:]}")
+        sys.exit(f"verify_gateverb: building {REMIX} failed:\n{(r.stdout + r.stderr)[-1500:]}")
     send_probe.dump_mem(IMAGE, MEM, "A")
 
 
 def host(samples, params, *, mem=MEM, extra=()):
     from remix import registry
-    fxid = registry.by_key("CLOUDS VERB").menu.fx2_id
+    fxid = registry.by_key("GATE VERB").menu.fx2_id
     init, proc = send_probe.entry_points(mem, fxid)
     (TMP / "in.raw").write_bytes(b"".join(struct.pack("<i", s) for s in samples))
     cmd = [HOST, "-mem", mem, "-init", f"{init:x}", "-proc", f"{proc:x}", "-inst", "1", "-r7", "2", "-alloc", "1",
@@ -98,6 +98,8 @@ def model(samples, params, blocks_skip):
     amt = gc = krt = kap = klp = 0
     lp1 = lp2 = 0.0
     p = 0
+    env = hold = gs = 0
+    hmax = 0x7FFFFF if params[5] == 0 else 2048 + 256 * params[5]
     out_l, out_r = [], []
     def smooth(cur, tgt):
         return cur + ((tgt - cur) >> 4)
@@ -125,6 +127,18 @@ def model(samples, params, blocks_skip):
         for s in range(FRAMES):
             i0 = blk * FRAMES + s
             l_in, r_in = samples[2 * i0] / Q, samples[2 * i0 + 1] / Q
+            mean_i = (samples[2 * i0] + samples[2 * i0 + 1]) >> 1
+            m = min(abs(mean_i), Q - 1)
+            env2 = env - (env >> 9)
+            env = env2 + max(m - env2, 0)
+            hold = max(hold - 1, 0)
+            if hmax == 0x7FFFFF:
+                hold = hmax
+            if env - 0x010000 > 0:
+                hold = hmax
+            tgt = min(hold << 16, Q - 1)
+            gs = gs + ((tgt - gs) >> 5)
+            G_ = gs / Q
             # smear
             a0 = rd(0, kint1); b0 = rd(0, kint1 + 1)
             wr_(0, 100, a0 + (b0 - a0) * fr1 / Q)
@@ -140,14 +154,14 @@ def model(samples, params, blocks_skip):
             lp1 += L * (acc - lp1); acc = lp1
             r = rd(4, LEN[4] - 1); acc += -K * r; wr_i(4, acc); acc = r + K * max(-1, min(1, acc))
             r = rd(5, LEN[5] - 1); acc += K * r; wr_i(5, acc); acc = r - K * max(-1, min(1, acc))
-            wr_i(6, acc); wet = max(-1, min(1, 2 * acc))
+            wr_i(6, acc); wet = max(-1, min(1, 2 * acc)) * G_
             out_l.append(max(-1, min(1, l_in + (8 * wet - l_in) * A)) * Q)
             # second half
             acc = apout + rd(6, LEN[6] - 1) * R
             lp2 += L * (acc - lp2); acc = lp2
             r = rd(7, LEN[7] - 1); acc += K * r; wr_i(7, acc); acc = r - K * max(-1, min(1, acc))
             r = rd(8, LEN[8] - 1); acc += -K * r; wr_i(8, acc); acc = r + K * max(-1, min(1, acc))
-            wr_i(9, acc); wet = max(-1, min(1, 2 * acc))
+            wr_i(9, acc); wet = max(-1, min(1, 2 * acc)) * G_
             out_r.append(max(-1, min(1, r_in + (8 * wet - r_in) * A)) * Q)
             p = (p + 1) % N
     return out_l, out_r
@@ -173,11 +187,11 @@ def main():
     imp[(CLEAR_CALLS + 4) * FRAMES] = int(0.5 * Q)
     for i in range((CLEAR_CALLS + 60) * FRAMES, (CLEAR_CALLS + 60) * FRAMES + 600):
         imp[i] = int(0.3 * Q * (random.random() - 0.5))
-    params = [64, 51, 80, 100, 90]
-    L, R, _ = host(imp, params + [0] * 7)
+    params = [64, 51, 80, 100, 90, 0]
+    L, R, _ = host(imp, params + [0] * 6)
     check("clear: the first 52 calls pass the input untouched",
           all(L[i] == imp[i] for i in range(CLEAR_CALLS * FRAMES)))
-    L0, R0, _ = host(imp, [0] + params[1:] + [0] * 7)
+    L0, R0, _ = host(imp, [0] + params[1:] + [0] * 6)
     check("dry: AMNT 0 is bit-exact dry", L0 == imp and R0 == imp)
     check("wet: AMNT 64 changes the output after the clearing", L != imp)
     # model: mono input to both channels
@@ -192,11 +206,30 @@ def main():
     check("tail: below full scale", max(abs(x) for x in L + R) < Q - 1)
     t1 = rms_db(L[n0 + 8000:n0 + 12000]); t2 = rms_db(L[n0 + 40000:n0 + 44000])
     check(f"tail: decays ({t1:.1f} dB then {t2:.1f} dB)", t2 < t1 - 6)
-    Lh, _, _ = host(imp, [64, 51, 127, 100, 90] + [0] * 7)
+    Lh, _, _ = host(imp, [64, 51, 127, 100, 90, 0] + [0] * 6)
     th = rms_db(Lh[n0 + 40000:n0 + 44000])
     check(f"time: TIME 127 rings longer than TIME 80 ({th:.1f} dB against {t2:.1f} dB)", th > t2)
+    # gate: the wet is held for 2048 + 256 k samples after the input falls quiet, then closed
+    gimp = [0] * (blocks * FRAMES)
+    gimp[(CLEAR_CALLS + 4) * FRAMES] = int(0.5 * Q)
+    t0 = (CLEAR_CALLS + 4) * FRAMES
+    gp = [80, 51, 110, 100, 90]
+    Lng, _, _ = host(gimp, gp + [0] * 7)
+    Lg, Rg, _ = host(gimp, gp + [40] + [0] * 6)
+    hold = 2048 + 256 * 40
+    pre_ng, pre_g = rms_db(Lng[t0 + 2000:t0 + 8000]), rms_db(Lg[t0 + 2000:t0 + 8000])
+    # the envelope needs about 2,200 samples to fall from 0.5 to the threshold before the hold starts
+    post_ng, post_g = rms_db(Lng[t0 + hold + 3300:t0 + hold + 7300]), rms_db(Lg[t0 + hold + 3300:t0 + hold + 7300])
+    check(f"gate: open during the hold ({pre_g:.1f} dB against {pre_ng:.1f} dB without)", abs(pre_g - pre_ng) < 3)
+    check(f"gate: closed after the hold ({post_g:.1f} dB against {post_ng:.1f} dB without)", post_g < post_ng - 30)
+    stg = []
+    for s_ in gimp:
+        stg += [s_, s_]
+    mgL, _ = model(stg, gp + [40], CLEAR_CALLS)
+    sg = snr_db(mgL[n0:], Lg[n0:])
+    check(f"gate: left against the float model, {sg:.1f} dB", sg > 50)
     # bounds
-    _, _, log = host(imp[:200 * FRAMES], params + [0] * 7, extra=["-guard", str(N), "-guard-shared"])
+    _, _, log = host(imp[:200 * FRAMES], params + [0] * 6, extra=["-guard", str(N), "-guard-shared"])
     check("bounds: -guard 16120, no write outside the ring", "0 stray write regions, 0 CLOBBERING" in log, log.strip().splitlines()[-1][:100] if log.strip() else "")
     # dirty: garbage in X (state block) and Y (the ring), silent input
     data = pathlib.Path(MEM).read_bytes()
@@ -205,9 +238,9 @@ def main():
     body += struct.pack("<BII", 2, 0x4000, 0x4000) + struct.pack("<I", 0x320080) * 0x4000
     dm = TMP / "dirty.mem"; dm.write_bytes(body + term)
     z = [0] * (200 * FRAMES)
-    Ld, Rd, _ = host(z, params + [0] * 7, mem=str(dm))
+    Ld, Rd, _ = host(z, params + [0] * 6, mem=str(dm))
     check("dirty: garbage state and ring, silent input, silent output", not any(Ld) and not any(Rd))
-    print(f"verify_cloudsverb: {'PASS' if not fails else f'FAIL ({fails})'}")
+    print(f"verify_gateverb: {'PASS' if not fails else f'FAIL ({fails})'}")
     sys.exit(1 if fails else 0)
 
 
