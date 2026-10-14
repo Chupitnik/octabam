@@ -10,7 +10,6 @@ There are two ways to run the Octatrack's OS without flashing it:
   handoff and calls the firmware's draw and formatter code directly. It is used by:
   - the label gates in `make check` (`verify_labels`, `verify_modenames`,
     `verify_hidden`) and CC MAP's `verify_ccmap`;
-  - REPITCH's `verify_repitch_ui`;
   - `tools/build/stock_labels.py`;
   - the remixer's UNIT pane.
 
