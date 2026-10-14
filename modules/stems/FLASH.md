@@ -751,3 +751,27 @@ it is seen; what is predicted is in this file's own block above.
 **After the flash:** every result, good and bad, goes into
 `docs/firmware/STEM_REC.md` (a new "Hardware" section) and
 `FAILURE_MODES.md`, and the Status of `remixes/test/stems/README.md` is updated.
+
+## For later — ideas from the perf round
+
+Ideas from the perf round and from Sam's review of it (#644) that weren't
+needed for its goal (eight tracks at 24 bits on a busy project), with what
+each would buy and its size. None is measured. (Moved from STEM_REC 20.8,
+14 Oct 2026.)
+
+| Idea | What it would buy | Size |
+|---|---|---|
+| The writer at priority 2 (`stems-prio2`, STEM_REC 20.6) | Twelve files at 24 bits on a busy project: flash G's writer still waited 4.8 times its fastest write there | One constant; built, not flashed. A flash must listen to the Static voices and try the keys during a take |
+| Bigger writes per file when the writer is behind | Fewer switches between the files' streams on the card: its fastest write fell from 28 to 10 MB/s with twelve files (STEM_REC 17.6), cause unknown | Small: the per-pass cap in `stems_zwrite` |
+| One card command for a run of contiguous clusters | The file layer sends one command a cluster (STEM_REC 20.2); a run of clusters in one WRITE DMA cuts the per-command cost | Large: a write path beside the file layer's, keeping its FAT right |
+| The hook's stores cached, then one `cpushl` a line | About a quarter of the uncached stores' time in the audio interrupt (one burst a 16-byte line); the hook runs in supervisor mode, so the instruction is allowed there | Medium: a hardware probe first (STEM_REC 20.5); USB AUDIO OUT's packet build would gain the same |
+| A bounded wait on the card | A card that stops answering would end the take with an error instead of hanging the writer on the PIO path (STEM_REC 11.4) | Medium |
+| WRITE MULTIPLE (`0xC5`) for PIO cards | One interrupt a block of sectors instead of one a sector | Medium: PIO cards only; Yves's card writes by DMA |
+| Pre-shifted gains | The mirror stores `g << 8`, saving one shift a sample in the track loops: 128 instructions a frame at T1–T8 | Small |
+| The stems from the audio processor | Core 0 already computes each track's share of MAIN; reading it back would remove the hook's multiplies | Large: DSP work, both payloads |
+| A CAPTURE-style menu page | A clearer STEMS menu (octalab's page-drawing calls; TUNER is the in-tree precedent) | Medium: menu work, deferred this round |
+| `STATS.TXT`'s byte counts in sectors | The card rec and card save lines stay right past 4 GiB in a phase, about 22 minutes with every source at 24 bits (README, STATS.TXT) | Small: two counters, their readout and `stats_check`'s tolerance |
+| T8's row held while a take records or saves | The row would show the running take's choice when MASTER TRACK changes mid-take, not the next take's (README, Limits) | Small, but in the frame hook (`stems_m8check`): its instruction counts (STEM_REC 20.1) are measured again |
+| T8's label stored with interrupts off | `stems_source_action` restores SR before it stores the label; a MASTER TRACK change in those few instructions leaves a stale `T8 [X]` or `T8 [ ]` until the next change. Who writes the MASTER TRACK byte isn't traced | One line moved |
+| A port gate that fills the ring and checks the samples | The hook writing up to the writer's place, checked sample for sample under the port. Today only flash G's take 1858 checks it, on the unit (STEM_REC 17.6) | Medium |
+| `RAW_WRITE`'s return value | `stems_zput` tests only its sign, as the writer did before this round; what a positive value means is open (STEM_REC 12.1) | Small, once STEM_REC 12.1 is answered |

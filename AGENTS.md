@@ -21,7 +21,7 @@ core-private Y word, per-core FX2 buffer region or DSP data range
 
 **Modules come in kinds, and the traps below say which they belong to.** A
 **ColdFire module** (linked GNU-as units, detours by symbol, a runtime in
-DRAM: midisc, KITS, octalab, REPITCH) never touches the DSP and none of the DSP traps
+DRAM: KITS, midi-scenes, tempo-sync) never touches the DSP and none of the DSP traps
 apply to it; its own traps are the ColdFire half of
 `docs/contributing/TRAPS.md`. On the DSP side an
 insert has no bus role, no shared-window claim, sits in both payloads and

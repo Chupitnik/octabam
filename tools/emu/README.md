@@ -18,7 +18,7 @@ The records of how they were built:
 - the port: `git show 3ceba41:docs/history/COLDFIRE_PORT.md` (O1–O14) and
   `git show 666b6154:docs/firmware/COLDFIRE_PORT.md` (O14i–O24, Tim
   Hastie's; what is still in the port is [Port features](#port-features));
-- Tier-0: `git show 3ceba41:docs/history/EMU_BRINGUP.md` and `RTOS_FORK.md`.
+- Tier-0: `git show 3ceba41:docs/history/EMU_BRINGUP.md` and `git show 3ceba41:docs/history/RTOS_FORK.md`.
 
 Route A (`emu_rtos.py`) was retired on 26 Sep 2026 (60509404).
 

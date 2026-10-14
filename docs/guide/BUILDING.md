@@ -11,9 +11,9 @@ built on your own computer from your own copy of Octatrack OS 1.40C.
 > **Do not share a built image.** A built `.bin` or `.syx` contains
 > Elektron's OS.
 
-Pick a remix from [the remix index](../../remixes/README.md). The commands below use `ok-ms`
-(KITS + MIDI SCENES on the stock effects; with Octakit in KITS's place it
-was the smallest remix that has run on a unit); substitute any remix name.
+Pick a remix from [the remix index](../../remixes/README.md). The commands below use `octabam-bus`
+(the core ColdFire modules plus the delay and reverb bus); substitute any
+remix name.
 
 ## 0. What you need
 
@@ -133,12 +133,9 @@ for f in /opt/m68k-elf/bin/m68k-elf-*; do sudo ln -sf "$f" /usr/local/bin/; done
 
 - `pkgconf` is needed: without `pkg-config`, binutils' configure stops on
   `--with-zstd was given, but pkgconfig/libzstd.pc is not found`.
-- ✅ Octakit's runtime rebuilt to its author's bytes: "rebuilt runtime,
-  packed runtime and append all match the recipe" (`make bus REMIX=ok-ms`,
-  28 Sep 2026; KITS replaced Octakit on 6 Oct).
 - ✅ USB MIDI's linked unit matches its author's build at `0x400d24f0`,
-  1,124 bytes (`make bus REMIX=octatrick-usb`, 28 Sep 2026; octatrick-usb
-  became `octatrick` on 29 Sep).
+  1,124 bytes (`make bus REMIX=octatrick-usb`, 28 Sep 2026; the remix
+  became `octatrick` on 29 Sep and sits in remixes/test/).
 - ✅ This repository's pinned ColdFire bytes still match
   (`tools/build/label_fmt.py`), and `scripts/disasm.sh emac 0x40003664 8`
   still prints `msacl`.
@@ -207,7 +204,7 @@ build reads. Both directories are gitignored.
 ## 3. Build the image
 
 ```bash
-make image REMIX=ok-ms BUILD=1
+make image REMIX=octabam-bus BUILD=1
 ```
 
 Output:
@@ -235,7 +232,7 @@ cannot prove.
 
 ```bash
 make emu-cf                 # builds the local ColdFire emulator (cmake) and boots stock in it once
-make check REMIX=ok-ms      # build + every gate + boot under the emulator
+make check REMIX=octabam-bus      # build + every gate + boot under the emulator
 ```
 
 `make check` is two halves: `make check-shared` (the gates that do not

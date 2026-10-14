@@ -207,7 +207,7 @@ Measured under the port (6 Oct 2026, bottleservice,
 land the descriptor's twelve defaults in the live lane, and with those
 twelve bytes poked in RAM after the load they land the poked bytes ✅. The
 new-part initialiser `0x40005638` reads the same bytes at execution time
-(📖 `lea P,%a1 / lea %a1@(5e,%d2:l)`, RIG HOSTS' sites); the read watch on
+(✅ `lea P,%a1 / lea %a1@(5e,%d2:l)`, RIG HOSTS' sites); the read watch on
 stock DELAY's defaults shows it at `0x4000583c`/`0x4000584a` during the
 project load and no other reader in that window (the watch logs the first
 64 reads). 57 stock instructions read at `+0x5e`/`+0x64` through a
@@ -475,7 +475,7 @@ with a name editor, copy, paste and clear (✅ on the unit, image A6).
   LOAD TEMPLATE, SAVE TEMPLATE.
 
   Built (10 Oct 2026): **hold the page key, then press FUNC**. The key
-  census, 📖 read from the image: a key record is 0x1a bytes `{code, 0,
+  census, ✅ read from the image: a key record is 0x1a bytes `{code, 0,
   press, release, repeat, sub-map, +0x12, u16}`; a record's sub-map is a
   layer active while that key is held. The FUNC layer (keys `0x400bf628`
   MKII, `0x400bf2b4` MKI) covers the track keys, the page keys (FUNC + page
@@ -620,7 +620,7 @@ AUTOSAVE and KEEP LEVELS in its own header.
 | 2 | further unreferenced runs in CS1 below `0x100f859c` | image census, then port |
 | 2 | the point in boot at which the card mounts, relative to USB enumeration | port |
 | 2 | a key combination free on FX, MIDI track and audio track pages | image keymaps, then unit |
-| 2 | the card-root `BRAIN` directory on a unit's set list (📖 not listed: stock keeps a root directory as a set only when it holds `AUDIO`; `modules/brain/README.md`), and a set named `BRAIN` sharing it | unit |
+| 2 | the card-root `BRAIN` directory on a unit's set list (✅ not listed: stock keeps a root directory as a set only when it holds `AUDIO`; `modules/brain/README.md`), and a set named `BRAIN` sharing it | unit |
 | 2 | the 4 Sep 2026 stale-part stall reproduced under the port, as the clamp gate's fixture. Not reproduced (6 Oct 2026, bottleservice, sequencer on the internal clock): out-of-count bytes on T1's FX2 and five tracks' FX1 in every part of every bank, with the FX1 setup page drawn and with the DSPs running, and the play step (`0x800064d0[t]`) advances as on the clean project. Stock's Part validator rewrites those bytes to count - 1 during the load (section 8), so the clamp is stock's and the stall's cause is open | port, then unit |
 | 3 | template apply while the sequencer runs | port, then unit |
 | 4 | the writer for the MIDI track setup fields at `Part + 0x8f262 + t*0x24` | image, then port |
