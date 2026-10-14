@@ -68,6 +68,11 @@ none of them can see.
 list each command and its result in the PR body. Passes whose image and
 inputs did not move are reported `cached`.
 
+**A change that alters what a remix does — its modules, effects, menus,
+costs or proof status — updates the hand-written manual site pages under
+`docs/site/` in the same PR.** The generated reference pages update
+themselves from the manifests (`tools/site/gen_pages.py`).
+
 ## Worktrees and the shared checkout
 
 **ALWAYS WORK IN A GIT WORKTREE, never in the main checkout.** Several

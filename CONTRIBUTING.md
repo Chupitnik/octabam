@@ -229,6 +229,11 @@ report `blocked` with the module's name; say so in the PR. List each
 command and its result in the PR body (`make reach`'s output is the list;
 the PR template asks for it).
 
+A change that alters what a remix does — its modules, effects, menus,
+costs (memory pages, DSP words) or proof status — updates the
+hand-written manual site pages under `docs/site/` in the same PR. The
+generated reference pages update themselves from the manifests.
+
 ## What CI checks
 
 `.github/workflows/ci.yml` runs on every PR, on `main` and by hand, with
