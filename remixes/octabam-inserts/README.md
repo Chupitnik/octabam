@@ -19,11 +19,15 @@ COMPRESSOR keeps its id, undisturbed, with no side-chain KEY.
 | MODULATION | ✓ | ✓ | Juno, Dimension, flanger, phaser, comb | [`modulation`](../../modules/modulation/README.md) |
 | TRANSIENT | ✓ | ✓ | transient shaper (Ignorato) | [`transient`](../../modules/transient/README.md) |
 | EUCLID | ✓ | ✓ | Euclidean filter / amp sequencer (repeat98) | [`euclid`](../../modules/euclid/README.md) |
+| LOFI2 | | ✓ | ring mod or stereo frequency shifter into sample-rate and bit reduction on stock LO-FI's curves, plus a high-shelf cut: FREQ, MIX, FDBK/GAIN, SRR, BRR, LPF, RANGE, MODE, AMPH | [`lofi2`](../../modules/lofi2/README.md) |
 | DELAY | | ✓ | stock | |
 | GATE VERB | | ✓ | gated plate reverb (the reverb stage of Mutable Instruments Clouds plus a gate): AMNT, GAIN, TIME, DIFF, TONE, GATE | [`gateverb`](../../modules/gateverb/README.md) |
 
 The three stations are FX1-only in the bus remix; here each has its `SLOTS`
-build setting at `FX1+FX2`, so an FX2 instance runs live. CHARACTER's KEY
+build setting at `FX1+FX2`, so an FX2 instance runs live. LOFI2 is FX2-only
+in this remix: eight instances (FX1+FX2 on all four tracks of a core) would
+cost 3,328 cycles of the 3,120 usable; four (FX2) cost 1,664, and the worst
+core is then 2,984 with four MODULATIONs on FX1. CHARACTER's KEY
 = T1 needs a BusDelay host, so in this remix it keys on the track's own
 input. The FX1 chooser lists NONE and the effects marked FX1; the FX2
 chooser lists the effects marked FX2. A MODE turned on the panel re-defaults
@@ -53,7 +57,7 @@ The same set is in [`octabam-bus`](../octabam-bus/README.md).
 | | stock | octabam-inserts |
 |---|---|---|
 | sample and recorder memory | 14,602 pages | 12,895 pages (the platform reserve) |
-| DSP words free, payload A / B | | 1,231 / 1,231 |
+| DSP words free, payload A / B | | 363 / 363 |
 
 ## Where it has run
 
