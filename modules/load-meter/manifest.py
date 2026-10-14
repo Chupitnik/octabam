@@ -27,10 +27,11 @@ def _dsp_asm():
     """The DSP source; for tools/verify/verify_loadmeter.py's builds a copy
     under out/: LM_BURN=N burns N iterations of a one-cycle `nop` DO loop at
     each core's frame end, before the busy stamp (the calibration); LM_NOPUB=1
-    leaves out core 0's publish (the bit-identity reference)."""
+    leaves out core 0's publish and LM_NOOT=1 OTOP's stamps (the bit-identity references)."""
     n = int(os.environ.get("LM_BURN", "0") or 0)
     nopub = os.environ.get("LM_NOPUB") == "1"
-    if not n and not nopub:
+    noot = os.environ.get("LM_NOOT") == "1"
+    if not n and not nopub and not noot:
         return SOURCE
     if n and not 0 < n < 4096:
         raise ValueError(f"LM_BURN={n}: 1..4095 (the short DO count)")
@@ -39,6 +40,11 @@ def _dsp_asm():
         src = src.replace("; LM_BURN\n", f"        do      #{n},lm_burned\n        nop\nlm_burned:\n", 1)
     if nopub:
         src = src.replace("; LM_PUB\n", "        bra     lmp_x\n", 1)
+    if noot:
+        # OTOP's four hooks replay their displaced instruction and return (the bit-identity reference)
+        src = src.replace("; OT_S\n", "        rts\n", 1)
+        src = src.replace("; OT_E1\n        bsr     otop_end\n", "", 1)
+        src = src.replace("; OT_E2\n        bsr     otop_end\n", "", 1)
     out = ROOT / "out/lm_variant/dsp_meter.asm"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(src)
@@ -48,7 +54,7 @@ MODULE = Module(
     name="load-meter", key="LOAD METER", kind=Kind.HYBRID,
     category=Category.REFERENCE, author="sambanks", author_url="https://github.com/sambanks",
     proof=Proof.PORT, proof_note="the window and both DSP cores' figures under the port (verify_loadmeter, verify_brain); not on a unit",
-    doc="The frame interrupt's share of the ColdFire and each DSP core's busy time per frame, for BRAIN's LOAD view.",
+    doc="The frame interrupt's share of the ColdFire, each DSP core's busy time per frame and each effect call's cost, for BRAIN's OTOP screen.",
     linked=(Linked("loadmeter", "modules/load-meter/meter.s", cpu="5475", dram=True),),
     # Each core's busy time per frame (dsp_meter.asm): stamps of timer 0 at
     # its frame start and frame end, published by core 0 in MAIN's low bytes.
@@ -62,9 +68,21 @@ MODULE = Module(
                DspHook({"A": 0x54B, "B": 0x340}, (0x66F400, 0x000421), "lm_end",
                        "frame end, before the jump back to the wait: busy"),
                DspHook({"A": 0x2EC}, (0x60F000, 0x000205), "lm_pub",
-                       "core 0, after the MAIN pack and before the pull: the 17 bytes into MAIN's low bytes")),
+                       "core 0, after the MAIN pack and before the pull: the bytes into MAIN's low bytes"),
+               # OTOP: each effect slot's calls timed (dsp_meter.asm). The FX1 and
+               # FX2 starts replay `move a,x:>$20a`, the ends `move x:>$213,b`
+               # and `move x:>$206,r0`
+               DspHook({"A": 0x4B2, "B": 0x2A7}, (0x567000, 0x00020A), "otop_s1",
+                       "FX1 slot, before its calls: the start stamp"),
+               DspHook({"A": 0x4D8, "B": 0x2CD}, (0x57F000, 0x000213), "otop_e1",
+                       "FX1 slot, after its process call: the cost"),
+               DspHook({"A": 0x4E8, "B": 0x2DD}, (0x567000, 0x00020A), "otop_s2",
+                       "FX2 slot, before its calls: the start stamp"),
+               DspHook({"A": 0x50E, "B": 0x303}, (0x60F000, 0x000206), "otop_e2",
+                       "FX2 slot, after its process call: the cost")),
     ),
-    claims=Claims(dsp_ranges=(DspRange("x", 0x37F10, 0x20, "both cores' meter figures and core 0's publish"),)),
+    claims=Claims(dsp_ranges=(DspRange("x", 0x37F10, 0x20, "both cores' meter figures and core 0's publish"),
+                              DspRange("x", 0x37F40, 0x10, "both cores' OTOP cost cells"))),
     detours=(
         Detour(0x4000AAD0, H("4fefff0448d77fff"), "loadmeter", "lm_in",
                "the frame interrupt's entry: its prologue replayed, then the entry stamp", pad_to=8),

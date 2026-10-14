@@ -125,8 +125,10 @@ contention costs; only the burn probe measures what is left after stock.
 ### The burn knob is a cycle meter
 
 The instrument behind the hardware rows above (`make burn`, `BURN` on
-SEND's second slot, `24 × BURN` = spare cycles/sample) and its first
-measurements: `tools/harness/README.md` "The burn knob".
+SEND's second slot, `24 × BURN` = spare cycles/sample; retired 14 Oct
+2026, a temporary diagnostic, not a shipping feature) and its first
+measurements: `tools/harness/README.md` "The burn knob (hardware, retired
+14 Oct 2026)". The measurements stand; the tool that made them does not.
 
 ### Static counts
 

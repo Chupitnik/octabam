@@ -293,46 +293,6 @@ class KnobDefaults(unittest.TestCase):
         self.assertEqual(brain.report(remix(self.m), {"FX": self.m}), [])
 
 
-class ImageTemplates(unittest.TestCase):
-    """Remix.templates (BRAIN.md section 4.2): brain.check_templates."""
-
-    def setUp(self):
-        self.m = fx()
-        self.mods = {"FX": self.m, BRAIN_KEY: core()}
-        self.dir = tempfile.TemporaryDirectory()
-        self.addCleanup(self.dir.cleanup)
-        p = patch.object(brain, "TEMPLATES", pathlib.Path(self.dir.name))
-        p.start()
-        self.addCleanup(p.stop)
-
-    def put(self, name, spec):
-        import json
-        (pathlib.Path(self.dir.name) / f"{name}.json").write_text(json.dumps(spec))
-
-    def check(self, *names):
-        return brain.check_templates(remix(self.m, core(), templates=names), self.mods)
-
-    def test_refusals(self):
-        knobs = ("octabam.fx", 1, {"K0": (1, 0, 128), "MODE": (7, 0, 3)})
-        self.put("ok", {"name": "WARM", "target": "FX", "knobs": {"K0": 64, "MODE": 2}})
-        self.put("twin", {"name": "WARM", "target": "FX", "knobs": {}})
-        self.put("long", {"name": "NINECHARS", "target": "FX", "knobs": {}})
-        self.put("knob", {"name": "A", "target": "FX", "knobs": {"NOPE": 1}})
-        self.put("range", {"name": "B", "target": "FX", "knobs": {"MODE": 3}})
-        with patch.object(brain, "_template_target", return_value=knobs):
-            self.assertEqual(self.check("ok"), [])
-            for names, words in ((("missing",), "has no file"), (("ok", "twin"), "a second"),
-                                 (("long",), "1 to 8"), (("knob",), "no knob"), (("range",), "outside 0..2")):
-                with self.subTest(words):
-                    bad = self.check(*names)
-                    self.assertTrue(bad and words in bad[0], bad)
-
-    def test_unknown_target(self):
-        self.put("t", {"name": "A", "target": "NOPE", "knobs": {}})
-        bad = self.check("t")
-        self.assertTrue(bad and "is not an effect with knobs" in bad[0], bad)
-
-
 class LiveTable(unittest.TestCase):
     """The run-time value table and the read macro (BRAIN.md section 5)."""
 
@@ -358,12 +318,10 @@ class LiveTable(unittest.TestCase):
         r = remix(self.core, self.usb, settings={("octabam.usb", "IN"): Pin(1)})
         self.assertEqual(self.names(r), [])
 
-    def test_order_is_remix_then_key(self):
-        r = remix(self.core, self.log, self.usb)
-        self.assertEqual(self.names(r), [("octabam.log", "A"), ("octabam.log", "B"),
-                                         ("octabam.usb", "IN")])
-        r = remix(self.core, self.usb, self.log)
-        self.assertEqual(self.names(r)[0], ("octabam.usb", "IN"))
+    def test_order_is_module_key_then_setting_name(self):
+        want = [("octabam.log", "A"), ("octabam.log", "B"), ("octabam.usb", "IN")]
+        self.assertEqual(self.names(remix(self.core, self.log, self.usb)), want)
+        self.assertEqual(self.names(remix(self.core, self.usb, self.log)), want)
 
     def test_table_carries_module_and_setting(self):
         res, s, m = brain.live_table(remix(self.core, self.usb), self.mods)[0]

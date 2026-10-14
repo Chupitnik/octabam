@@ -899,8 +899,7 @@ def main():
              "rig": _rig,
              "character-txtr": _rig,   # octabam-bus with the TXTR station
              "octabam-bus": _rig,
-             # every stock effect but COMPRESSOR (SIDECHAIN_COMPRESSOR runs it, stock_dsp) and DELAY (listed; _rig leaves it out already)
-             "octabam-inserts": tuple(_k for _k in _rig if _k != "COMPRESSOR"),
+             "octabam-inserts": _rig,   # COMPRESSOR's id is undisturbed since SIDECHAIN_COMPRESSOR was dropped (4dacb61d)
              "stations-fx2": _rig}
     for _n in registry.remix_names():
         _r = registry.remix(_n)

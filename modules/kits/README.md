@@ -37,7 +37,7 @@ Appendix A section 3):
 | track levels and cue levels | `+0x12 + 2t`, `+0x13 + 2t` |
 | the machine type (Flex, Static, Thru, Neighbor, Pickup) | `+0x22 + t` |
 | PLAYBACK page settings, one set per machine type | `+0x2a + 30t + 6·machine` |
-| the Flex or Static sample slot each machine plays | not located |
+| the sample slot each machine plays: five bytes a track, Static at index 0, Flex at 1, Pickup at 4 (a value from `0x80` is a recorder buffer, 1-8: `0x86` is buffer 7) | `+0x2ca + 5t` |
 | LFO, AMP, FX1, FX2 page 1 | `+0x11a + 24t` |
 | LFO page 2 (destination, wave, multiplier, trig mode), AMP, FX1, FX2 page 2 | `+0x2f2 + 30t` |
 | the eight MIDI tracks' parameters | `+0x3e2 + 32(t−8)` |

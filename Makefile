@@ -364,24 +364,6 @@ verify-bus: ## Prove a bus-layout change is behaviour-preserving. STAMP FIRST: m
 	REMIX=bus DEV=1 XBUS=1 python3 tools/build/build_bus.py >/dev/null
 	python3 tools/verify/verify_bus.py $(if $(SAVE),--save) $(if $(SELFTEST),--selftest)
 
-.PHONY: burn
-burn: ## The RIG BURN image: the shipping remix + a cycle-burn knob on SEND's slot 2 (24 cycles/step, every core) -> out/mainos_bus.bin; `make burn-image BUILD=N` packs it
-	$(need-remix)
-	REMIX=$(REMIX) BUILD=$(BUILD) XBUS=1 SPEC=1 BURN=1 python3 tools/build/build_bus.py
-
-.PHONY: burn-image
-burn-image: burn ## Repack the RIG BURN build into a card-flashable .bin (BUILD=N: name it so the panel says which image it is)
-	@test -f $(SYX) || { echo "missing $(SYX) — run 'make os'"; exit 1; }
-	@test -x $(EFT) || { echo "missing $(EFT) — run 'make setup'"; exit 1; }
-	EFT_EMIT_CONTAINER=out/elek_$(BUILD)burn.bin $(EFT) \
-	  -i $(SYX) -c 3 out/mainos_bus.bin \
-	  -V $(VERSION)B -o out/OCTATRACK_OS1.40C_$(VERSION)B.syx
-	python3 tools/build/make_bin.py out/elek_$(BUILD)burn.bin \
-	  -o out/OCTATRACK_$(VERSION)B.bin
-	@echo
-	@echo "  card image: out/OCTATRACK_$(VERSION)B.bin   (the rig + BURN on SEND's slot 2)"
-	@echo "  MIDI image: out/OCTATRACK_OS1.40C_$(VERSION)B.syx"
-
 .PHONY: check
 .PHONY: check-remixes
 check-remixes: ## The per-remix half for REMIXES="a b c", JOBS=4 worktrees at a time (out/shards/<i>, each its own port build; logs in out/check_shards/)
@@ -394,11 +376,11 @@ check-remix-gates: ## One remix's per-remix half, one gate per job over JOBS=4 w
 	BUILD=$(BUILD) $(PY) tools/verify/check_shards.py --by-gate --jobs $(or $(JOBS),4) $(REMIX)
 
 check: bus cycles verify ## Everything that can be checked without hardware (the set gates run under the port when OT_PROJECT or ~/.octabam_project names a project)
-	@# verify_burn.py shells out to build_bus.py twice -- with and without
-	@# BURN=1, neither with XBUS/SPEC -- and each run overwrites
-	@# out/mainos_bus.bin. Left alone, `make check` finishes by leaving a
-	@# plain probe build at the shipping artifact's path, all green. Rebuild
-	@# so the file on disk is the one the checks were about.
+	@# A diagnostic gate can shell out to build_bus.py with its own env
+	@# (BURN=1 among them) and each run overwrites out/mainos_bus.bin.
+	@# Left alone, `make check` finishes by leaving a probe build at the
+	@# shipping artifact's path, all green. Rebuild so the file on disk
+	@# is the one the checks were about.
 	@$(MAKE) --no-print-directory bus >/dev/null
 	@echo
 	@echo "  all runnable checks passed (a [SKIP] line above names what did not run); out/mainos_bus.bin restored to the shipping build"

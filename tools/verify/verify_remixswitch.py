@@ -217,11 +217,9 @@ def main():
     key(KEY_PROJ, 400)                                 # an MKII: the reset sends the panel `60 02`
     for _ in range(4):
         key(KEY_DOWN)                                  # root: PROJECT SYSTEM CONTROL MIDI [BRAIN]
-    key(KEY_YES, 300)                                  # into BRAIN's pane: the cursor on SETTINGS
-    key(KEY_DOWN)                                      # DEFAULTS
-    key(KEY_DOWN)                                      # TEMPLATES
-    key(KEY_DOWN)                                      # REMIXES
-    key(KEY_YES, 400)                                  # its sub-list: the cursor on the first image
+    key(KEY_YES, 300)                                  # into BRAIN's pane: the cursor on TEMPLATES
+    key(KEY_DOWN)                                      # TEMPLATES, REMIXES
+    key(KEY_YES, 400)                                  # its screen: the cursor on the image
     key(KEY_YES, 600)                                  # STOCK140 picked: the dialog
     key(KEY_YES, 3000)                                 # the dialog: boot it
     send("quit")
@@ -231,18 +229,15 @@ def main():
                 rt["putpanel"], 0x40022CD4]
     out, hits, d = boot("ui", [(0x3FFC, norver)], ui_watch,
                         {"mbox": (MBOX, 72), "stage": (IMG, len(stock)), "body": (BODY, len(body)),
-                         "scanext": (0x460F77B0, 4), "list": (rt["brain_list"], 0x1c)},
+                         "scanext": (0x460F77B0, 4), "rmxn": (rt["brain_rmx_n"], 4)},
                         extra=["--card", str(card), "--live-script", str(script), "--mkii"],
                         max_instr=4_000_000_000)
     ran = [s for s, a in zip(("osw_scan", "osw_pick", "osw_answer", "osw_load", "osw_reset"), ui_watch)
            if hits.get(a)]
     check("ui: MAIN MENU's scan, the image's row, the dialog's YES, the deferred load and the reset ran",
           len(ran) == 5, "ran: " + ", ".join(ran))
-    bl = d.get("list", b"")
-    check("ui: BRAIN's pane shows REMIXES: the back row and the one image (no FLASHED rows on a boot that was not a switch)",
-          len(bl) == 0x1c and struct.unpack(">I", bl[:4])[0] == 2 and struct.unpack(">I", bl[0x14:0x18])[0] == 2
-          and struct.unpack(">I", bl[0x18:0x1c])[0] == rt["brain_rmx_rows"],
-          bl.hex())
+    check("ui: BRAIN's REMIXES screen has the one image (no FLASHED rows on a boot that was not a switch)",
+          struct.unpack(">I", d.get("rmxn", b"\0\0\0\0"))[0] == 1, d.get("rmxn", b"").hex())
     check("ui: the pane's switch syncs the project first (SYNC TO CARD posted), as OS UPGRADE does",
           hits.get(0x40022CD4, 0) >= 1, f"{hits.get(0x40022CD4, 0)}x")
     check("ui: an MKII sends the panel its two start-up bytes (`60 02`) before the reset",

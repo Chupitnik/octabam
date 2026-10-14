@@ -349,31 +349,13 @@ if os.environ.get("MARKER") == "1":
     FULLNAME["REVERB SERVER"] = b"MrkVerb" + BUILD_TAG
     ABBR["REVERB SERVER"] = b"MRKV"
 
-# BURN=1 has two shapes. With SPEC=1 it is the RIG BURN: the
-# shipping image plus a cycle-burn knob on SEND's second slot, on every core,
-# so the burn sweep prices the real rig on the core it is dialled on (the
-# worst layout is the DELAY core's, where the reverb's knob never was). The
-# servers are untouched. Without SPEC it is the older diagnostic image: the
-# reverb's own burn blocks and the alias probe in the delay's slot.
-RIG_BURN = os.environ.get("BURN") == "1" and os.environ.get("SPEC") == "1"
-if RIG_BURN and "SEND" not in ACTIVE_PARAMS:
-    sys.exit(f"BURN=1 SPEC=1: remix {REMIX.name!r} carries no SEND -- the rig burn "
-             f"has no knob to sit on; nothing to build")
-if RIG_BURN:
-    # BURN is SEND's PAGE-2 slot 6 ($c's knob field, CC 62). It was page-1
-    # slot 1 until 16 Sep 2026 (image 32B, step 1 forever on two stamped
-    # projects): under the port the word at x:(r6+$1) read 0x378f00 with
-    # every stored byte 0 and 0x69f400 with one track's byte at 100 -- the
-    # same word on every track, whatever the donor -- so the burn ran 7,111
-    # loops at "0" and the frame never finished. A page-2 knob field is what
-    # verify_set proves raw, byte for byte, for every track of a real project.
-    RENAMES["SEND"] = [(i, v) for i, v in RENAMES.get("SEND", []) if i != 6] + [(6, b"BURN")]
-    ACTIVE_PARAMS["SEND"] = sorted(set(ACTIVE_PARAMS["SEND"]) | {6})
-    DEFAULTS["SEND"] = [(i, v) for i, v in DEFAULTS.get("SEND", []) if i != 6] + [(6, 0)]
-    PAGE2_COUNTS.setdefault("SEND", {})[6] = 128
-
-    FULLNAME["SEND"] = b"SendBurn" + BUILD_TAG
-elif os.environ.get("BURN") == "1":
+# BURN=1 alone is the older diagnostic image: the reverb's own burn
+# blocks and the alias probe in the delay's slot. (The RIG BURN shape,
+# BURN=1 SPEC=1, a cycle-burn knob on SEND's second slot, was retired
+# 14 Oct 2026 -- a temporary diagnostic tool, not a shipping feature; it
+# cost payload A the words LOAD METER and PLOCKS P2 later needed. History:
+# `git log --all -- tools/verify/verify_burn.py dsp/burn_send.inc`.)
+if os.environ.get("BURN") == "1":
     FULLNAME["REVERB SERVER"] = b"BurnProb" + BUILD_TAG
     ABBR["REVERB SERVER"] = b"BURN"
     # BusDelay's slot carries the X/Y ALIAS probe in this build. It is a
@@ -434,12 +416,12 @@ if SPEC:
         # render any more -- it outgrew payload A with the 8-line engine.
         print("  DEV=1 + SPEC=1: rendering reverb only (delay is on payload B, "
               "which dsp_host cannot boot)")
-    _clash = [v for v in ("PROBE", "XPROBE", "TPROBE", "DELAYPROBE")
+    _clash = [v for v in ("BURN", "PROBE", "XPROBE", "TPROBE", "DELAYPROBE")
               if os.environ.get(v) == "1"]
     if _clash:
         sys.exit(f"SPEC=1 cannot be combined with {'/'.join(_clash)}=1 -- "
-                 f"those replace a server with a probe (BURN=1 is allowed: "
-                 f"with SPEC it is the rig burn on SEND, see RIG_BURN)")
+                 f"those replace a server with a probe (the RIG BURN exception "
+                 f"to this, BURN=1 SPEC=1, was retired 14 Oct 2026)")
 
 if not SPEC:
     # Without SPEC every carried module is placed on both payloads, so the
@@ -2049,15 +2031,6 @@ def main():
         print(f"  shimmer excised ({cut} lines) -- NOSHIM=1 set")
     elif reverb_src is not None:
         print("  shimmer IN (default) -- NOSHIM=1 to excise")
-    if RIG_BURN and send_src is not None:
-        _anchor = ("        move    r0,a\n"
-                   "        asr     #$1,a,a                 ; words -> frames\n")
-        if send_src.count(_anchor) != 1:
-            sys.exit(f"RIG BURN: the SEND anchor appears {send_src.count(_anchor)} "
-                     f"times in {ASM_SRC['SEND']}, expected exactly 1 -- re-cut it")
-        send_src = send_src.replace(_anchor, pathlib.Path("dsp/burn_send.inc").read_text() + _anchor, 1)
-        print("  RIG BURN: cycle burn injected into SEND (both cores); page-2 slot 6 = BURN, 24 cycles/step")
-
     # ---- MARKER=1: inject the staged audible execution marks ---------------
     # See the MARKER MODE naming block above. Three marks, three sites in
     # modules/busverb/reverb_server.asm, each a distinct sound so one flash reports how
@@ -2141,7 +2114,7 @@ mkgo:""",
               "diagnostic, NOT a product build ***")
 
     # ---- BURN=1: INJECT the cycle burn into the LIVE engine ----------------
-    if os.environ.get("BURN") == "1" and not RIG_BURN:
+    if os.environ.get("BURN") == "1":
         _anchors = [
             # block 1 goes AFTER the call-flag stash at the top of proc: `a` is
             # already saved and nothing else is live, which is what makes the

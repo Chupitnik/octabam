@@ -23,6 +23,14 @@ brain_lm: .long LM_STATS
 | its DSP figures (lm_dsp), 0 without it (LM_DSP defsym)
         .globl  brain_lmd
 brain_lmd: .long LM_DSP
+| its OTOP costs (lm_ot), 0 without it (LM_OT defsym)
+        .globl  brain_lmo
+brain_lmo: .long LM_OT
+
+| the platform's DRAM: the arena base the build moved past octabam's reserve (the
+| stock base is 0x40a955e0, where the runtime is linked) and the runtime's end
+        .globl  brain_dram
+brain_dram: .long ARENA_BASE, _end
 
         .text
         .globl  brain_on_load, brain_on_bankload
@@ -107,79 +115,6 @@ brain_midi_ret: .long 0
 brain_midi_msg: .long 0
         .text
 
-| ---- the boot screen: the OS's boot animation draws BRAIN's ------------------
-|   0x40055aa2  `jsr 0x40013abc`: the animation's per-frame flush (560 frames
-|               on DTIM3's clock, the LED/key-scan task). d2 is the frame
-|               (DTIM3 time, 0..559 by frames of varying step), d6 the surface, whose +12 is the plane
-|               (PIRATE FLAG's hook site and reading, sanderlegit, PR #542).
-|               Every frame the 128 columns are replaced: the brain's from
-|               the left over frames 0..199, the word's over 240..399; then
-|               the flush stock called. The art is bootart.py's, generated
-|               per build (manifest.py boot_inc: brain_boot_brain/_word, a
-|               column a big-endian 64-bit word, row y at bit y).
-        .set    BOOT_FLUSH, 0x40013abc
-        .globl  brain_boot_frame
-brain_boot_frame:
-        lea     %sp@(-20),%sp
-        movem.l %d2-%d5/%a2,%sp@
-        movea.l %d6,%a0
-        movea.l %a0@(12),%a1            | the plane
-        move.l  %d2,%d4                 | brain columns shown: frame * 16 / 25
-        lsl.l   #4,%d4
-        moveq   #25,%d0                 | ColdFire's divu.l takes no immediate
-        divu.l  %d0,%d4
-        move.l  %d2,%d5                 | word columns shown: (frame - 240) * 4 / 5
-        subi.l  #240,%d5
-        bpl.s   1f
-        moveq   #0,%d5
-1:      lsl.l   #2,%d5
-        moveq   #5,%d0
-        divu.l  %d0,%d5
-        lea     brain_boot_brain,%a2
-        lea     brain_boot_word,%a0
-        moveq   #0,%d3                  | x
-2:      moveq   #0,%d0
-        moveq   #0,%d1
-        cmp.l   %d4,%d3
-        bge.s   3f
-        move.l  %a2@,%d0
-        move.l  %a2@(4),%d1
-3:      cmp.l   %d5,%d3
-        bge.s   4f
-        or.l    %a0@,%d0
-        or.l    %a0@(4),%d1
-4:      move.l  %d0,%a1@+
-        move.l  %d1,%a1@+
-        addq.l  #8,%a2
-        addq.l  #8,%a0
-        addq.l  #1,%d3
-        cmpi.l  #128,%d3
-        blt.s   2b
-        | the first frame at or past 280 kept for verify_brain, with its
-        | frame number (the plane is redrawn long before a dump can read it;
-        | d2 is DTIM3 time, so a frame number can be skipped)
-        tst.l   brain_boot_snapf
-        bne.s   6f
-        cmpi.l  #280,%d2
-        blt.s   6f
-        move.l  %d2,brain_boot_snapf
-        movea.l %d6,%a0
-        movea.l %a0@(12),%a0
-        lea     brain_boot_snap,%a1
-        move.l  #256,%d0
-5:      move.l  %a0@+,%a1@+
-        subq.l  #1,%d0
-        bne.s   5b
-6:      movem.l %sp@,%d2-%d5/%a2
-        lea     %sp@(20),%sp
-        jmp     (BOOT_FLUSH).l          | the flush stock called, returning to it
-        .data
-        .balign 4
-        .globl  brain_boot_snap, brain_boot_snapf
-brain_boot_snapf: .long 0
-brain_boot_snap: .space 1024
-        .text
-
 | ---- the CTRL pages' knob labels (MIDI_TRACKS.md section 6) ---------------
 | Detour at 0x4004e474 (`movel %fp@(-56),%sp@-` / `bras 0x4004e480`), the
 | CTRL page drawer's label push for slot %a4 of descriptor %fp@(-80):
@@ -214,3 +149,116 @@ brain_on_newproj:
         movem.l %sp@,%d0-%d1/%a0-%a1
         lea     %sp@(16),%sp
         jmp     0x40096f24
+
+| ---- IO: the ATA dispatcher's commands (card reads and writes) ------------
+| Entry 0x4001513c (`moveq #4,%d0 / andl 0x46c86576,%d0`, 8 bytes) is
+| reached with a command dequeued; exit 0x40015284 (`moveq #-1,%d1 /
+| cmpl %d0,%d1 / bnes 0x40015290`) is the common return, %d0 the result.
+| brain_ata_begin stamps the command (opcode, sector count, timer 3);
+| brain_ata_end counts it and its time. Both keep every register.
+        .globl  brain_ata_in, brain_ata_out
+brain_ata_in:
+        lea     %sp@(-16),%sp
+        movem.l %d0-%d1/%a0-%a1,%sp@
+        jsr     brain_ata_begin
+        movem.l %sp@,%d0-%d1/%a0-%a1
+        lea     %sp@(16),%sp
+        moveq   #4,%d0
+        and.l   0x46c86576,%d0
+        rts
+brain_ata_out:
+        lea     %sp@(-16),%sp
+        movem.l %d0-%d1/%a0-%a1,%sp@
+        jsr     brain_ata_end
+        movem.l %sp@,%d0-%d1/%a0-%a1
+        lea     %sp@(16),%sp
+        moveq   #-1,%d1
+        cmp.l   %d0,%d1
+        bne.s   1f
+        jmp     0x4001528a
+1:      jmp     0x40015290
+
+| other modules' counters for IO, 0 when that module is not in the image
+        .section .rodata
+        .balign 4
+        .globl  brain_usb
+brain_usb:
+        .long   usbaudio_underruns, usbaudio_overruns, in_counters, usbmidi_tx_drops
+        .text
+
+| ---- CPU: the time each task runs ---------------------------------------------
+| Detour at 0x40000554 in the scheduler's entry (vector 32, trap #0, and vector
+| 171, PIT0): the stock `movew #0x2700,%sr` at 0x40000550 has run, so no
+| interrupt comes in here. A detour on that first instruction left one
+| instruction with the mask unraised on a trap #0 entry, and an interrupt
+| taken there entered the scheduler again halfway through: a task resumed at
+| a garbage PC (0x80000000 under the port, 13 Oct 2026). Whatever task is
+| current on entry is the one that ran since the last entry: its slot in
+| brain_ts gets the DMA timer 3 counts (132 MHz) since brain_ts_last. A TCB
+| that is in no slot goes to the last one. The registers are kept in
+| brain_ts_save, not on the task's stack; the displaced `movel %a0,0x80006900`
+| and the jump back end it.
+        .globl  brain_sched, brain_ts, brain_ts_last
+brain_sched:
+        move.l  %d0,brain_ts_save
+        move.l  %d1,brain_ts_save+4
+        move.l  %a0,brain_ts_save+8
+        move.l  0xfc07c00c,%d0
+        move.l  0x800068fc,%d1
+        lea     brain_ts,%a0
+1:      cmp.l   %a0@,%d1
+        beq.s   2f
+        addq.l  #8,%a0
+        cmpa.l  #brain_ts_other,%a0
+        bne.s   1b
+2:      move.l  %d0,%d1
+        sub.l   brain_ts_last,%d1
+        add.l   %d1,%a0@(4)
+        move.l  %d0,brain_ts_last
+        move.l  brain_ts_save,%d0
+        move.l  brain_ts_save+4,%d1
+        move.l  brain_ts_save+8,%a0
+        move.l  %a0,0x80006900
+        jmp     0x4000055a
+
+        .data
+        .balign 4
+brain_ts_last: .long 0
+brain_ts_save: .long 0, 0, 0
+| {TCB, counts}: KERNEL.md "Tasks", in brain.c cpu_name's order
+brain_ts:
+        .long   0x46c7fb0c, 0
+        .long   0x460bcc2c, 0
+        .long   0x460d4f80, 0
+        .long   0x460d59d4, 0
+        .long   0x460fab80, 0
+        .long   0x460ffd44, 0
+        .long   0x460e0e38, 0
+        .long   0x460ddde4, 0
+        .long   0x46105508, 0
+        .long   0x46c7bed8, 0
+        .long   0x46c7ae84, 0
+brain_ts_other:
+        .long   0, 0
+        .text
+
+| ---- PART INIT -------------------------------------------------------------------
+| Detour at 0x40005a38, in stock's Part initialiser (0x40005638(part)) at its end: its two
+| last instructions before `lea %sp@(88),%sp` and the tail call to the Part validator
+| 0x40002318. a2 is the Part. Part Clear, every Part of a new project and KITS' default Part
+| (its test for a free slot) come from this routine, so the card's PART default put on the
+| Part here is what all of them mean by a default Part. The displaced `movel %a2,%sp@(92)` and
+| `moveml %sp@,%d2-%d7/%a2-%fp` are replayed.
+        .text
+        .globl  brain_partinit
+brain_partinit:
+        lea     %sp@(-16),%sp
+        movem.l %d0-%d1/%a0-%a1,%sp@
+        move.l  %a2,%sp@-
+        jsr     brain_part_init
+        addq.l  #4,%sp
+        movem.l %sp@,%d0-%d1/%a0-%a1
+        lea     %sp@(16),%sp
+        move.l  %a2,%sp@(92)
+        movem.l %sp@,%d2-%d7/%a2-%fp
+        jmp     0x40005a40

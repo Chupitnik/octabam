@@ -82,12 +82,7 @@ def check_source_matches(m):
     for addr in (0x40a955e0, 0x400d24d0):       # the DRAM runtime base, and a ROM run
         with tempfile.TemporaryDirectory() as d:
             o, e, b = (pathlib.Path(d) / n for n in ("cc.o", "cc.elf", "cc.bin"))
-            # remix.inc in its constant form: the two block CCs at their
-            # defaults (a remix without BRAIN; manifest.py cc_inc)
-            (pathlib.Path(d) / "remix.inc").write_text("".join(
-                f"        .macro  {mac} reg\n        move.l  #{st.default},\\reg\n        .endm\n"
-                for mac, st in zip(("CC_FX2", "CC_FX1"), m.MODULE.settings)))
-            subprocess.run(["m68k-elf-as", "-mcpu=54455", "-I", d, "-o", str(o),
+            subprocess.run(["m68k-elf-as", "-mcpu=54455", "-o", str(o),
                             str(ROOT / "modules/cc-map/cc_map.s")], check=True)
             # The cave's fall-through is a link-time symbol (CC_NEXT); the
             # manifest's default is stock's handler, and that is what the

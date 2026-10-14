@@ -1225,8 +1225,6 @@ class Linked:
         if self.reference is None:
             return None
         ref = self.reference(modules) if callable(self.reference) else self.reference
-        if ref is None:                  # a callable may decline for this selection
-            return None
         return reference_shape(self.label, ref)
 
 
@@ -2037,12 +2035,6 @@ class Remix:
     # Param's name, or the name the mode's view gives it. It replaces that
     # default in this image's descriptor or MODE DEFAULTS table.
     defaults: Mapping = field(default_factory=dict, hash=False)
-    # TEMPLATES FROM THE IMAGE (docs/proposals/BRAIN.md section 4.2): names of
-    # JSON files in the top-level templates/ directory, each one template of
-    # an effect in the remix or of a stock target (stock.amp, stock.lfo,
-    # stock.midi), knobs by name. The brain lists them before the card's
-    # templates; tools/remix/brain.py check_templates refuses a bad one.
-    templates: tuple[str, ...] = ()
 
     def __post_init__(self):
         if self.grains not in (2, 4):

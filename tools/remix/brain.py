@@ -72,6 +72,13 @@ def image_name(remix=None, build=None) -> str:
     return re.sub(r"[^A-Z0-9 ._-]", "", raw.upper()).strip()[:IMAGE_NAME_MAX].strip() or "OCTABAM"
 
 
+def remix_label(remix=None) -> str:
+    """The remix's last path part, upper case, as the IMAGE tab of ABOUT shows it (at most 14 characters)."""
+    import os
+    raw = pathlib.PurePath(remix or os.environ.get("REMIX", "?")).name
+    return re.sub(r"[^A-Z0-9 ._-]", "", raw.upper())[:14] or "?"
+
+
 def has_brain(remix) -> bool:
     return BRAIN_KEY in remix.modules
 
@@ -120,14 +127,13 @@ def live_table(remix, mods) -> list[tuple[Resolved, object, object]]:
     """(Resolved, Setting, module) for each setting the unit holds at run
     time: the remix carries BRAIN, the value is not pinned, it is not
     Apply.BUILD, and it is a Binary, an Option or a Number (a long in the
-    value table; Blobs and Triggers have no row yet). BRAIN's own first,
-    then remix order, then key order: the SETTINGS list's order (BRAIN.md
-    section 9)."""
+    value table; Blobs and Triggers have no row yet). By module key, then
+    setting name: the SETTINGS list's order (BRAIN.md section 9)."""
     if not has_brain(remix):
         return []
     rows = [(r, s, mods[r.module]) for r, s in resolve(remix, mods)
             if r.runtime and isinstance(s.kind, (Binary, Option, Number))]
-    return sorted(rows, key=lambda row: row[0].module != BRAIN_KEY)
+    return sorted(rows, key=lambda row: (row[0].module, row[1].name))
 
 
 def read_macro(remix, mods, store_id: str, name: str, macro: str) -> str:
@@ -305,11 +311,9 @@ def fx_targets(remix, mods) -> list:
     return [m for m in _selected(remix, mods) if m.menu is not None and len(m.params) == 12]
 
 
-# ---- templates from the image (BRAIN.md sections 3 and 4.2) ---------------
+# ---- the stock pages' slots (BRAIN.md section 4.2) -------------------------
 
-TEMPLATES = ROOT / "templates"
 STOCK_IMAGE = ROOT / "out/raw/section_3_MAIN_OS.bin"
-TPL_IMAGE_MAX = 4096       # brain.c TPL_IMAGE: bytes of image template records
 
 # The stock page descriptors' entry starts (PARAM_PAGES.md section 3).
 _D = dict(playback=0x400d2fe4, lfo=0x400d37be, amp=0x400d3950, note=0x400d3e06, arp=0x400d3f98, mlfo=0x400d412a,
@@ -372,83 +376,6 @@ def stock_slots(target: str, img: bytes) -> list[tuple[int, str, int, int]]:
         for i, nm in enumerate(("MULT", "TRIG")):
             for k in range(3):
                 add(31 + 3 * i + k, f"LFO.{nm}{k + 1}", _D["mlfo"], 8 + i)
-    return out
-
-
-def _template_target(spec: dict, remix, mods, img: bytes | None):
-    """(store id, layout, {knob name: (key, minimum, count)}) of a template's
-    target, or a reason string."""
-    t = spec.get("target")
-    for short, (sid, layout) in STOCK_TARGETS.items():
-        if t in (short, sid):
-            if img is None:
-                return None
-            return sid, layout, {n: (k, lo, c) for k, n, lo, c in stock_slots(short, img)}
-    m = next((m for m in fx_targets(remix, mods) if m.key == t), None)
-    if m is None:
-        return (f"target {t!r} is not an effect with knobs in this remix "
-                f"nor one of {', '.join(v[0] for v in STOCK_TARGETS.values())}")
-    knobs = {p.name: (k, 0, p.count or 128) for k, p in zip(fx_keys(m), m.params) if k}
-    return fx_store_id(m), fx_layout(m), knobs
-
-
-def load_template(name: str) -> dict:
-    return json.loads((TEMPLATES / f"{name}.json").read_text())
-
-
-def check_templates(remix, mods, img: bytes | None = None) -> list[str]:
-    """Remix.templates refusals: a missing file, an unknown target or knob, a
-    value outside the knob's range, a name that is not 1 to 8 printable
-    characters, two templates of one target under one name, more than
-    TPL_IMAGE_MAX bytes. Stock targets are checked when the stock image is
-    given."""
-    bad, seen = [], set()
-    for n in remix.templates:
-        p = TEMPLATES / f"{n}.json"
-        if not p.is_file():
-            bad.append(f"templates: {n!r} has no file templates/{n}.json")
-            continue
-        try:
-            spec = json.loads(p.read_text())
-        except ValueError as e:
-            bad.append(f"templates/{n}.json: {e}")
-            continue
-        nm = spec.get("name", "")
-        if not (isinstance(nm, str) and 1 <= len(nm) <= 8 and all(32 <= ord(c) < 127 for c in nm)):
-            bad.append(f"templates/{n}.json: name {nm!r}: 1 to 8 printable ASCII characters")
-        tg = _template_target(spec, remix, mods, img)
-        if isinstance(tg, str):
-            bad.append(f"templates/{n}.json: {tg}")
-            continue
-        if tg is None:
-            continue
-        sid, _layout, knobs = tg
-        if (sid, nm) in seen:
-            bad.append(f"templates/{n}.json: a second {sid} template named {nm!r}")
-        seen.add((sid, nm))
-        for k, v in spec.get("knobs", {}).items():
-            if k not in knobs:
-                bad.append(f"templates/{n}.json: {sid} has no knob {k!r} (has {', '.join(knobs)})")
-            elif not (isinstance(v, int) and knobs[k][1] <= v < knobs[k][1] + knobs[k][2]):
-                bad.append(f"templates/{n}.json: {k} = {v!r} outside {knobs[k][1]}.."
-                           f"{knobs[k][1] + knobs[k][2] - 1}")
-    if not bad and img is not None and len(compile_templates(remix, mods, img)) > TPL_IMAGE_MAX:
-        bad.append(f"templates: the image's records exceed {TPL_IMAGE_MAX} bytes")
-    return bad
-
-
-def compile_templates(remix, mods, img: bytes) -> bytes:
-    """The image's template records, back to back as brain.c reads them
-    (brainfile record layout, 7.3), in Remix.templates order."""
-    from remix import brainfile
-    out = b""
-    for n in remix.templates:
-        spec = load_template(n)
-        sid, layout, knobs = _template_target(spec, remix, mods, img)
-        vals = b"".join(brainfile.Value(knobs[k][0], brainfile.BYTE, bytes([v])).encode()
-                        for k, v in spec.get("knobs", {}).items())
-        out += brainfile.Record(brainfile.TEMPLATE_REC, sid, payload=brainfile.prefix_bytes(
-            brainfile.TEMPLATE_REC, layout=layout, name=spec["name"]) + vals).encode()
     return out
 
 
@@ -523,9 +450,6 @@ def check_remix(remix, mods) -> list[str]:
         if why:
             bad.append(f"settings {entry!r}: {why}")
     bad += check_defaults(remix, mods)
-    if remix.templates and not has_brain(remix):
-        bad.append(f"templates {list(remix.templates)}: the remix does not carry {BRAIN_KEY}")
-    bad += check_templates(remix, mods, STOCK_IMAGE.read_bytes() if STOCK_IMAGE.is_file() else None)
     if has_brain(remix) and not bad:
         need = sum(s.size for _m, s in early_settings(remix, mods))
         room = early_budget(remix, mods)
@@ -539,7 +463,7 @@ def report(remix, mods) -> list[str]:
     """The build report's settings section: every setting and remix knob
     default with its value and layer. Empty when there is neither."""
     rows = resolve(remix, mods)
-    if not rows and not remix.defaults and not remix.templates:
+    if not rows and not remix.defaults:
         return []
     out = ["=== Settings: resolved at build (docs/proposals/BRAIN.md) ==="]
     for r, s in rows:
@@ -547,9 +471,6 @@ def report(remix, mods) -> list[str]:
         out.append(f"  {r.store_id} {r.name} = {r.shown(s)}  ({r.layer}; {where})")
     for (key, mode, knob), v in remix.defaults.items():
         out.append(f"  {key} {knob}{'' if mode is None else ' in ' + str(mode)} default = {v}  (remix)")
-    for n in remix.templates:
-        spec = load_template(n)
-        out.append(f"  template {spec['name']} for {spec['target']}  (templates/{n}.json)")
     return out
 
 

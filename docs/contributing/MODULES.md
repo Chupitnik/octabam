@@ -157,8 +157,8 @@ MODULE = Module(
 ```
 
 `key` appears in the build report, and the build report is API:
-`verify_delay.py`, `verify_roll.py` and `verify_burn.py` parse build
-stdout. Changing a key, or rewording a report line, is a breaking change.
+`verify_delay.py` and `verify_roll.py` parse build stdout. Changing a
+key, or rewording a report line, is a breaking change.
 
 ## Declaring an effect
 

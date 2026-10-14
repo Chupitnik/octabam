@@ -30,8 +30,8 @@
 ;   byte 0 $a5 (the magic)    1 core 0's frame count (low byte)
 ;   2-4 core 0 busy, 5-7 core 0 period, 8-10 core 1 busy, 11-13 core 1
 ;   period (timer 0 counts, high byte first)
-;   14 core 0 ESAI TUE frames, 15 ROE frames (counts mod 256: SAISR read
-;   once a frame; core 1 has no ESAI)    16 the sum of bytes 0-15, mod 256
+;   14, 15 reserved, zero (core 0's ESAI TUE and ROE frame counts until 13 Oct
+;   2026: the room went to OTOP)    16 the sum of bytes 0-15, mod 256
 ;
 ; The core: the two `move #>...,a` before `cmp #>$38000,a` load the build's
 ; per-payload base (YBase.ALWAYS): payload A's half on core 0, B's ($38000)
@@ -42,15 +42,26 @@
 ; at A's (the spin count stored at P:$92) and is not touched. r1 is the
 ; core's block, and m1 is linear there: the stock code right after moves
 ; through r1 (A P:$ae `move x:(r1)+,x0`, B P:$353 in func_34f). End hooks: a, x0, x1
-; are dead; r6 is the block and r7 the SAISR pointer, both linear there
-; (the stock copy right after runs `move x:(r6)+,x0 / move x0,x:(r7)+`),
-; r7 is set by stock's next instruction and r6 takes the displaced
-; `#>$421` last. No modifier register is written.
+; are dead; r6 is the block and linear there (the stock copy right after runs
+; `move x:(r6)+,x0 / move x0,x:(r7)+`; r7 is set by stock's next instruction),
+; and r6 takes the displaced `#>$421` last. No modifier register is written.
+; Every hook finds its core's block through lm_blk (a only).
 ;
-; A core's block: +0 the start stamp, +1 busy, +2 period, +3 TUE frames,
-; +4 ROE frames, +5 armed ($5a5a5a), +6 frames; core 0's at $37F10, core
-; 1's at $37F18; core 0's publish keeps its sum at +$10 and a value at
-; +$11.
+; OTOP, the cost of each effect call (a second record, below): four more
+; hooks on the dispatcher, a start and an end around each FX1 and FX2 slot's
+; calls (the pre-call, an init on a changed id, and the process call), each
+; core timing its own slots with timer 0. A core's eight cost cells at
+; X:$37F40 (core 0) and $37F48 (core 1), its block + $30: the last cost of
+; each call of the frame in dispatch order (position 0's FX1, FX2, position
+; 1's FX1, ...). The call's start stamp is the block's +3 and the address of
+; the next cost cell its +4 (set by the frame start hook, advanced by each
+; end hook). Core 0 publishes one slot a frame, round robin over the 16
+; cells, in a second record.
+;
+; A core's block: +0 the start stamp, +1 busy, +2 period, +3 OTOP's start
+; stamp, +4 OTOP's next cost cell, +5 armed ($5a5a5a), +6 frames (core 0:
+; counted by the publish); core 0's at $37F10, core 1's at $37F18; core 0's
+; publish keeps its sum at +$10, a value at +$11 and the slot at +$12.
 ;
 ; Every form has a stock site: move x:>abs,acc (P:$d0), move a1,x:>abs
 ; (P:$86), sub x0,a (P:$178), and #>imm,a (P:$7f), cmp #>imm,a (P:$4c),
@@ -66,12 +77,10 @@ lm_start:
         move    r5,x:>$206              ; the displaced instruction
         move    #>$ffff8c,r1            ; peripherals through a pointer: dsp_asm's
         move    x:(r1)+,x1              ;   round trip names them (TCR0 now)
-        move    #>$37f10,r1             ; core 0's block
-        move    #>$30000,a
-        cmp     #>$38000,a
-        bne     lms_0
-        move    #>$37f18,r1             ; core 1's
-lms_0:
+        bsr     lm_blk
+        move    a,r1                    ; this core's block
+        add     #<$30,a                 ; OTOP: this frame's first cost cell, the block + $30
+        move    a1,x:(r1+4)             ;   (core 0 $37F40, core 1 $37F48), the next cost cell
         move    x:(r1+5),a              ; armed?
         cmp     #>$5a5a5a,a
         beq     lms_t
@@ -101,42 +110,59 @@ lm_end:
 ; LM_BURN
         move    #>$ffff8c,r6
         move    x:(r6)+,x1              ; TCR0 now
-        move    #>$37f10,r6
-        move    #>$30000,a
-        cmp     #>$38000,a
-        bne     lme_0
-        move    #>$37f18,r6
-lme_0:
+        bsr     lm_blk
+        move    a,r6                    ; this core's block
         move    x:(r6+0),x0             ; busy = now - this frame's start
         move    x1,a
         sub     x0,a
         and     #>$ffffff,a
         move    a1,x:(r6+1)
-        move    r6,a
-        cmp     #>$37f10,a
-        bne     lme_x                   ; core 1: done
-        move    #>$ffffb3,r7
-        move    x:(r7)+,x1              ; SAISR: TUE bit 14, ROE bit 7
-        move    #>$1,x0
-        move    x1,a
-        and     #>$004000,a
-        beq     lme_nt
-        move    x:(r6+3),a
-        add     x0,a
-        move    a1,x:(r6+3)
-lme_nt:
-        move    x1,a
-        and     #>$000080,a
-        beq     lme_nr
-        move    x:(r6+4),a
-        add     x0,a
-        move    a1,x:(r6+4)
-lme_nr:
-        move    x:(r6+6),a              ; frames
-        add     x0,a
-        move    a1,x:(r6+6)
-lme_x:
         move    #>$421,r6               ; the displaced instruction
+        rts
+
+; OTOP start, the displaced `move a,x:>$20a` (A P:$4b2 FX1, $4e8 FX2; B P:$2a7,
+; $2dd): the call's start stamp. The displaced store runs first, which keeps
+; a in x:$20a; a is reloaded last. b and r2 are dead (reloaded below the
+; site, A P:$4b8 and $4ba, B's the same) and nothing else is touched.
+otop_s1:
+otop_s2:
+        move    a,x:>$20a               ; the displaced instruction
+; OT_S
+        move    #>$ffff8c,r2
+        move    x:(r2),b                ; TCR0 now (no address update: m2 may be modulo)
+        bsr     lm_blk
+        move    a,r2
+        move    b,x:(r2+3)              ; the start stamp
+        move    x:>$20a,a
+        rts
+
+; OTOP end, after the displaced `move x:>$213,b` (A P:$4d8, B $2cd) for FX1 and
+; `move x:>$206,r0` (A P:$50e, B $303) for FX2: now minus the start stamp into
+; the next cost cell. a, b, r2 and r3 are dead after both sites (each is
+; written before it is read by the stock code that follows), x0 is left alone
+; (the call at A P:$514 may read it), no modifier register is used.
+otop_e1:
+; OT_E1
+        bsr     otop_end
+        move    x:>$213,b               ; the displaced instruction
+        rts
+otop_e2:
+; OT_E2
+        bsr     otop_end
+        move    x:>$206,r0              ; the displaced instruction
+        rts
+otop_end:
+        move    #>$ffff8c,r2
+        move    x:(r2),b                ; now
+        bsr     lm_blk
+        move    a,r2
+        move    x:(r2+3),a              ; the start stamp
+        sub     a,b                     ; b1: the advance mod 2^24
+        move    x:(r2+4),a              ; the next cost cell
+        move    a,r3
+        move    b1,x:(r3)
+        add     #<$1,a
+        move    a1,x:(r2+4)
         rts
 
 ; core 0, after the MAIN pack (A P:$2ec `move x:>$205,r0`, before the
@@ -166,14 +192,36 @@ lm_pub:
         bsr     lm_three
         move    x:(r1+$a),a             ; core 1's period
         bsr     lm_three
-        move    x:(r1+3),a
+        clr     a                       ; bytes 14 and 15: reserved, zero
         bsr     lm_low
-        move    x:(r1+4),a
+        clr     a
         bsr     lm_low
         move    x:(r1+$10),a            ; the sum, published as it is
         and     #>$ff,a
         move    a1,x0
         bsr     lm_byte
+; OTOP's record: $b4, the slot (0..15: this frame's count mod 16), its cost's
+; three bytes, the sum of those five mod 256. The cost cell is $37F40 + slot (core
+; 0's eight, then core 1's).
+        move    #>$b4,x0
+        move    x0,x:(r1+$10)
+        bsr     lm_byte
+        move    x:(r1+6),a
+        and     #>$f,a
+        move    a1,x:(r1+$12)           ; the slot
+        bsr     lm_low
+        move    x:(r1+$12),a
+        add     #>$37f40,a              ; the 16 cost cells are contiguous
+        move    a,r2
+        move    x:(r2),a                ; the cost
+        bsr     lm_three
+        move    x:(r1+$10),a
+        and     #>$ff,a
+        move    a1,x0
+        bsr     lm_byte
+        move    x:(r1+6),a              ; frames
+        add     #<$1,a
+        move    a1,x:(r1+6)
 lmp_x:
         move    x:>$205,r0              ; the displaced instruction
         rts
@@ -201,4 +249,13 @@ lm_byte:
         add     x0,a                    ;   can reach the sample's bits (x0 is 0..255)
         move    a1,x:(r0+1)             ; a1: no limiting
         lua     (r0+2),r0
+        rts
+
+; this core's figures block in a: $37F10 on core 0, $37F18 on core 1. The per-payload base
+; literal (A's half of the window, B's half) has bit 15 set on B only. Only a is touched.
+lm_blk:
+        move    #>$30000,a
+        and     #>$8000,a
+        lsr     #$c,a                   ; 0 on core 0, 8 on core 1
+        add     #>$37f10,a
         rts

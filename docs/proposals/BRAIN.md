@@ -125,7 +125,6 @@ REMIX = Remix(...,
     settings={("octabam.usb-audio", "OUT"): Pin("MASTER"),
               ("octabam.usb-audio", "IN"): "CD"},
     defaults={("DELAY SERVER", "GRAIN", "PTCH"): 96},
-    templates=("rytm", "digitone"),
 )
 ```
 
@@ -133,8 +132,8 @@ REMIX = Remix(...,
   (a new default). An Option takes a label or an index.
 - `defaults`: `(module key, mode label or None, knob name)` to a byte;
   it replaces `Param.default` or the `ModeView` entry in this image.
-- `templates`: names of JSON files in the top-level `templates/`
-  directory. A module may also ship templates for its own targets.
+- Image templates (`templates=`, JSON files in `templates/`) were built 11 Oct 2026
+  and removed 12 Oct 2026: templates are the user's, on the card.
 
 ### 4.3 What the build refuses
 
@@ -433,8 +432,6 @@ the effect has none).
 - A card moved to an image without a module keeps that module's records
   (7.7 rule 1). A card in a stock OS keeps the files as written; stock
   ignores the `BRAIN` directory.
-- A card file wins over an image template of the same name and target;
-  the list shows one entry.
 - A template or default for a target the image does not carry is hidden
   and its file untouched.
 - **The project record.** FX ids are assigned per remix and a Part stores
@@ -459,22 +456,20 @@ inside a pane cannot open a further submenu and no free stock page id is
 known (`docs/firmware/MAINMENU.md` section 5). KITS draws 256-row lists
 with a name editor, copy, paste and clear (✅ on the unit, image A6).
 
-- One root category, **BRAIN**, owned by the BRAIN module: SETTINGS,
-  DEFAULTS, REMIXES, TOOLS, each a sub-list (as built, 8-10 Oct 2026: the
-  stock engine is two levels deep, so a row's action repoints the pane's
-  list descriptor; `modules/brain/README.md`).
-- **SETTINGS**: one list; the brain's own settings first, then a heading
-  row per module in the image and its setting rows, the value in the
-  label. YES or the arrows change a value.
-- **DEFAULTS**: the targets that have a card-layer default; CLEAR on a
-  row removes the record and returns the target to layers 1 and 2.
-- **TEMPLATES**: a list per target type, built like the KITS lists: name,
-  apply, copy, clear, rename.
-
-  Built (11 Oct 2026, port): one sub-list, a heading per target and its
-  templates, the image's first (marked IMG). A card template takes RENAME
-  (the stock name editor) and DELETE, an image template COPY TO CARD.
-  Apply stays on the page shortcut, where the track and page are known.
+- One root category, **BRAIN**, owned by the BRAIN module. As built (13 Oct 2026; `modules/brain/README.md`
+  is the description of each screen): its pane is one list, the most used first: TEMPLATES, REMIXES,
+  SETTINGS, PERFORMANCE, LOG, ABOUT. Each row opens a full screen, a state of the menu-state table (the
+  stock menu engine is two levels deep); TEMPLATES, PERFORMANCE, LOG and ABOUT have tabs, LEFT and RIGHT
+  between them.
+- **SETTINGS**: one list; a heading row per module that declares a setting and its setting rows, the value
+  at the right. YES steps a value, LEFT and RIGHT step it down and up.
+- **Defaults** have no screen of their own: SET AS DEFAULT and CLEAR DEFAULT are rows on a template's
+  screen (an effect's, PROJECT's and PART's), and a default acts when its target is born: an effect's
+  selection, CREATE EMPTY PROJECT, a Part initialised (Part Clear, a new project's Parts).
+- **TEMPLATES**: four tabs, PART, FX, MIDI and PROJECT, each a list under a NEW row. A template's screen
+  has the same actions on every template (APPLY TO..., SET AS DEFAULT, SAVE, RENAME, DELETE) and then its
+  values; a PART template is a whole Part applied by section and track. Built 11 to 13 Oct 2026, under the
+  port; the page shortcut keeps its own SAVE, LOAD and DELETE TEMPLATE, for the AMP, LFO and SRC pages too.
 - On an FX page, a MIDI track page or an audio track page, one key
   combination opens a short list for the current page: SAVE AS DEFAULT,
   LOAD TEMPLATE, SAVE TEMPLATE.
@@ -494,7 +489,7 @@ with a name editor, copy, paste and clear (✅ on the unit, image A6).
   (`0x3e`) only the timer. So page-held + FUNC reaches only FUNC's own
   handler (✅ under the port on stock: no state change), and FUNC + LEVEL
   push is free on every page of an MKII (MKI encoders do not push), the
-  LOAD view's chord to come.
+  OTOP's chord to come.
 - A pinned value has no row. A module absent from the image has no rows.
   A remix without the brain has no category, and a module that owns a menu
   today keeps it.
@@ -507,8 +502,7 @@ with a name editor, copy, paste and clear (✅ on the unit, image A6).
 - `tools/remix/brain.py`: the declarations resolved through layers 1 and
   2 for a remix, the refusals of 4.3, the lock file.
 - `tools/hw/ot_brain.py`: card store, project store and template files to
-  JSON and back; templates onto a card; a template saved on the unit back
-  to JSON for `templates/`; the resolved value of every setting and
+  JSON and back; templates onto a card; the resolved value of every setting and
   default for a remix with the layer it came from.
 - The build report prints the resolved value table.
 - Template JSON uses the vocabulary of `tools/hw/ot_spec.py`: knobs by
@@ -536,10 +530,10 @@ with a name editor, copy, paste and clear (✅ on the unit, image A6).
 | 1 | the build-time layer: the USB audio migration (five `usb-audio-out-*` and three `usb-audio-in-*` modules to two, 17 test remixes to pins); remix `defaults`; the resolved-value report | no | no |
 | 2 | the brain: card store, SETTINGS, FX-page card defaults, SAVE AS DEFAULT, project pair, project record (reported; stock clamps, section 8), CS1 block | yes | yes |
 | 3 | templates for FX pages: image, card, saved on the unit; the TEMPLATES lists. Built 11 Oct 2026 (port): image templates (`templates/`, `Remix.templates`) for effects and the stock targets, BRAIN > TEMPLATES with rename and copy to card | yes | yes |
-| 4 | the stock provider: MIDI track target, instrument templates with knob names, incoming CC map, controller presets; audio track pages; project-level stock settings. Built 11 Oct 2026 (port): card templates for the AMP and LFO pages and for MIDI tracks (`stock.amp`, `stock.lfo`, `stock.midi`); MIDI knob names (NAME KNOB, the CTRL labels, in the project store and in `stock.midi` templates) and CC MAP's block CCs per project; SRC page templates per machine type; the card's project settings for new projects (`stock.project`); `tools/hw/bcr2000.py` takes CC MAP's block CCs from the remix and a project | yes | yes |
+| 4 | the stock provider: MIDI track target, instrument templates with knob names, incoming CC map, controller presets; audio track pages; project-level stock settings. Built 11 Oct 2026 (port): card templates for the AMP and LFO pages and for MIDI tracks (`stock.amp`, `stock.lfo`, `stock.midi`); MIDI knob names (NAME KNOB, the CTRL labels, in the project store and in `stock.midi` templates); SRC page templates per machine type; the card's project settings for new projects (`stock.project`) | yes | yes |
 | from 2, in parallel | DSP run-time delivery: probe, route, first DSP setting | yes | yes |
 | REMIX SWITCH | sanderlegit's OS SWITCH (PR #542), renamed, carried by every remix with BRAIN: the `.RMX` images in `/BRAIN/REMIXES/` in BRAIN's REMIXES sub-list, rebuilt at each MAIN MENU opening (PR #542's power-on picker left out). Built 8 Oct 2026 (`verify_remixswitch` under the port; a switch on an MKII as image B2) | yes | yes |
-| MIDI monitor, LOAD view | built 11 Oct 2026 (port): TOOLS > MIDI MONITOR and TOOLS > LOAD, live dialogs; LOAD METER measures the frame interrupt | yes | yes |
+| MIDI screen, OTOP | built 11-12 Oct 2026 (port): BRAIN > MIDI and BRAIN > OTOP, screens (menu states); LOAD METER measures the frame interrupt, each DSP core and each effect call | yes | yes |
 | after REMIX SWITCH | a MIDI monitor in the BRAIN category: the last incoming messages decoded, each marked with what the firmware did (which handler, or dropped and at which test); a detour on the MIDI byte parser and dispatch (`docs/firmware/MIDI.md` appendix B) into a ring, rows rebuilt and redrawn on a timer (the row mechanism REMIX SWITCH's list needs) | yes | yes |
 
 Phase 0 is implemented (6 Oct 2026): the declarations in

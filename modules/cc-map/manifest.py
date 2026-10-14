@@ -22,35 +22,11 @@ compared against (Linked.reference, and
 tools/verify/verify_ccmap.py, which also proves the write for all eight
 tracks in the emulator against the firmware editor)."""
 
-import hashlib
-import os
 import pathlib
 
-from remix.schema import (Apply, Category, Gate, Kind, Linked, Module, Number, Proof, Scope, Setting,
-                          Store, SymbolRef)
+import hashlib
 
-STORE = "octabam.cc-map"
-
-
-def cc_inc(modules):
-    """remix.inc for cc_map.s: the macros CC_FX2 and CC_FX1 load the two
-    blocks' first CC (tools/remix/brain.py read_macro): from BRAIN's value
-    table when the remix carries BRAIN (the settings are per project), else
-    the resolved value as a constant."""
-    from remix import brain, registry
-    remix = registry.remix(os.environ["REMIX"])
-    return (brain.read_macro(remix, modules, STORE, "FX2 CC", "CC_FX2")
-            + brain.read_macro(remix, modules, STORE, "FX1 CC", "CC_FX1"))
-
-
-def reference(modules):
-    """The oracle applies to the constant form: none when BRAIN holds the
-    block CCs at run time."""
-    from remix import brain, registry
-    remix = registry.remix(os.environ["REMIX"])
-    if any(r.store_id == STORE and r.runtime for r, _s in brain.resolve(remix, modules)):
-        return None
-    return (ORACLE_AT, hashlib.sha256(legacy_bytes(ORACLE_AT)).hexdigest())
+from remix.schema import Gate, Category, Proof, Kind, Linked, Module, SymbolRef
 
 # Page-2 clamp counts, slots 6..11: selects carry their count, knobs 128.
 # Must match modules/busverb and modules/busdelay.
@@ -66,27 +42,26 @@ STOCK_RTS = 0x40027e1a           # a bare `rts` in stock (the tail of 0x40027e00
 # for its two count tables; legacy_bytes(addr) patches them in. The oracle
 # the linked source is compared against every build.
 CODE = bytes.fromhex(
-    "206f0004700010280001723e90817205b280641a700010280001724490817205b2806504"
-    "5c8060064ef94000e79c4fefffe448d704fc28002448263946104cf44eb9400018547a00"
-    "1a2a000202850000007f4a398000004967287000101202800000000f41f946c7febe2e30"
-    "0c007c007001eda8c0876702611252867008b0866eee4cd704fc4fef001c4e757206b284"
-    "6f000114203946c824567200123980000003263c000018b24c031000d0812040d1fc0008"
-    "ed88d1c6700010107206b28067107207b28067024e7543f940bad000600643f940bad004"
-    "72001231480053812405b4816f022401203946c824567200123980000003263c000018b2"
-    "4c031000d0817200d0812040d1fc0008f0842206761e4c031000d1c1d1c410822040d1fc"
-    "0008f084d1c1d1c41082220676484c03100041f980000810d1c1d1fc00000038d1c41082"
-    "2606721e4c013000220092b946c82456d2830681100a51d22041d1c41082720012398000"
-    "00037601e3ab207946c824562248d3fc000950481211828312811239100b145e828313c1"
-    "100b145ed1fc0009b3327201208123c1100f8598610000ea4e75203946c8245672001239"
-    "80000003263c000018b24c031000d0812040d1fc0008ed80d1c672001210670000ba43f9"
-    "400d5f5822711c00260441f13c002228009a2628006ad28353812405b4836c022403b481"
-    "6f0224012206761e4c03100026045d832040d1c1d1c3d1fc0008f07e1082224093f946c8"
-    "2456d3c1d3c3d3fc100a51cc128272001239800000037601e3ab207946c824562248d3fc"
+    "206f000470001028000104800000003e720bb280650260064ef94000e79c4fefffe448d7"
+    "04fc28002448263946104cf44eb9400018547a001a2a000202850000007f4a3980000049"
+    "67287000101202800000000f41f946c7febe2e300c007c007001eda8c087670261125286"
+    "7008b0866eee4cd704fc4fef001c4e757206b2846f000114203946c82456720012398000"
+    "0003263c000018b24c031000d0812040d1fc0008ed88d1c6700010107206b28067107207"
+    "b28067024e7543f940bad000600643f940bad00472001231480053812405b4816f022401"
+    "203946c824567200123980000003263c000018b24c031000d0817200d0812040d1fc0008"
+    "f0842206761e4c031000d1c1d1c410822040d1fc0008f084d1c1d1c41082220676484c03"
+    "100041f980000810d1c1d1fc00000038d1c410822606721e4c013000220092b946c82456"
+    "d2830681100a51d22041d1c4108272001239800000037601e3ab207946c824562248d3fc"
     "000950481211828312811239100b145e828313c1100b145ed1fc0009b3327201208123c1"
-    "100f8598220676484c03100026045d8341f980000810d1c1d1fc00000032d1c310826100"
-    "00284e754feffff048d70470244428067a001a39800000034eb940027e1a4cd704704fef"
-    "00104e754feffff048d704702a045d85244528067a001a39800000034eb940027e1a4cd7"
-    "04704fef00104e75"
+    "100f8598610000ea4e75203946c824567200123980000003263c000018b24c031000d081"
+    "2040d1fc0008ed80d1c672001210670000ba43f9400d5f5822711c00260441f13c002228"
+    "009a2628006ad28353812405b4836c022403b4816f0224012206761e4c03100026045d83"
+    "2040d1c1d1c3d1fc0008f07e1082224093f946c82456d3c1d3c3d3fc100a51cc12827200"
+    "1239800000037601e3ab207946c824562248d3fc000950481211828312811239100b145e"
+    "828313c1100b145ed1fc0009b3327201208123c1100f8598220676484c03100026045d83"
+    "41f980000810d1c1d1fc00000032d1c31082610000284e754feffff048d7047024442806"
+    "7a001a39800000034eb940027e1a4cd704704fef00104e754feffff048d704702a045d85"
+    "244528067a001a39800000034eb940027e1a4cd704704fef00104e75"
 )
 
 VCOUNT_MARK = bytes.fromhex("40bad000")
@@ -122,16 +97,8 @@ MODULE = Module(
     doc="MIDI CC 62-67 drive the FX2 engine's page-2 slots 6-11; CC 68-73 the FX1 station's.",
     # A DRAM unit (8 Oct 2026; a floating ROM cave until then): the CC
     # dispatch entry points at its entry symbol.
-    # The two blocks' first CC, per project (BRAIN's PROJECT layer; the
-    # defaults without BRAIN). A block is six CCs; the FX2 block wins where
-    # the two overlap.
-    store=Store(STORE),
-    settings=(Setting(1, "FX2 CC", Number(0, 122), default=62, scope=Scope.PROJECT, apply=Apply.LIVE,
-                      doc="the first of the six CCs that drive the FX2 effect's page-2 slots 6-11"),
-              Setting(2, "FX1 CC", Number(0, 122), default=68, scope=Scope.PROJECT, apply=Apply.LIVE,
-                      doc="the first of the six CCs that drive the FX1 effect's page-2 slots 6-11")),
-    linked=(Linked("ccmap", "modules/cc-map/cc_map.s", dram=True, include=cc_inc,
-                   reference=reference,
+    linked=(Linked("ccmap", "modules/cc-map/cc_map.s", dram=True,
+                   reference=(ORACLE_AT, hashlib.sha256(legacy_bytes(ORACLE_AT)).hexdigest()),
                    # Where other CCs go: stock's handler.
                    # CC_MODEDEF2 / CC_MODEDEF1: a stock `rts` unless MODE DEFAULTS is in
                    # the image, whose unit exports them.
