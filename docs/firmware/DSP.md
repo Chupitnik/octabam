@@ -154,9 +154,9 @@ instructions, B 46 / 6,251, zero undecodable.
 
 Two 32-entry pointer tables in X, indexed by the raw id, one load record
 (`X:0x00215`, 64 words; image `0x400e2345` A / `0x400f5a10` B). Both
-menus index the same tables (`AGENTS.md`, "an FX2 id is also an FX1 id").
+menus index the same tables (`contributing/TRAPS.md`, "an FX2 id is also an FX1 id").
 The FX1 dispatcher keeps the id in r1 across the init call (`P:0x4c8..0x4d7`);
-an init that moves r1 sends the proc call through P:0 (`AGENTS.md`,
+an init that moves r1 sends the proc call through P:0 (`contributing/TRAPS.md`,
 `verify_initregs`).
 
 | id | init | process | effect |
@@ -299,9 +299,9 @@ low byte is never published.
 | register | meaning |
 |---|---|
 | `r6` | this instance's parameter block |
-| `r7` | per-instance state block, `x:0x20a + 0x100·k`; the dispatcher bumps it three times per track (`AGENTS.md`, "the harness's model of the dispatcher is not the dispatcher") |
+| `r7` | per-instance state block, `x:0x20a + 0x100·k`; the dispatcher bumps it three times per track (`contributing/TRAPS.md`, "the harness's model of the dispatcher is not the dispatcher") |
 | `n7` | frame count (also `x:0x20c`; 0 skips the effect) |
-| `r0` | audio block: the dispatcher passes `r0 = 0`, 16 interleaved L/R samples at `X:0`; stock code scratches `X:0x20–0xff` (`AGENTS.md`, `dsp_host -audio 0`) |
+| `r0` | audio block: the dispatcher passes `r0 = 0`, 16 interleaved L/R samples at `X:0`; stock code scratches `X:0x20–0xff` (`contributing/TRAPS.md`, `dsp_host -audio 0`) |
 | `r1` | effect id across the FX1 init call |
 
 The stub's `r0` in / `r1` out is the stub's convention; DARK REV saves `r0`
@@ -544,4 +544,4 @@ hardcoded entry offset.
 
 ## 8. Standing rules
 
-`docs/contributing/MODULES.md` "Rules for DSP code" and `AGENTS.md`.
+`docs/contributing/MODULES.md` "Rules for DSP code" and `docs/contributing/TRAPS.md`.

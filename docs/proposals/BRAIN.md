@@ -217,7 +217,7 @@ three groups is not traced. Falsifier for the design: one of them reading
 a copy taken before the brain's write.
 
 A card value is checked against the slot's count before it is written: a
-default outside its count is used as an index (`AGENTS.md`).
+default outside its count is used as an index (`../contributing/TRAPS.md`).
 
 ### 5.2 Capture and apply
 
@@ -238,7 +238,7 @@ shared window `Y:0x30000+` is visible to both cores, so one delivery point
 serves both payloads. Candidates: a record kind of our own through the
 poster `0x400053d8`, or spare bits of a record halfword. Either is
 measured under the port and probed on hardware before a module uses it
-(`AGENTS.md`, "An instruction form the chip has never run").
+(`../contributing/TRAPS.md`, "An instruction form the chip has never run").
 
 ## 6. Files on the card
 
@@ -436,7 +436,7 @@ the effect has none).
   and its file untouched.
 - **The project record.** FX ids are assigned per remix and a Part stores
   the id; a slot's count, position or meaning can change between images
-  (`AGENTS.md`, "A part saved under an older slot layout"). At
+  (`../contributing/TRAPS.md`, "A part saved under an older slot layout"). At
   `project_saving` the brain writes, per FX id in the image, the store id
   and layout hash. At `project_loaded` it compares them with the running
   image, and reports an id that now names another store or a changed

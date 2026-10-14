@@ -3,7 +3,7 @@
 A module is one contribution: a DSP effect, a bus client, a ColdFire
 behaviour patch, or a combination. A remix is a named selection of modules
 composed into one image. `make modules` prints what exists; `make bus
-REMIX=<name>` builds a selection. `AGENTS.md` lists the traps; the ones a
+REMIX=<name>` builds a selection. `TRAPS.md` lists the traps; the ones a
 new module can walk into are repeated here where they apply.
 
 Decide first which kind you are writing.
@@ -533,7 +533,7 @@ examples; each README has its sources, `THIRD_PARTY.md` the licences).
 
 ### Rules for DSP code, each established on hardware
 
-`AGENTS.md` has the assembler and arithmetic traps (`mpy`/`a0`, `mpysu`,
+`TRAPS.md` has the assembler and arithmetic traps (`mpy`/`a0`, `mpysu`,
 labels by prefix, Tcc and the condition codes) and the dispatcher rule
 (measure r7/r6/X:0x213 facts under the port). Beside those:
 
@@ -728,7 +728,7 @@ example of every item.
 - **Serialized meanings.** Parts and locks store the bytes. Append enum
   values; never insert. A slot whose meaning changes is a data migration
   even when the image loads: test old bytes across their full range, not
-  the old default (`AGENTS.md`, the MODE re-slot stall).
+  the old default (`TRAPS.md`, the MODE re-slot stall).
 - **Hooking the stock delay routine** means keeping its protocol: the
   scratch toggle at `0x40003624`, the state iterator `0x80006180 += 68`,
   a byte-for-byte fallback for every other id, and no ring sample held
@@ -997,7 +997,7 @@ Specific to a module:
   measures a bus accumulator and so analyses only modules whose harness
   says `is_server`; render an insert with `--direct`.
 - Disassemble what you assemble: `dsp_asm` mis-encodes several instructions
-  silently (`AGENTS.md`).
+  silently (`TRAPS.md`).
 
 `dsp_host` boots both payloads (`-memB`; `tools/harness/rig_render.py` for
 all eight tracks), so a server on core 1 renders on core 1 with the shared

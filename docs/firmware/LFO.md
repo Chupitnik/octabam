@@ -164,7 +164,7 @@ at the bottom of the range) and all 147 had a non-zero low byte; the largest
 knob byte seen at the clamp was 0x7d. Each halfword is one DSP word `<< 8`,
 so an LFO-modulated knob word has non-zero bits 8-15. On the gate project at
 LFO depth 0, all 19,843 stores had a zero low byte. DSP code reads of
-page words take `and #>$7f0000` first (`AGENTS.md`).
+page words take `and #>$7f0000` first (`contributing/TRAPS.md`).
 
 ## 6. Extending it
 
