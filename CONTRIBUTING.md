@@ -241,8 +241,9 @@ that page: `##` headings only (the page owns the title), relative links
 and images at reference depth (`../../img/<name>/<screen>.png`,
 `../../choosing.md`), no section signs, no bare repo paths, no nested
 includes.
-Screenshots are LCD dumps from the port (`tools/emu/live_shots.py`, the
-scripts in `tools/site/shots/`); a UI change re-captures them in the
+Screenshots are LCD captures from the emulator (`tools/site/capture_manual.py`;
+`tools/emu/live_shots.py` and the scripts in `tools/site/shots/` are the
+probe walks); a UI change re-captures them in the
 same PR, and so does a rebase onto a main that changed a screen they show
 ([SCREENSHOTS.md](docs/contributing/SCREENSHOTS.md)). `mkdocs build --strict --config-file docs/site/mkdocs.yml` is
 the local check for the fragments themselves.

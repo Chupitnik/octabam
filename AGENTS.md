@@ -75,7 +75,7 @@ themselves from the manifests (`tools/site/gen_pages.py`).
 
 **Screenshots:** after a rebase, and before the PR, check whether the diff
 changes a screen a shot shows; `docs/contributing/SCREENSHOTS.md` has the
-check, the run and the project layout.
+check and the `capture_manual.py` groups.
 
 ## Worktrees and the shared checkout
 
