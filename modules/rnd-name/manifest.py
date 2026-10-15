@@ -19,8 +19,8 @@ MODULE = Module(
     category=Category.SETTINGS,
     author="iliamurzinov",
     author_url="https://github.com/iliamurzinov",
-    proof=Proof.RENDER,
-    proof_note="FUNC+CUE on CREATE under the port (verify_rnd_name); pools from unit",
+    proof=Proof.HARDWARE,
+    proof_note="cursory testing on Sam's MKII (owner report, 16 Oct 2026); " "FUNC+CUE on CREATE under the port (verify_rnd_name); pools from unit",
     doc="CREATE NEW PROJECT: FUNC+CUE fills YYMMDD + random pool name.",
     linked=(Linked("rnd", "modules/rnd-name/rnd.s", dram=True),),
     symbol_refs=(

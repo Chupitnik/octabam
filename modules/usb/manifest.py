@@ -286,8 +286,8 @@ _DEFAULT_VARIANT = _variant(_DEFAULT_VALUES)
 MODULE = Module(
     name="usb", key="USB", kind=Kind.HYBRID,
     category=Category.MIDI_USB, author="markandrus/octemu", author_url="https://github.com/markandrus/octemu",
-    proof=Proof.PORT,
-    proof_note="`verify_usb` for every LAYOUT and `verify_usb_in` for every INPUTS under the port; on units: MIDI in/out on Sam's MKII (image 64, 25 Sep 2026), Tim's MKI (OCTATRICK9, 26 Sep 2026) and Ignorato's MKII (OCTABAM21, 9 Oct 2026, transmit after three replugs, macOS and Windows 10), USB clock tempo on Kazeko's MKI (#633, 6 Oct 2026); TRACKS MAIN CUE on Sam's MKII and Tim's MKI, MAIN CUE and the ABCD inject on Bryan T's MKII (build 16, 27 Sep 2026), TRACKS POST on allmyfriendsaresynths's MKII (P3, 5 Oct 2026); the crossbar values at stream-up on Bryan T's MKII (usbin-test 12-16, 26-27 Sep 2026); README.md per layout and direction",
+    proof=Proof.HARDWARE,
+    proof_note="cursory testing on Sam's MKII (owner report, 16 Oct 2026); " "`verify_usb` for every LAYOUT and `verify_usb_in` for every INPUTS under the port; on units: MIDI in/out on Sam's MKII (image 64, 25 Sep 2026), Tim's MKI (OCTATRICK9, 26 Sep 2026) and Ignorato's MKII (OCTABAM21, 9 Oct 2026, transmit after three replugs, macOS and Windows 10), USB clock tempo on Kazeko's MKI (#633, 6 Oct 2026); TRACKS MAIN CUE on Sam's MKII and Tim's MKI, MAIN CUE and the ABCD inject on Bryan T's MKII (build 16, 27 Sep 2026), TRACKS POST on allmyfriendsaresynths's MKII (P3, 5 Oct 2026); the crossbar values at stream-up on Bryan T's MKII (usbin-test 12-16, 26-27 Sep 2026); README.md per layout and direction",
     doc="Class-compliant USB-MIDI in/out plus UAC2 audio to and from the host on the OT's own USB port (markandrus/octemu; the input path and crossbar bryantysinger's; the TRACKS POST layout allmyfriendsaresynths's), by its LAYOUT and INPUTS settings.",
     linked=_DEFAULT_VARIANT["linked"],
     detours=_DEFAULT_VARIANT["detours"],

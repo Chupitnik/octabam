@@ -16,6 +16,6 @@ RLEN 0–64 keep their stock meaning; saved parts need no restamp.
 
 ## Notes
 
-- Not flashed to a unit yet.
+- Cursory testing on Sam's MKII (owner report, 16 Oct 2026).
 - PER TRACK mode: the length is the track's own length on its own scale;
   whether one loop should be the track's or the master's is open.

@@ -25,8 +25,8 @@ MODULE = Module(
     category=Category.MACHINES,
     author="octabam",
     author_url="https://github.com/sambanks/octabam",
-    proof=Proof.CHECK,
-    proof_note="builds and boots under the port; fill math gated in verify_euclid_fill",
+    proof=Proof.HARDWARE,
+    proof_note="cursory testing on Sam's MKII (owner report, 16 Oct 2026); " "builds and boots under the port; fill math gated in verify_euclid_fill",
     doc="TRACK + PAGE: Euclidean sample-trig fill (STEPS=pattern len / PULSE / ROT; A/B knobs).",
     linked=(Linked("ef", "modules/euclid-fill/euclid_fill.s", dram=True),),
     detours=(
