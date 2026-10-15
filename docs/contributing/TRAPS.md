@@ -836,3 +836,52 @@ the binaries' architecture.
 report (the hints name `tools/harness/send_probe.py`), which refhash
 correctly flagged with every artifact identical. Re-save only after proving
 the artifact lines match.
+
+<a name="trap-nm-order"></a>
+
+### Same-named labels across DRAM units resolve by nm table order
+
+**Same-named labels across DRAM units resolve by nm table order.** The
+platform runtime served every unit's refs and detours from one flat symbol
+table of the whole link; `_nm` collapsed same-named symbols by nm output
+order, so three units each defining `cave` (TEMPO SYNC's global, RECORDER
+LOOP FIX's local, RLEN PLEN's local) resolved to whichever definition the
+merge happened to leave last. Merging the four USB modules into one (15
+Oct 2026) flipped that order and the record writer's per-frame `jsr` was
+wired into RECORDER LOOP FIX's spacing code; verify_brain stormed to the
+auto-map limit (busiest pc 0x40004c40 x4194177). The base image was
+correct by table-order luck. The fix: `link_runtime` builds a per-unit
+symbol table from each unit's own object (`objdump -t`) placed by the
+link's `-Map`; a detour or ref naming a symbol its unit does not define
+is refused. `test_linked_defsyms.UnitTableTests` pins the scoping;
+`scripts/refhash.sh` proves the change moved no image.
+<a name="trap-first-sector-irq"></a>
+
+### A completion interrupt in the first-sector write window polls DRQ on a count the producer has not updated yet
+
+**A COMPLETION INTERRUPT IN THE FIRST-SECTOR WRITE WINDOW POLLS DRQ ON A
+COUNT THE PRODUCER HAS NOT UPDATED YET.** Stock's first-sector PIO write
+saves SR in d0 and raises the mask to 7 (`0x40014cdc`), issues the WRITE
+(`0x40014ce4`), then restores SR at `0x40014cf2` — before sending the 256
+data words and before the `0x40014d38..52` update of the buffer pointer
+`0x46c8c594` (+512) and the remaining-sector byte `0x46c8c592` (−−).
+Preempt the engine after the final word (observed exception PC
+`0x40014d34`, TCB `0x460ddde4`) and the completion IRQ runs in sys with
+count 1 and the old pointer: the card already finished the command (status
+`0x50`, DRQ clear), so the handler polls DRQ at `0x4001551e/24/26` forever
+and the lower-priority engine never resumes to fix the bookkeeping. Cost:
+the octabam-inserts loadmeter gate hang on 14–15 Oct 2026 and days of
+falsified leads — server-name parser, packed-stage residue in BRAIN
+scratch, lazy DSP batching, card latency — each measured and dismissed
+under the port. Fix: retain the saved SR in d3 at `0x40014cf2` and detour
+the first-sector return `0x40014d58` to a ten-byte DRAM stub that restores
+SR and replays the stock epilogue, keeping the sector and its bookkeeping
+inside the mask that was already there (the ATA WRITE GUARD module).
+`verify_ata_write` runs the actual routine in the ColdFire Machine with a
+level-5 interrupt forced at the final data word, and gates the stock
+control against the guarded bookkeeping at caller masks 0/1/3/5/7.
+Measured under the port; whether the window occurs with real card timing
+is NOT measured — the guard is not hardware-proven. Rule: an
+interrupt-mask restore that precedes the data it protects is a window;
+before blaming names or parsers, ask what the IRQ handler reads while the
+producer is mid-update.

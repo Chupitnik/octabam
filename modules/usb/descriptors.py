@@ -41,13 +41,13 @@ import struct
 SUBSLOT, BITS = 4, 24
 HS_CHANNELS, HS_MAXPKT, HS_BINTERVAL = 20, 12 * 80, 2     # 11/12 frames x 80 B every 250 us (16 tracks + MAIN + CUE)
 FS_CHANNELS, FS_MAXPKT, FS_BINTERVAL = 2, 45 * 8, 1       # 44/45 stereo frames x 8 B every 1 ms
-# per audio module: (channels, max packet) at high speed; full speed is FS_*
-HS_LAYOUT = {"USB AUDIO OUT TRACKS MAIN CUE": (HS_CHANNELS, HS_MAXPKT),
-             "USB AUDIO OUT TRACKS": (16, 12 * 64),                # 11/12 frames x 64 B (16 tracks) every 250 us
-             "USB AUDIO OUT TRACKS POST": (16, 12 * 64),           # the same sixteen channels, after each track's MAIN gain
-             "USB AUDIO OUT MASTER": (2, 12 * 8),                # 11/12 frames x 8 B (T8) every 250 us (1 ms until 28 Sep 2026)
-             "USB AUDIO OUT MAIN CUE": (4, 12 * 16),                   # 11/12 frames x 16 B (MAIN + CUE) every 250 us
-             "USB AUDIO OUT MAIN": (2, 12 * 8)}                        # 11/12 frames x 8 B (MAIN) every 250 us
+# per audio layout: (channels, max packet) at high speed; full speed is FS_*
+HS_LAYOUT = {"TRACKS MAIN CUE": (HS_CHANNELS, HS_MAXPKT),
+             "TRACKS": (16, 12 * 64),                # 11/12 frames x 64 B (16 tracks) every 250 us
+             "TRACKS POST": (16, 12 * 64),           # the same sixteen channels, after each track's MAIN gain
+             "MASTER": (2, 12 * 8),                # 11/12 frames x 8 B (T8) every 250 us (1 ms until 28 Sep 2026)
+             "MAIN CUE": (4, 12 * 16),                   # 11/12 frames x 16 B (MAIN + CUE) every 250 us
+             "MAIN": (2, 12 * 8)}                        # 11/12 frames x 8 B (MAIN) every 250 us
 FRONT_LR = 0x3                                             # bmChannelConfig: front left, front right (OUT MASTER, IN)
 UAC2_AC_IFACE, UAC2_AS_IFACE = 3, 4                        # usbaudio.s .set: the same numbers
 UAC2_CLOCK_ID, UAC2_IT_ID, UAC2_OT_ID = 0x10, 0x11, 0x12
@@ -64,10 +64,9 @@ UAC2_CLOCK_ID, UAC2_IT_ID, UAC2_OT_ID = 0x10, 0x11, 0x12
 # unit does not serve it), so a full-speed host is never offered one.
 USBIN_AS_IFACE = 5
 USBIN_IT_ID, USBIN_OT_ID = 0x13, 0x14
-# USB AUDIO IN by its INPUTS setting: host channels -> inputs (the DSP
-# inject's slots). HS_LAYOUT and IN_LAYOUT are keyed "USB AUDIO OUT <LAYOUT>"
-# and "USB AUDIO IN <INPUTS>", the module keys of the layouts until 6 Oct 2026.
-IN_LAYOUT = {"USB AUDIO IN AB": 2, "USB AUDIO IN CD": 2, "USB AUDIO IN ABCD": 4}
+# host channels -> inputs by the INPUTS value (the DSP inject's slots):
+# 2 for a pair (AB, CD), 4 for ABCD
+IN_LAYOUT = {"AB": 2, "CD": 2, "ABCD": 4}
 
 
 def _bound_value(modules, key, name):
@@ -84,14 +83,16 @@ def _bound_value(modules, key, name):
     return s.kind.labels[s.default]
 
 
-def audio_key(modules):
-    layout = _bound_value(modules, "USB AUDIO OUT", "LAYOUT")
-    return None if layout is None else f"USB AUDIO OUT {layout}"
+def audio_layout(modules):
+    """The remix's LAYOUT, or None for USB MIDI alone."""
+    layout = _bound_value(modules, "USB", "LAYOUT")
+    return None if layout in (None, "OFF") else layout
 
 
-def in_key(modules):
-    inputs = _bound_value(modules, "USB AUDIO IN", "INPUTS")
-    return None if inputs is None else f"USB AUDIO IN {inputs}"
+def in_inputs(modules):
+    """The remix's INPUTS, or None for no host -> device stream."""
+    inputs = _bound_value(modules, "USB", "INPUTS")
+    return None if inputs in (None, "OFF") else inputs
 
 
 def _ep(addr, pkt):
@@ -125,7 +126,7 @@ def midi_config(hs, other_speed=False):
     return hdr + body
 
 
-def audio_config(hs, other_speed=False, key="USB AUDIO OUT TRACKS MAIN CUE", with_in=None):
+def audio_config(hs, other_speed=False, layout="TRACKS MAIN CUE", with_in=None):
     """The MIDI composite plus a UAC2 audio function, 250 bytes (usb-audio.py).
 
     Two SEPARATE functions under interface associations, the shape of a
@@ -137,11 +138,11 @@ def audio_config(hs, other_speed=False, key="USB AUDIO OUT TRACKS MAIN CUE", wit
     4-byte data stage), which the stock EP0 stack cannot receive; usbaudio.s
     takes it (44100 acknowledged, any other rate STALLed).
 
-    `key` is the audio module: USB AUDIO OUT MASTER declares its two channels
+    `layout` is the LAYOUT value: MASTER declares its two channels
     front left / front right (the standard stereo cluster); the other two
     keep bmChannelConfig 0 as his descriptors have it.
 
-    `with_in`: the USB AUDIO IN module's key (IN_LAYOUT), or None -- at high
+    `with_in`: the INPUTS value, or None -- at high
     speed, add the host -> device path (IT 0x13 -> OT 0x14, AudioStreaming
     interface 5 with EP3 OUT, 2 or 4 channels) and mark EP3 IN as its
     implicit-feedback source. The full-speed configuration is the one
@@ -151,8 +152,8 @@ def audio_config(hs, other_speed=False, key="USB AUDIO OUT TRACKS MAIN CUE", wit
     in_ch = IN_LAYOUT[with_in] if with_in else 0
     in_cfg = FRONT_LR if in_ch == 2 else 0
     bulk = 512 if hs else 64
-    nch, maxpkt = HS_LAYOUT[key] if hs else (FS_CHANNELS, FS_MAXPKT)
-    chcfg = FRONT_LR if key in ("USB AUDIO OUT MASTER", "USB AUDIO OUT MAIN") else 0
+    nch, maxpkt = HS_LAYOUT[layout] if hs else (FS_CHANNELS, FS_MAXPKT)
+    chcfg = FRONT_LR if layout in ("MASTER", "MAIN") else 0
     clk, it, ot = UAC2_CLOCK_ID, UAC2_IT_ID, UAC2_OT_ID
     clock = bytes([8, 0x24, 0x0A, clk, 0x01, 0x05, 0, 0])
     in_term = (bytes([17, 0x24, 0x02, it]) + struct.pack("<H", 0x0603) +
@@ -216,8 +217,8 @@ def audio_config(hs, other_speed=False, key="USB AUDIO OUT TRACKS MAIN CUE", wit
 
 
 def configs(audio=None, with_in=None):
-    """`audio`: the remix's audio module key, or None for USB MIDI alone;
-    `with_in`: the USB AUDIO IN module's key beside it, or None."""
+    """`audio`: the remix's LAYOUT, or None for USB MIDI alone;
+    `with_in`: the INPUTS value beside it, or None."""
     if audio:
         def f(hs, other_speed=False):
             return audio_config(hs, other_speed, audio, with_in)
@@ -227,8 +228,8 @@ def configs(audio=None, with_in=None):
     lengths = {len(v) for v in out.values()}
     # One clamp (cfg_len) serves all four replies: min(wLength, cfg_len). A
     # host asks for a configuration's wTotalLength, so a table shorter than
-    # cfg_len is sent whole and its zero pad is never requested. Without USB
-    # AUDIO IN the four are one length as they always were; with it the
+    # cfg_len is sent whole and its zero pad is never requested. Without
+    # INPUTS on the four are one length as they always were; with it the
     # high-speed pair carries interface 5 and the full-speed pair does not.
     if not with_in:
         assert len(lengths) == 1, "the four configurations must share one length (one clamp)"
@@ -237,15 +238,15 @@ def configs(audio=None, with_in=None):
 
 
 def remix_inc(modules):
-    audio = audio_key(modules)
-    with_in = in_key(modules)
+    audio = audio_layout(modules)
+    with_in = in_inputs(modules)
     if with_in:
-        assert audio, (f"{with_in} needs a USB AUDIO OUT module beside it: EP3 IN is "
+        assert audio, (f"INPUTS {with_in} needs a LAYOUT beside it: EP3 IN is "
                        "its implicit-feedback source")
     tables, length = configs(audio, with_in)
-    what = ("USB MIDI + " + audio if audio else "USB MIDI") + (f" + {with_in}" if with_in else "")
+    what = ("USB MIDI + " + audio if audio else "USB MIDI") + (f" + INPUTS {with_in}" if with_in else "")
     lines = [f"| remix.inc -- the configuration descriptors for this remix ({what}),",
-             "| generated by modules/usb-midi/descriptors.py; the build rewrites it.",
+             "| generated by modules/usb/descriptors.py; the build rewrites it.",
              f"    .global cfg_len", f"    .set cfg_len, {length}", "",
              "    .text", "    .global cfg_fs, cfg_hs, cfg_os_fs, cfg_os_hs", ""]
     for name, blob in tables.items():
@@ -259,4 +260,7 @@ def remix_inc(modules):
 
 if __name__ == "__main__":
     import sys
-    print(remix_inc({"USB MIDI", "USB AUDIO OUT"} if "--audio" in sys.argv else {"USB MIDI"}))
+    values = {"LAYOUT": "OFF" if "--audio" not in sys.argv else "TRACKS MAIN CUE",
+              "INPUTS": "OFF" if "--in" not in sys.argv else "AB"}
+    fake = type("Bound", (), {"build_values": values})()
+    print(remix_inc({"USB": fake}))

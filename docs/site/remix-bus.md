@@ -3,7 +3,9 @@
 A remix of Octatrack OS 1.40C, built from your own copy of it, that adds a
 **delay and reverb bus** with a send from every track, three new FX1
 effects, and the core modules. It is bottleservice's bus with the core set
-added; USB AUDIO OUT is MAIN CUE here.
+added; the USB module uses LAYOUT MAIN CUE and INPUTS OFF here. These USB
+settings take effect when the image is built; on-device configuration is
+not implemented in this version.
 
 ## The bus
 

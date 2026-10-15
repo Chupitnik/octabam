@@ -1,9 +1,297 @@
-# `usb-audio-out` — USB AUDIO OUT
+# `usb` — USB
 
-The unit as a USB audio input (UAC2, 44.1 kHz, 24-bit), in one of five
+Class-compliant USB-MIDI in and out on the Octatrack's own USB port,
+mirroring the DIN ports, beside a UAC2 audio function at 44.1 kHz, 24-bit:
+the unit into the host on EP3 IN (2 to 20 channels by its LAYOUT), the host
+into the Octatrack's inputs on EP3 OUT (a stereo pair or four channels by
+its INPUTS). The USB controller bursts first on the SDRAM and SRAM-backdoor
+slaves (SCM BCR, XBS PRS/CRS), written once at the stock USB controller init
+and left on; without it the controller's 16-byte RX FIFO loses packet tails
+under a busy project.
+
+One module since 14 Oct 2026, where four stood (USB MIDI, USB AUDIO OUT,
+USB AUDIO IN, USB CROSSBAR): LAYOUT chooses which channels go to the host,
+INPUTS chooses which inputs the host's channels stand in for. Both are
+build-time settings a remix pins (`docs/proposals/BRAIN.md`); the defaults
+are TRACKS MAIN CUE and AB, the four modules' defaults. Every combination
+carries USB MIDI's units.
+
+INPUTS without a LAYOUT is refused: EP3 IN is EP3 OUT's implicit-feedback
+source, the stream the host sizes each EP3 OUT packet from. The memory
+claims are the ABCD maxima in every combination with INPUTS on. The four
+sections below carry the four modules' documentation.
+
+## Settings
+
+Both are build-time settings a remix pins (`docs/proposals/BRAIN.md`):
+
+| setting | value | meaning |
+|---|---|---|
+| LAYOUT (default TRACKS MAIN CUE) | TRACKS MAIN CUE | 20 channels: tracks 1–16, MAIN, CUE |
+| | TRACKS | 16 channels: the tracks |
+| | MASTER | 2 channels: track 8's L/R |
+| | MAIN CUE | 4 channels: MAIN, CUE |
+| | MAIN | 2 channels: MAIN |
+| | TRACKS POST | 16 channels: the tracks after their own MAIN gain |
+| | OFF | USB MIDI alone: no audio to the host |
+| INPUTS (default AB) | AB | host channels 1/2 = inputs A/B; C/D stay on the jacks |
+| | CD | host channels 1/2 = inputs C/D; A/B stay on the jacks |
+| | ABCD | host channels 1–4 = inputs A–D |
+| | OFF | no host -> device stream |
+
+The channel counts are the high-speed ones; every layout's full-speed form
+is two channels, and INPUTS is served at high speed only.
+
+## USB MIDI
+
+Class-compliant USB-MIDI in and out on the Octatrack's own USB port,
+mirroring the DIN ports. markandrus's work ([octemu](https://github.com/markandrus/octemu),
+`custom/usb-midi.py` + `custom/coldfire/usb-midi.s` at `6a9ff68`, MIT),
+carried onto octabam's DRAM platform.
+
+### Measured
+
+Under the ColdFire port (25 Sep 2026), `make check REMIX=usb`, `verify_usb`:
+
+- enumerates at high speed as Elektron 1935:0002, three interfaces, 124-byte
+  configuration; INQUIRY and TEST UNIT READY still answered by the stock
+  mass-storage stack;
+- two channel messages sent to EP2 OUT → six bytes into the firmware's
+  MIDI receive FIFO (`midi_rx_fifo_head` `0x46100b80`, six writes from
+  `midi_rx_enqueue`);
+- the firmware's own `midi_send` on a note-on → one event packet `09 90 3c 64`
+  on EP2 IN.
+
+His build from the same stock bytes, tested first under the port with his
+own patch scripts, behaved the same (the ISR shim ran nine times, the
+decoder once, the same six FIFO writes).
+
+### Receive path (port only, 5 Oct 2026)
+
+Static review of `usbmidi_rx_decode` found no bound on the FIFO, then
+measured under the port (`usb-midi` remix, `ot_emu --watch-mem` on the
+FIFO and the framer's message buffer, one EP2 OUT packet per case):
+
+| packet | before | after |
+|---|---|---|
+| 16 note-ons, 64 B (48 MIDI bytes) | FIFO count reached 48 of 32 slots; 16 messages parsed, notes `3b 3c 3d 3e 3f 35 36 37 38 39 3a 3b 3c 3d 3e 3f`; `30..34` never parsed | 16 messages, notes `30..3f` in order |
+| 68-byte SysEx, 23 events, 92 B | dTD accepted 64 of 92 B; the 68 bytes did not arrive in the parser's buffer (`verify_usbmidi_rx`, first difference at byte 0) | 92 B accepted, `F0 01..42 F7` parsed intact |
+| 128 note-ons, 512 B | dTD accepted 64 of 512 B; the 384 bytes did not arrive in order (first difference at byte 0) | 512 B accepted, 384 bytes parsed in order |
+| 16 note-ons at full speed, 64 B | in order | in order |
+
+Causes (read from the stock disassembly; the measurements above agree):
+
+- `midi_rx_enqueue` (`0x40092bbc`) stores `ring[head]`, `head++` (wrap at 32),
+  `count++` and forces INTC source 36, with no full check. The consumer, the
+  framer `0x40092bf4`, pops one byte per interrupt. Its ICR (`0xfc048064`) and
+  the USB OTG ICR (`0xfc04c06f`) are both written `4` by the firmware, so the
+  framer cannot run inside the USB interrupt at any SR. The DIN path takes one
+  byte per UART interrupt and never fills the ring; a packet of more than 32
+  MIDI bytes overwrites unread ones.
+- The RX dTD token is `0x00408080` (64 bytes) at the dormant init and in
+  `usb_midi_rx_prime`, while the dQH and the descriptors advertise a 512-byte
+  bulk max packet at high speed.
+- The dTD token's status bits were not read.
+
+`usbmidi_rx.s` (octabam's; `usbmidi.s` is unchanged and still matches his
+build) takes over the SET_CONFIGURATION and usb_isr detours and hands on to
+his shims:
+
+- Before the bytes of each event are enqueued, `count + event bytes` must be
+  at most 32; otherwise the framer is entered from the decoder with a
+  fabricated exception frame (format 4, vector `0x64`, the current SR, over a
+  return address), pops one byte, parses it and posts what it completes, as its
+  interrupt would. The framer runs at the SR the USB ISR entered with; the
+  enqueues of one event run at SR `0x2700`.
+- Chosen over lowering the SR mask around each enqueue (the framer is the same
+  INTC level as the USB interrupt and cannot preempt it; lowering the mask
+  below 4 lets the USB interrupt re-enter) and over keeping the rest of the
+  packet for a later interrupt (nothing wakes the module after the last USB
+  interrupt of a burst).
+- At high speed the RX dTD is re-sized to 512 bytes: flush EP2 OUT
+  (ENDPTFLUSH bit 2), clear the dQH overlay token, prime with token
+  `0x02008080`. Full speed keeps the firmware's 64-byte dTD (max packet 64: a
+  dTD larger than the max packet does not complete on a full packet).
+- A completed dTD with halted, data buffer error or transaction error status
+  is counted in `usbmidi_rx_errs` and not decoded.
+
+The port's flush completes at once and ignores the overlay; the controller's
+behaviour on the flush/re-prime sequence is not measured. Hardware status:
+port only.
+
+### Clock (6 Oct 2026)
+
+Reported by Kazeko (MKI, Discord, 6 Oct 2026): with USB MIDI clock the
+sequencer follows, time stretch, LFOs and FX do not; DIN clock drives all
+of them. After the change (#633), the same unit: reported working; the
+build number and which of the three were checked are not recorded.
+
+- The UART0 ISR (`0x400106ec`) timestamps each `0xF8` before passing it on:
+  DTCN0 (`0xfc07000c`) into `0x46c8345a`, the delta into `0x46c83466`
+  (`0x4001070a..0x4001071e`). The clock handler (`0x40005a48`) builds the
+  tempo from that delta: a 24-tick ring, `24 * 21,168,000 * 32 / sum`,
+  clamped 600..7320, into `0x80001818` (and `0x80001814` every 24th tick).
+  The decoder called `midi_rx_enqueue` directly and stored no timestamp.
+- Measured under the port before the change (`usb-midi` remix, CLOCK
+  RECEIVE set, 96 ticks per run): the handler ran on all 96 USB ticks; from
+  cold the interval stayed 0, the ring sum stayed under the handler's
+  threshold and `0x80001818` was never written (the project's 2880); after
+  DIN clock it held the last DIN interval and the DIN tempo (2402) through a
+  USB run at another rate. That the time stretch, LFOs and FX read this
+  tempo is inferred.
+- `usbmidi_rx_decode` now does the ISR's five instructions for each `0xF8`
+  before it is enqueued. `verify_usbmidi_clock`: two USB runs at 50 and
+  40 ms per tick read 1200 and 1498 (want 1200 and 1501); before the change
+  both read 2400, the DIN run's tempo.
+- DTIN0's clock is inferred: the handler's constant gives BPM × 24 only for
+  256 fs (11.2896 MHz). The port counts DTCN0 at that rate (`rtos.h`);
+  before this change it held at 0 and no MIDI clock tempo ran under the port.
+
+### Bus reset and session end (9 Oct 2026)
+
+Measured on a unit (Ignorato's MKII, OCTABAM14 = a test remix with this module,
+USB AUDIO OUT TRACKS MAIN CUE and USB CROSSBAR; 7-9 Oct 2026): unit-to-host
+USB MIDI works on the first connection after the unit boots and stops for
+good after the cable is unplugged and plugged back in, on macOS (M1) and two
+Windows 10 PCs (Intel, ASMedia and AMD xHCI); only a power cycle brings it
+back. On Windows a USBPcap capture shows the host's 16 bulk IN reads on
+`0x82` never completing. A bus reset with the cable left in (libusb
+re-enumeration on macOS) does not do it. Host-to-unit MIDI is unaffected.
+
+Read from `usbmidi.s`: `usbmidi_up` is set at SET_CONFIGURATION and never
+cleared, and `usbmidi_tx_busy` is cleared only by an EP2 IN completion or by
+SET_CONFIGURATION. The unit is mains powered, so both outlive a cable pull.
+
+Under the port (`verify_usbmidi_replug`, the `usb-midi` remix; `ot_emu`'s
+new `plug` command brings the session back after `unplug`), on this module
+before the change:
+
+- after a pull with EP2 IN idle, the next clock byte primes EP2 IN while
+  USBCMD.RS is clear (the controller stopped, nobody to read it);
+- the clock bytes queued while unplugged go out after the next
+  SET_CONFIGURATION, ahead of the new session's first message;
+- a bus reset with the cable in shows neither, which matches the unit.
+
+The port does not hang: its prime re-reads the queue head every time, a
+flush cancels anything, and it has no data toggles or NAK timing. How
+silicon then loses EP2 IN for good is inferred, not measured: a prime the
+controller has not taken is not cancelled by a flush, and the dormant
+EP2_INIT at SET_CONFIGURATION rewrites the queue head of an endpoint that
+may still be primed (the ChipIdea hazard `usbaudio.s` already guards EP3
+against).
+
+`usbmidi_rx.s` now takes EP2 down on a bus reset (`0x4001e91c`, the
+USBSTS.URI handler) and on session end (`0x4001e952`, OTGSC.BSVIS, before
+the stock code clears USBCMD.RS), and again at SET_CONFIGURATION before
+EP2_INIT: `usbmidi_up` and `usbmidi_tx_busy` cleared, the queued bytes
+dropped, both EP2 directions flushed (wait for ENDPTPRIME, flush, repeat
+while ENDPTSTAT shows a bit, every wait bounded), both overlay tokens
+cleared, any EP2 completion dropped. The two sites are USB AUDIO's too:
+with a LAYOUT its `audio_reset_shim` and
+`audio_sessend_shim` override these detours and call `usbmidi_rx_bus_end`.
+After the change all 21 of `verify_usbmidi_replug`'s checks pass (five fail
+before).
+
+On a unit (Ignorato's MKII, 9 Oct 2026, image OCTABAM21 = the OCTABAM14
+test remix plus this change; MIDI clock send on, the host only listening,
+the unit sends clock about 48 times a second while stopped). Each run: a
+power cycle with the cable in, then three unplug and replug cycles in the
+same port:
+
+| host | before (OCTABAM14) | after (OCTABAM21) |
+|---|---|---|
+| Mac mini M1, macOS 26.4.1, CoreMIDI | power cycle: 720 clocks in 15 s; replugs: 0, 0, 0, 0 (four in a row) | power cycle and all three replugs: 720 clocks in 15 s each |
+| Lenovo laptop, Windows 10 22H2, AMD USB 3.1 xHCI, in-box driver | power cycle: 720; replug: 0 (2 of 2 each) | power cycle and all three replugs: 720 each |
+
+Not measured on a unit: host-to-unit MIDI after a replug (port only), many
+replugs, host sleep and wake, a hub.
+
+### On the unit
+
+Image 64, `usb-audio`, Sam's MKII, 25 Sep 2026:
+
+- Enumerates on macOS as a MIDI port "Elektron Octatrack DPS-1", beside
+  the USB AUDIO input.
+- Receive: 896,760 messages (7,170/s, notes + CCs on channel 16) and then
+  1,471,080 messages (7,950/s, 185 s) sent into the unit, with the audio
+  stream running, without a stall or a change in the audio stream
+  ([Audio out (LAYOUT)](#audio-out-layout), the image 64 takes).
+- No USB MIDI transmit measurement from the unit is recorded.
+
+Also carried on Tim Hastie's MKI (`octatrick-usb`, OCTATRICK9, 26 Sep 2026),
+Bryan T's MKII (`usb-lean` image 90, 25 Sep 2026) and Sam's MKII as image 88
+(`bottleservice`, 27 Sep 2026); none of those runs measured MIDI itself.
+The `usb-midi` remix (this module on the stock effects) has not been flashed.
+
+### Open
+
+- Not measured: clock jitter over USB against DIN (bulk transfers have no schedule; the
+  gate sends one `0xF8` per transfer, a host can bunch several into one
+  packet, and each then gets a near-zero interval); a CC flood against the
+  256-byte queue; DISK MODE entered with a MIDI session open; Windows.
+
+### Gates
+
+- `verify_usb` (`make check REMIX=usb`).
+- `verify_usbmidi_rx` (image stage): the four packets of "Receive path",
+  parsed bytes compared with sent bytes, and each packet accepted whole by
+  the dTD. Five of its nine checks fail on the code before this change.
+- `verify_usbmidi_replug` (image stage): the first connection, four cable
+  pulls (two with a clock transfer in flight, two idle), each followed by
+  `plug`, a reset and an enumeration, and a bus reset with the cable in; a
+  note-on and a clock byte must arrive on EP2 IN after each, nothing queued
+  for the old session may go out, EP2 IN must not be primed between a
+  session end and the next SET_CONFIGURATION, and EP2 OUT must still
+  deliver. Five of its checks fail on the code before the bus-reset and
+  session-end shims.
+- `verify_usbmidi_clock` (image stage): DIN clock, then USB clock at two
+  other rates, under `--interactive` with each byte handed over at a known
+  sample; `0x80001818` within 1% of the tick spacing's BPM × 24 after each
+  run. Both USB checks fail without the timestamp.
+
+### What it is
+
+OS 1.40C ships a complete USB-MIDI transmit encoder (`0x4001d204`: raw
+bytes to 4-byte event packets, running status, SysEx spans) and the EP2
+primitives, reached by nothing, and no receive decoder. The module:
+
+- grows the configuration descriptors to MSC + AudioControl + MIDIStreaming
+  with EP2 bulk in/out (`descriptors.py`, generated per remix into the
+  `usbmidi_cfg` unit; `cfg_len` is the length the two clamp shims read);
+- brings EP2 up at SET_CONFIGURATION (512-byte packets at high speed),
+  answers CLEAR_FEATURE(ENDPOINT_HALT) for it;
+- dispatches EP2 completions from the USB ISR: IN completion frees the
+  transmit slot and drains the queue, OUT completion runs the receive
+  decoder, which feeds `midi_rx_enqueue` (`0x40092bbc`), the byte path DIN
+  MIDI uses, then re-primes (`usbmidi_rx.s`, see "Receive path");
+- mirrors both senders into the encoder: `midi_send` (channel messages)
+  and the priority byte sender (clock, transport). Messages are queued in
+  a 256-byte accumulator behind one transfer; a message that would
+  overflow it is counted in `usbmidi_tx_drops`, never sent corrupt.
+
+Nine detours, four descriptor-pointer rewrites, no pokes. The `usbmidi`
+unit is his file verbatim (two of the detours reach `usbmidi_rx` first, and two more, bus reset and session end, are `usbmidi_rx`'s own), and the build proves it: every build re-links
+it at his zone address `0x400d24f0` and compares with the 1,124-byte blob
+his `usb-midi.py` produced from our stock bytes (`Linked.reference`, the
+port-is-a-proof rule). The clamps are a second unit (`clamp.s`, his
+usb-audio.s shims reading `cfg_len`).
+
+### Ground
+
+| what | where |
+|---|---|
+| code + queues | DRAM units `usbmidi` (1,124 B, his bytes), `usbmidi_rx` and `usbmidi_clamp` in the platform reserve |
+| descriptors | DRAM unit `usbmidi_cfg` (4 × 124 B, or 4 × 250 B with a LAYOUT) |
+| hooks | `0x4001d9ca` `0x4001daec` `0x4001e606` `0x40010bc8` `0x400108b0` `0x4001d858` `0x4001d896` `0x4001e91c` `0x4001e952` (the last two replaced by the audio shims, which call `usbmidi_rx_bus_end`) |
+| pointer rewrites | the responder's four `pea` operands `0x4001d882` `0x4001d88a` `0x4001d8c0` `0x4001d8c8` |
+| firmware memory it uses | the firmware's own EP2 dQHs, dTDs and buffers (`0x4ec94900..`, `0x4ecc8000`, `0x4ecc9000`; the RX buffer's 4 KB page has no other reference in the image) |
+
+## Audio out (LAYOUT)
+
+The unit as a USB audio input (UAC2, 44.1 kHz, 24-bit), in one of six
 layouts chosen by the module's LAYOUT setting. LAYOUT is a build-time
 setting (`docs/proposals/BRAIN.md`): a remix pins it, for example
-`settings={("octabam.usb-audio-out", "LAYOUT"): Pin("MASTER")}`. Needs USB
+`settings={("octabam.usb", "LAYOUT"): Pin("MASTER")}`. Needs USB
 MIDI: the audio function is added to its composite device.
 
 | LAYOUT | `USB_LAYOUT` | high speed | full speed |
@@ -18,7 +306,7 @@ Until 6 Oct 2026 each layout was a module of its own (USB AUDIO OUT TRACKS
 MAIN CUE, OUT TRACKS, OUT MASTER, OUT MAIN CUE, OUT MAIN); each remix's
 image is byte-identical to the one it built with those modules. The
 sections from here to *Layouts* describe TRACKS MAIN CUE, the twenty
-channels; *Layouts* has the other four.
+channels; *Layouts* has the other five.
 
 | USB speed | channels | content |
 |---|---|---|
@@ -39,7 +327,7 @@ Bryan T's (25 Sep 2026). The clock SET CUR handling (*UAC2 hosts that set the
 clock*, below) is allmyfriendsaresynths's (@clickysteve), and the same change
 is proposed to octemu, whose `audio_ctrl_shim` this one still is.
 
-## Measured
+### Measured
 
 Under the port, `verify_usb` (in `make check REMIX=usb-out-tracks-main-cue`) runs with no card and
 silent tracks. It checks:
@@ -80,7 +368,7 @@ device. The port logs them as `iso poll(s) with no IN waiting`.
 The port cannot see the producer's timing against the eDMA's bank swap:
 the emulator runs the frame interrupt and the eDMA in lock-step.
 
-### MAIN/CUE against the tracks
+#### MAIN/CUE against the tracks
 
 The producer reads channels 1–16 from the read-back arena's previous bank
 and 17–20 from the mixdown buffer's current pull. Measured under the port
@@ -101,7 +389,7 @@ replugged between them) through `tools/hw/usb_offset.py take.wav --ref 1
 MKII, 7 Oct 2026, built from main `6f9e5bc9`;
 [TRACKS POST](#tracks-post), *On the unit*).
 
-## On the unit
+### On the unit
 
 **24-bit, 16 channels (image 69, Sam's MKII, 25 Sep 2026).** macOS lists a
 16-channel 44.1 kHz input. Two takes with `tools/rec`, with the counters
@@ -129,7 +417,7 @@ change in the stream. octemu's own image (image 65, `USBAUDIO.BIN` on
 the card root) enumerated as the MIDI composite only; its payload never
 installed. So there was no A/B against his build.
 
-### CUE against MAIN with MASTER TRACK on
+#### CUE against MAIN with MASTER TRACK on
 
 With MASTER TRACK on, CUE led MAIN by 32 samples (two blocks); with it off
 they are sample-aligned. Measured on Bryan T's MKII (29 Sep 2026: a
@@ -175,7 +463,7 @@ paid with no host connected. Each voice also costs ~2.5 µs more under this
 layout; cache pressure from the 320 read-back words per block is the
 candidate, not measured.
 
-### A MK1 into Ableton Live (erreye, 5–7 Oct 2026)
+#### A MK1 into Ableton Live (erreye, 5–7 Oct 2026)
 
 erreye's Octatrack MK1, an M1 Mac mini, Live 12.4, a Behringer UMC404HD at
 44.1 kHz as the output interface. The image is their `felipe` remix with
@@ -205,7 +493,7 @@ also needs the `moveq` in `audio_cushion_zero` made a `movel`).
   it for glitches on 2 Oct (through a hub) that they now attribute to the
   cable, the hub and Live's clock slips; a take at 64 is to come.
 
-### UAC2 hosts that set the clock
+#### UAC2 hosts that set the clock
 
 The clock is fixed at 44.1 kHz and declares its frequency control read-only,
 but a UAC2 host may still SET it to the rate it has just read. The Elektron
@@ -227,7 +515,7 @@ added (the build acknowledged any 4-byte SET CUR); the Outbox asks for 44100,
 which the check passes. Rejecting another rate is measured under the port
 only (`verify_usb`).
 
-## Open
+### Open
 
 - **A burst of reordered samples 0.5–1.5 s after a host opens the
   stream**, then in order for good; no frames are lost. At 24 bits it is
@@ -258,7 +546,7 @@ only (`verify_usb`).
   path is memory-bound, so the 320 read-back words count more than the
   2,710 instructions.
 
-## Gates
+### Gates
 
 - `verify_usb` (`make check REMIX=usb-out-tracks-main-cue`): the checks under *Measured*,
   and SET CUR of the sample frequency: 44100 acknowledged, 48000 a status-stage STALL,
@@ -266,14 +554,14 @@ only (`verify_usb`).
 - `verify_usb` also resets the bus with the stream open: GET_INTERFACE(4) answers 0, the polls are empty, and SET_INTERFACE alt 1 brings the stream back.
 - `tools/verify/verify_usb_align.py` (the manifest's gate): MAIN/CUE against the tracks.
 
-## Layouts
+### Layouts
 
 The layout is a `.set` in the `remix.inc` the `usbaudio` unit writes
 (`layout_inc` in the manifest). Every `USB_LAYOUT = 0` path is the source as
-it was before the layouts (27 Sep 2026). The four below take the same hook
+it was before the layouts (27 Sep 2026). The five below take the same hook
 sites; the producer detour's note in the build report names the layout.
 
-### TRACKS
+#### TRACKS
 
 The unit as a USB audio input (UAC2, 44.1 kHz, 24-bit), sixteen channels:
 track N's L/R on channels 2N−1/2N, post-FX, pre-fader. MAIN and CUE are
@@ -284,10 +572,9 @@ USB AUDIO OUT TRACKS MAIN CUE's source,
 the producer skips the MAIN/CUE reads and writes a 64-byte slot per frame;
 packets are 11/12 frames, at most 768 bytes, every 250 µs. Everything else
 (the shims, the rate servo, the counters, the descriptors' shape) is that
-module's. It takes the same hook sites, so a remix carries one of the three
-audio modules.
+module's. It takes the same hook sites, so a remix pins one layout.
 
-#### Measured
+##### Measured
 
 Under the port, `verify_usb` with `REMIX=usb-out-tracks` (27 Sep 2026):
 
@@ -299,7 +586,7 @@ Under the port, `verify_usb` with `REMIX=usb-out-tracks` (27 Sep 2026):
   each only its own.
 - Full speed: 1 ms packets of 44/45 8-byte frames.
 
-#### On the unit
+##### On the unit
 
 Image 69 (Sam's MKII, 25 Sep 2026) ran sixteen channels at 24 bits, every
 channel its track's tone, 0 underruns / overruns
@@ -307,11 +594,11 @@ channel its track's tone, 0 underruns / overruns
 has since gained MAIN/CUE (#435) and lost dead diagnostic code (#446), with
 the MAIN/CUE reads assembled out. It has not run on a unit.
 
-#### Gates
+##### Gates
 
 - `verify_usb` (`make check REMIX=usb-out-tracks`).
 
-#### Per block
+##### Per block
 
 The producer runs 16 frames per frame interrupt. Instructions executed per
 block at high speed, counted from the source (not cycles):
@@ -327,7 +614,7 @@ exact per-block count; cycles on the chip depend on memory timing the port
 does not model. `modules/cfmeter` (CF METER) measures the frame
 interrupt's duration and main's idle time on a unit.
 
-### MASTER
+#### MASTER
 
 The unit as a USB audio input (UAC2, 44.1 kHz, 24-bit), two channels:
 track 8's L/R, post-FX, pre-fader, on channels 1/2 at both USB speeds.
@@ -346,16 +633,15 @@ The variant is Sam Banks's (27 Sep 2026):
   (bInterval 2) like the other out layouts: 11/12 frames, at most 96 bytes;
   full speed every 1 ms: 44/45 frames, at most 360 bytes. Until 28 Sep 2026
   high speed polled every 1 ms too (360-byte packets, the form on Sam's MKII
-  as image 88); the 250 µs cadence is what lets a USB AUDIO IN module take
-  this stream as its implicit-feedback source. Not on a unit at 250 µs.
+  as image 88); the 250 µs cadence is what lets INPUTS take this stream as
+  its implicit-feedback source. Not on a unit at 250 µs.
 - **Descriptors.** USB MIDI's descriptor unit declares a two-channel input
   with bmChannelConfig front left + front right (`0x3`, the standard stereo
   cluster) in the input terminal and AS_GENERAL, at both speeds; 24-bit
   samples in 4-byte subslots, a fixed 44.1 kHz clock, as OUT TRACKS MAIN CUE.
-- It takes the same hook sites as OUT TRACKS MAIN CUE and OUT TRACKS, so a remix carries
-  one of the three.
+- It takes the same hook sites as OUT TRACKS MAIN CUE and OUT TRACKS, so a remix pins one layout.
 
-#### Measured
+##### Measured
 
 Under the port, `verify_usb` with `REMIX=usb-out-master` and `REMIX=bottleservice`
 (27 Sep 2026):
@@ -368,12 +654,12 @@ Under the port, `verify_usb` with `REMIX=usb-out-master` and `REMIX=bottleservic
   name their source, side and frame, channel 1 carries T8 L and channel 2
   T8 R, only those, at high speed and at full speed.
 
-#### On the unit
+##### On the unit
 
 Image 88 (Sam's MKII, 27 Sep 2026) carried the 1 ms high-speed form (above); nothing about the stream was
 measured there. The 250 µs form: not flashed.
 
-#### Open
+##### Open
 
 - Which channels an iOS app records by default. The descriptor declares a
   plain two-channel front L/R input; an app that takes the first two
@@ -381,11 +667,11 @@ measured there. The 250 µs form: not flashed.
 - Full speed on a phone: whether an iPhone or its adapter connects at high
   or full speed. Both carry T8.
 
-#### Gates
+##### Gates
 
 - `verify_usb` (`make check REMIX=usb-out-master`, `REMIX=bottleservice`).
 
-#### Per block and per millisecond
+##### Per block and per millisecond
 
 Counted from the source, instructions executed (not cycles):
 
@@ -401,7 +687,7 @@ Counted from the source, instructions executed (not cycles):
 main's idle time on a unit; the port's `--profile` samples every 64
 instructions and gives no exact count.
 
-### MAIN CUE
+#### MAIN CUE
 
 The unit as a USB audio input (UAC2, 44.1 kHz, 24-bit), four channels:
 MAIN L/R on channels 1/2 and CUE L/R on 3/4, the DAC feed itself, at high
@@ -431,10 +717,9 @@ The variant is Bryan T's (27 Sep 2026), from usbin-test's `AUD_IN4`:
   channels and 192-byte packets at bInterval 2; bmChannelConfig 0 as
   OUT TRACKS MAIN CUE and OUT TRACKS; 24-bit samples in 4-byte subslots, a fixed 44.1 kHz
   clock.
-- It takes the same hook sites as OUT TRACKS MAIN CUE, OUT TRACKS and OUT MASTER, so a remix
-  carries one of the four.
+- It takes the same hook sites as OUT TRACKS MAIN CUE, OUT TRACKS and OUT MASTER, so a remix pins one layout.
 
-#### Measured
+##### Measured
 
 Under the port, `verify_usb` with `REMIX=usb-out-main-cue` (27 Sep 2026), all checks passing:
 
@@ -448,7 +733,7 @@ Under the port, `verify_usb` with `REMIX=usb-out-main-cue` (27 Sep 2026), all ch
 - Full speed: 352/360-byte packets (44/45 two-channel frames), none empty
   after the first ten.
 
-#### On the unit
+##### On the unit
 
 Build 16, `usb-io` (this layout beside USB AUDIO IN), Bryan T's MKII and
 Mac, 27 Sep 2026: macOS lists the four inputs; MAIN L/R and CUE L/R reach
@@ -465,7 +750,7 @@ TRACKS MAIN CUE in the same image reads 120.5 / 144.8 / 245.5 µs and 16.8
 per voice (`docs/firmware/ARCHITECTURE.md` "ColdFire time per frame on a
 unit"). Not measured with the cable out.
 
-#### Open
+##### Open
 
 - Full speed on a unit.
 - What the full-speed packets contain. The gate checks their size only
@@ -476,22 +761,22 @@ unit"). Not measured with the cable out.
   counted.
 - USB AUDIO IN beside OUT TRACKS or OUT TRACKS MAIN CUE's larger packets on one bus.
 
-#### Gates
+##### Gates
 
 - `verify_usb` (`make check REMIX=usb-out-main-cue`).
 
-#### Why it exists
+##### Why it exists
 
 usbin-test (Bryan T, 26 Sep 2026) put the host -> A-D
 stream (USB AUDIO IN) beside a MAIN+CUE-only input by forcing the
 twenty-channel build down to four channels with an `AUD_IN4` flag: the
 producer still made all twenty and the packet builder copied out the last
-16 bytes of each slot. This module is that four-channel input as a layout
-of its own, so USB AUDIO IN can be paired with it, or with OUT TRACKS or
+16 bytes of each slot. This is that four-channel input as a layout
+of its own, so INPUTS can be paired with it, or with OUT TRACKS or
 OUT TRACKS MAIN CUE, independently. Only the four-in/four-out combination has run on
 hardware, and there as the slice, not this producer.
 
-### MAIN
+#### MAIN
 
 MAIN L/R from the unit to the host (UAC2, 44.1 kHz, 24-bit), two channels,
 a front left / front right cluster. Needs USB MIDI.
@@ -507,30 +792,29 @@ source, `usbaudio.s` (markandrus/octemu, MIT), assembled with
   no per-block speed test.
 - **High speed polls every 250 µs** (bInterval 2): 11.025 frames × 8 bytes a
   packet, at most 12 frames = 96 bytes. That cadence is what lets USB AUDIO
-  IN use this stream as its implicit-feedback source; with USB AUDIO IN AB
+  IN use this stream as its implicit-feedback source; with INPUTS AB
   the unit is a two-in, two-out interface (remix `usb-io-main-ab`).
 - **Full speed**: 44/45 frames × 8 bytes every 1 ms, at most 360 bytes.
 - **Descriptors.** USB MIDI's descriptor unit (`HS_LAYOUT`) declares two
   channels, 96-byte packets at bInterval 2, `bmChannelConfig` front L/R,
   24-bit samples in 4-byte subslots, a fixed 44.1 kHz clock.
-- It takes the same hook sites as the other out layouts, so a remix carries
-  one of the five.
+- It takes the same hook sites as the other out layouts, so a remix pins one layout.
 
-#### Measured
+##### Measured
 
 Under the port: `verify_usb` (`make check REMIX=usb-out-main`): EP 0x83 isochronous, 96
 bytes, bInterval 2; AS_GENERAL two channels, front L/R; packets at the
 250 µs cadence; the counters after the stream.
 
-#### On the unit
+##### On the unit
 
 Not on a unit.
 
-#### Gates
+##### Gates
 
 - `verify_usb` (`make check REMIX=usb-out-main`).
 
-#### Ground
+##### Ground
 
 | what | where |
 |---|---|
@@ -539,7 +823,7 @@ Not on a unit.
 | source | `MAIN_CUE_BASE` `0x80005e60`, MAIN at +0 |
 | hooks | USB AUDIO OUT TRACKS MAIN CUE's six detours |
 
-### TRACKS POST
+#### TRACKS POST
 
 The unit as a USB audio input (UAC2, 44.1 kHz, 24-bit), sixteen channels:
 track N's L/R on channels 2N−1/2N, **after that track's own MAIN gain** —
@@ -553,7 +837,7 @@ gives it in the MAIN mix. Choose it or TRACKS for pre-fader stems. The
 POST layout is allmyfriendsaresynths's (@clickysteve); until 8 Oct 2026 it
 was the module USB AUDIO OUT TRACKS POST (`usb-audio-out-tracks-post`).
 
-#### What a channel carries
+##### What a channel carries
 
 For track t, sample n of a block:
 
@@ -616,7 +900,7 @@ instead of into MAIN, and MAIN is T8 alone. Then:
 - Each track after the master track's effects exists nowhere in the unit:
   the master effects run once, on the sum.
 
-#### How it works
+##### How it works
 
 - **The gains.** Every block frame_isr builds a gain snapshot
   (`0x40004db8`, called from `0x4000d0de`) into a four-entry ring at
@@ -646,7 +930,7 @@ instead of into MAIN, and MAIN is T8 alone. Then:
 - **At high speed** the stereo sum is not made (it is only sent at full
   speed).
 
-#### Measured
+##### Measured
 
 Under the port, 5 Oct 2026:
 
@@ -681,7 +965,7 @@ Under the port, 5 Oct 2026:
   built cold before and after, gives the same image and the same build
   report (the remixes that fail to build on the base tree fail identically).
 
-#### On the unit
+##### On the unit
 
 On allmyfriendsaresynths's (@clickysteve) MKII. erreye's MK1 takes with
 this layout into Ableton Live are under TRACKS MAIN CUE, *A MK1 into
@@ -766,7 +1050,7 @@ bits while LEVEL, mutes, solo and the crossfader moved:
 - The large residuals all fell where the eight tracks summed to full scale
   or beyond: MAIN saturates (stock), the stems do not.
 
-#### Cost
+##### Cost
 
 Instructions in the producer hook per block, counted under the port
 (`--watch-pc` on the hook's entry and its rejoin `0x4000d9a6`, the steady
@@ -798,7 +1082,7 @@ Memory: the `usbaudio` unit grows by 428 B of code (2,434 → 2,862) and 1,920 B
 data (the four-block history, the ramp state, the per-block gain table and
 the 1 KB XLV table), in the platform reserve.
 
-#### Open
+##### Open
 
 - MASTER TRACK and the no-host CPU cost have not been measured on a unit.
 - The streaming cost on the unit (+2.8 µs for ~1,740 more instructions a
@@ -813,13 +1097,13 @@ the 1 KB XLV table), in the platform reserve.
   wrapped here where core 0 would read outside its table.
 - `srcjump` is not counted in this layout.
 
-#### Gates
+##### Gates
 
 - `verify_usb` (`make check REMIX=usb-out-tracks-post`).
 - `tools/verify/verify_usb_post.py` (the manifest's gate; needs a source
   project, `OT_PROJECT` or `~/.octabam_project`).
 
-## How it works
+### How it works
 
 - **Source, tracks.** The read-back arena at SRAM `0x80003190`. The eDMA
   writes every track's post-FX pre-fader block there each frame, in
@@ -860,8 +1144,8 @@ the 1 KB XLV table), in the platform reserve.
 - **Descriptors.** Two functions under interface associations: the MIDI
   function, then a UAC2 AudioControl with a fixed 44.1 kHz clock source
   and an AudioStreaming interface 4 (alt 0 idle, alt 1 streaming). USB
-  MIDI's descriptor unit generates this configuration when this module is
-  in the remix. The clock source's CUR/RANGE/validity requests are
+  MIDI's descriptor unit generates this configuration when a LAYOUT is
+  set. The clock source's CUR/RANGE/validity requests are
   answered by a shim on the stock "unknown request" STALL tail, and a SET
   CUR of its rate is taken there too (44100 acknowledged).
 - **DMA memory.** The USB controller does not snoop the data cache, so the
@@ -875,7 +1159,7 @@ the 1 KB XLV table), in the platform reserve.
   used. The ISR site is USB MIDI's; this module's shim retires EP3
   completions and chains to USB MIDI's by symbol (`Override`).
 
-## Counters
+### Counters
 
 A vendor control request (bmRequestType `0xc0`, bRequest `0x55`) returns
 fifteen counters as 60 big-endian bytes: consumed, acc, overruns,
@@ -889,7 +1173,7 @@ this open; anchor is the frames skipped at that poll.
 - `usb_host.py … counters` reads them under the port.
 - `verify_usb` checks them after its stream.
 
-### Bus reset and session end
+#### Bus reset and session end
 
 The stock USBSTS.URI handler (`jsr 0x4001d6b8` at `0x4001e91c`: flush, dTD
 tokens cleared, ENDPTCTRL1 cleared) and the OTGSC.BSVIS session-end path
@@ -904,9 +1188,9 @@ cushion zero, no anchor), and GET_INTERFACE(4) answered 1. Both shims clear
 tears EP3 down. They are in every USB AUDIO OUT variant's `DETOURS` and
 displace one instruction pair each (`jsr 0x4001d6b8; moveq #64,%d0`, and
 `movel 0xfc0b0140,%d0`). USB MIDI hooks the same two sites to take EP2
-down (`usbmidi_rx_reset_shim`, `usbmidi_rx_sessend_shim`); this module
-overrides those detours and its shims call `usbmidi_rx_bus_end` after the
-alt 0 request (`modules/usb-midi/README.md`, "Bus reset and session end").
+down (`usbmidi_rx_reset_shim`, `usbmidi_rx_sessend_shim`); this module's
+shims replace those detours and call `usbmidi_rx_bus_end` after the
+alt 0 request ([USB MIDI](#usb-midi), "Bus reset and session end").
 Ignorato's MKII ran these shims in OCTABAM21 (9 Oct 2026): USB MIDI transmit
 came back after each of three replugs on macOS and Windows 10, which is the
 `usbmidi_rx_bus_end` call. The alt 0 request itself is measured under the
@@ -914,13 +1198,375 @@ port only. On the session-end path the frame ISR's `audio_ep3_flush` runs
 with USBCMD.RS already clear; the port's flush completes at once, so that
 case is unmeasured.
 
-## Ground
+### Ground
 
 | what | where |
 |---|---|
 | code | DRAM unit `usbaudio` |
 | rings | 1,024 × 80 B (20 channels) + 1,024 × 8 B (stereo sum), the unit's data |
 | DMA memory | `aud_dtds` + `aud_bufs`, 4 × 32 B + 4 × 960 B, through the uncached alias (+`0x08000000`) |
-| hooks | `0x4001e91c` bus reset (USBSTS.URI handler), `0x4001e952` session end (OTGSC.BSVIS) (both USB MIDI's, overridden), `0x4001dd04` SET_INTERFACE, `0x4001d824` GET_INTERFACE, `0x4001de64` class requests, `0x4001d4b2` EP0 page fix, `0x4000d9a0` producer, `0x4001e606` USB ISR (USB MIDI's, overridden) |
+| hooks | `0x4001e91c` bus reset (USBSTS.URI handler), `0x4001e952` session end (OTGSC.BSVIS) (both USB MIDI's, replaced), `0x4001dd04` SET_INTERFACE, `0x4001d824` GET_INTERFACE, `0x4001de64` class requests, `0x4001d4b2` EP0 page fix, `0x4000d9a0` producer, `0x4001e606` USB ISR (USB MIDI's, replaced) |
 | poke | `0x400e2004` device class → `ef 02 01` |
-| descriptors | USB MIDI's `usbmidi_cfg` unit, generated with the audio function when this module is in the remix |
+| descriptors | USB MIDI's `usbmidi_cfg` unit, generated with the audio function when a LAYOUT is set |
+
+## Audio in (INPUTS)
+
+The host's channels into the Octatrack's inputs, by the module's INPUTS
+setting, a build-time setting a remix pins (`docs/proposals/BRAIN.md`), for
+example `settings={("octabam.usb", "INPUTS"): Pin("CD")}`:
+
+| INPUTS | host channels | DSP inject | packet |
+|---|---|---|---|
+| AB (the default) | 1/2 = inputs A/B; C/D stay on the jacks | `rx_inject_ab.asm`, RX slots 2/3 | 96 B |
+| CD | 1/2 = inputs C/D; A/B stay on the jacks | `rx_inject_cd.asm`, RX slots 0/1 | 96 B |
+| ABCD | 1–4 = inputs A–D | `rx_inject_abcd.asm`, all four slots | 192 B |
+
+Until 6 Oct 2026 each was a module of its own (USB AUDIO IN AB, IN CD, IN
+ABCD); each remix's image is byte-identical to the one it built with those
+modules. The sections below describe AB; *Inputs* has CD and ABCD.
+
+A stereo feed from the host into inputs A/B.
+
+The Mac sends a stereo pair, 24-bit at 44.1 kHz, over UAC2 on EP3 OUT, and
+it arrives on the Octatrack's inputs A and B in place of the jacks. Inputs C
+and D stay on the jacks. When the stream is closed, A and B are the jacks
+again. High speed only.
+
+Bryan T's USB AUDIO OUT (usbin-test, 26 Sep 2026: four channels into A–D,
+draft PR #468, then PR #495 as USB AUDIO IN) cut to a stereo pair and moved
+onto the build's placed-section path, 28 Sep 2026. The USB endpoint keeps
+USB's own host-centric name, EP3 OUT.
+
+### Measured
+
+- `tools/verify/verify_usb_in.py`, this module's gate
+  (`make check` runs it for any remix that carries it): the host's coded
+  samples bit-exact on slots 2/3 of the six completed RX blocks with slots 0/1 zero, in
+  consecutive frames, and on the recorder's input ring; the counters over
+  `0x56`; word 0 clear and the jacks back after alt 0. EP3 IN's frame size
+  comes from the remix's layout, so the gate runs beside OUT MAIN CUE, OUT TRACKS or
+  OUT TRACKS MAIN CUE. `verify_usb` checks the six-interface high-speed configuration
+  and the five-interface full-speed one. The port does not model SCM or XBS,
+  so USB CROSSBAR is measured on a unit only.
+
+### On the unit
+
+This stereo form has not been flashed. The four-channel
+form ran on Bryan T's MKII as usbin-test builds 12–16 (26–27 Sep 2026):
+about 5 million packets with `bad`, underruns and overruns 0 after the
+crossbar setting, DISK MODE in and out with the stream back afterwards.
+nordseele's MKI (`OCTABAM94`, the same build) enumerated and lit input A
+from host channel 1, with CoreAudio restarting the IO context hundreds of
+times and playback at about half nominal speed (his review, 27 Sep 2026);
+not reproduced on the MKII. `tools/hw/usb_probe.py` is the instrument:
+its EP3 IN drain rate (`consumed` per second) is the number that
+discriminates.
+
+#### Latency, measured on Bryan T's unit (usbin-test build 16, 27 Sep 2026)
+
+Both rings' `lastfill` over the vendor requests (`0x55`, `0x56`), read
+once a second:
+
+- **The sum of the two fills is conserved while the streams run**: 1,353 to
+  1,360 second by second through a fresh session, about 1,355 in another.
+  With implicit feedback the host sends as many frames as it reads, and the
+  DSP's frame clock produces into EP3 IN's ring and consumes from this one.
+  1,355 frames is about 31 ms, the round trip through the unit before the
+  host's own buffers.
+- **Where it comes from**: `AUD_TARGET` + `IN_TARGET` (896 when they were 512 + 384; 64 + 96 = 160 since 28 Sep 2026) plus about 460
+  frames EP3 IN gains between the stream starting and macOS polling it
+  steadily (INFERRED from two sessions).
+- **The split drifts** about 0.5 frames a second (11 ppm, that Mac against
+  the unit) from EP3 IN's ring to this one until EP3 IN reaches the bottom
+  of its band; this ring plateaued at 969 of 1,024.
+- **EP3 IN overruns happen at stream close**, not while running: the host
+  stops polling EP3 IN before it sends alt 0. Both rings restart on the
+  next open.
+
+So `IN_TARGET` alone does not set the latency. Two levers, both in
+`usbaudio.s`:
+
+1. **Anchor usbaudio's consumer at the host's first IN poll** rather than
+   at SET_INTERFACE. Done 28 Sep 2026 (`usbaudio_kick`, the `anchor`
+   counter over `0x55`; `verify_usb` holds the bench's first poll back 600
+   frames and checks the fill lands within `AUD_TARGET`/2 of `AUD_TARGET`). Not measured on a unit:
+   expected sum of the two `lastfill`s about 896.
+2. Lower `AUD_TARGET`, `IN_TARGET` and `AUD_BAND` together, keeping
+   `IN_TARGET − AUD_BAND` (this ring's floor) above the jitter the unit
+   shows. The OUT ring's own jitter is `minfill`/`maxfill` over `0x55`
+   (added with lever 1), unmeasured on a unit; the values follow that
+   measurement.
+
+### Open
+
+- This stereo form on a unit: `tools/hw/usb_probe.py` sustained and churn,
+  then a host → A/B → recorder take.
+- The MKI report above: half-speed playback and CoreAudio restarts, the
+  drain rate under `usb_probe.py` on that unit.
+- Beside OUT TRACKS or OUT TRACKS MAIN CUE on hardware: before the crossbar setting the
+  twenty-channel EP3 IN stream beside EP3 OUT lost packet tails under load;
+  the setting cured them with the four-channel pairing and the larger
+  pairings have not been run since. `usb-io-tracks-main-cue-ab` pairs it with OUT TRACKS MAIN CUE.
+- Packet buffers in SDRAM through the alias with USB CROSSBAR on.
+- Latency lever 2 above, after the unit measurement.
+- The skipped closed-stream transfer (5 Oct 2026) on a unit: what it
+  saves per frame with no host (not measured; Bryan T's 4 Oct takes all
+  streamed), and that the jacks stay live across open/close. Port only so
+  far: `verify_usb_in`, `verify_set` with the IN remixes.
+
+### Gates
+
+- `tools/verify/verify_usb_in.py` (the manifest's gate; `make check` runs it for any remix that carries the module).
+- `verify_usb`.
+- `verify_usb_in` runs 3 and 4: a bus reset and a session end with both streams open and no alt 0 from the host leave `in_alt`, `in_running` and `in_tx` word 0 at 0, and GET_INTERFACE(5) answers 0.
+
+### How it works
+
+**Descriptors** (`modules/usb/descriptors.py`, `with_in`):
+- AudioStreaming interface 5, alt 0/1, with EP3 OUT: 2 ch × 24-bit in 4-byte
+  subslots, front left / front right, 96 B every 250 µs. Iso asynchronous,
+  fed by IT `0x13` → OT `0x14` on the one clock.
+- EP3 OUT is the only free endpoint (EP1 mass storage, EP2 MIDI, EP3 IN
+  audio), so there is none for explicit feedback. EP3 IN is marked as the
+  **implicit-feedback** data endpoint (`bmAttributes 0x25`), and the host
+  sizes each OUT packet from the IN stream's.
+- It needs a LAYOUT beside it for that feedback: EP3 IN is EP3 OUT's
+  implicit-feedback source, so the descriptor unit refuses INPUTS with
+  LAYOUT OFF.
+- The full-speed configurations carry no interface 5: the unit serves the
+  stream at high speed only, so a full-speed host is never offered one. One
+  clamp (`cfg_len`) covers all four replies: a host asks for a
+  configuration's own `wTotalLength`, so the shorter tables' zero pad is
+  never requested.
+
+**ColdFire** (`usbaudio_in.s`, a DRAM unit; `IN_CHANNELS` from `remix.inc`, shared with [IN CD](#cd) and [IN ABCD](#abcd)):
+- `in_setiface_shim`, a detour after usbaudio's SET_INTERFACE shim:
+  interface 5 alt 0 or 1 records the alt setting and ACKs; any other alt
+  STALLs. usbaudio.s answers GET_INTERFACE(5) from the same byte
+  (`USB_IN` in its `remix.inc`).
+- Bus reset and session end: `in_alt` is cleared by usbaudio's
+  `audio_reset_shim` (`0x4001e91c`, the USBSTS.URI handler) and
+  `audio_sessend_shim` (`0x4001e952`, the OTGSC.BSVIS session end), which
+  the audio path carries with INPUTS on (`USB_IN`). Before
+  them, a cable pull or a host crash with the stream open left `in_alt =
+  in_running = 1`, `in_build` underran, and `rx_inject` wrote zeros over
+  the module's jacks until a host sent SET_INTERFACE(5, 0) (USB 2.0
+  9.1.1.5: alternate setting 0 after a reset). State 7 sees `in_alt = 0`
+  and brings EP3 OUT down within one frame. Port only: `verify_usb_in` runs
+  3 (URI) and 4 (session end); no unit has had a reset or a pulled cable
+  with this build. The flush `in_down` issues runs with USBCMD.RS already
+  clear on the session-end path; the port's flush completes at once, so
+  that case is unmeasured.
+- `in_state7_shim`, a detour on the frame-transfer state machine's state 7
+  (`0x40004bc0`). It is the one owner of EP3 OUT:
+  - brings it up and down;
+  - retires completed dTDs into a 1,024-frame ring;
+  - self-heals the queue;
+  - then runs a **second eDMA transfer** per DSP frame to core 0: 96
+    halfwords to `$6320` in the idle bank. Word 0 is 1 while the stream is
+    open, then 16 × (A hi, A lo, B hi, B lo), hi = sample[23:8], lo =
+    sample[7:0].
+
+  The stock frame-IRQ unmask runs on the second visit, our transfer's
+  completion. While the stream is closed the transfer runs until four
+  blocks with word 0 = 0 have completed (the DSP reads the block from its
+  working bank and the banks alternate per frame, so one zero block clears
+  one bank: `verify_usb_in` saw host words in every other block with a
+  single one), then is skipped and the first visit runs the stock state 7
+  itself (since 5 Oct 2026; before that every frame). `in_seconds` counts
+  transfers, so it stops rising while closed.
+- Cushion `IN_TARGET` = 96 frames (2.2 ms; 384 frames, 8.7 ms, until 28 Sep 2026).
+- The **dTDs and packet buffers are in on-chip SRAM** at `0x80007c00`, and
+  the EP0 reply buffer at `0x80007f80`, declared as `Claims.sram`; see
+  *SRAM*.
+- `in_ctrl_shim`, a detour on the EP0 stall store (`0x4001de6e`), answers
+  vendor request `0x56` with the fifteen counters.
+
+**DSP** (`rx_inject_ab.asm`, 33 words on payload A; `rx_inject_cd.asm` writes slots 0/1, `rx_inject_abcd.asm` all four, 49 words):
+- Placed by the build in the donor region like any effect, with no dispatch
+  entry: P:`0x88`'s `move r2,x:>$204` becomes `jsr >inject`
+  (`schema.DspHook`) and the inject replays it. The ledger refuses a second
+  section on the site.
+- While word 0 is set it writes the pair over slots 2/3 (inputs A/B) of the
+  current RX block (`X:$202`); slots 0/1 (C/D) are not touched. Every stock
+  reader of the block, the core 0 → core 1 handoff and the read-back the
+  recorder takes included, runs after P:`0x88` in the frame, so one inject
+  serves both cores and the recorder (`out/dsp/payload_A.asm`).
+- Every instruction form has a stock site in payload A, or ran on Bryan T's
+  unit in the four-channel inject; the source lists them.
+
+**USB CROSSBAR** is required: without it the controller's 16-byte RX FIFO
+loses packet tails under a busy project ([Crossbar](#crossbar)
+has the measurement).
+
+### Inputs
+
+#### CD
+
+A stereo pair from the host into inputs C/D in place of the jacks
+(host channel 1 = C, 2 = D; A/B stay on the jacks). High speed only, 24-bit,
+96-byte packets every 250 µs.
+
+The same ColdFire unit as USB AUDIO IN AB
+(`usbaudio_in.s`, `IN_CHANNELS = 2`), the same hook sites, the same
+counters on vendor request `0x56`; only the DSP inject differs
+(`rx_inject_cd.asm`: slots 0/1 of the RX block instead of 2/3). The AB README has the design, the
+measurements and the open items; `verify_usb_in` checks this variant's
+slots (coded on its own, zero on the others) under the port.
+
+Requires a 250 µs LAYOUT. One INPUTS value per remix
+(shared detour sites).
+
+##### Gates
+
+- `tools/verify/verify_usb_in.py` (the manifest's gate, image stage).
+
+#### ABCD
+
+Four channels from the host into inputs A-D in place of the jacks
+(host channels 1-4 = A, B, C, D). High speed only, 24-bit,
+192-byte packets every 250 µs.
+
+The same ColdFire unit as USB AUDIO IN AB
+(`usbaudio_in.s`, `IN_CHANNELS = 4`), the same hook sites, the same
+counters on vendor request `0x56`; only the DSP inject differs
+(`rx_inject_abcd.asm`: all four slots, 49 words; the four-channel form Bryan T's usbin-test ran on his MKII, build 16, 27 Sep 2026, there poked into SPATIALIZER's words). The AB README has the design, the
+measurements and the open items; `verify_usb_in` checks this variant's
+slots (coded on its own, zero on the others) under the port.
+
+Requires a 250 µs LAYOUT. One INPUTS value per remix
+(shared detour sites).
+
+##### Gates
+
+- `tools/verify/verify_usb_in.py` (the manifest's gate, image stage).
+
+### SRAM
+
+`0x80007c00`–`0x80007dff` holds the four dTDs and their 96-byte packet
+buffers, `0x80007f80`–`0x80007fbf` the EP0 reply. Evidence that the top
+1 KB is free (Bryan T, 26 Sep 2026):
+- The stock image's highest static SRAM use is the 768-byte buffer at
+  `0x80007574` (`0x40098890`), ending `0x80007874`.
+- No module touches anything above `0x80006907`.
+- Under the port, nothing touches `0x80007874`–`0x80007fff`: boot, frames
+  and USB streaming, and a busy project via `tools/verify/verify_set.py
+  --extra "--touch-map 0x80000000,0x8000=…"` plus
+  `tools/verify/sram_census.py`.
+- RAMBAR1 is `0x80000235`, so the backdoor is on for bus masters.
+
+SRAM is not cached, so no alias is needed. Packet buffers in SDRAM through
+the uncached alias (usbaudio's pattern) with USB CROSSBAR on has not been
+measured; SRAM alone did not cure the lost tails, the crossbar setting did.
+
+### Counters
+
+Vendor request `0xc0`/`0x56` returns fifteen big-endian longs:
+produced, consumed, pkts, lastn, lastfill, underruns, overruns, reprimes,
+bad, frames, seconds, minfill, maxfill, err, partial.
+`tools/hw/usb_counters.py --in` reads them from a unit; `verify_usb_in`
+reads them under the port. `tools/hw/usb_probe.py` reads both rings'
+counters through a host session and prints a verdict.
+
+### Ground
+
+| what | where |
+|---|---|
+| code | DRAM unit `usbaudio_in`; DSP section `rx_inject_ab.asm`, payload A's donor region, 33 words |
+| hooks | `0x4001e91c` bus reset and `0x4001e952` session end (usbaudio's shims, below), `0x4001dd0a` SET_INTERFACE (after usbaudio's), `0x40004bc0` frame transfer state 7, `0x4001de6e` EP0 stall store; DSP P:`0x88` (`DspHook`) |
+| ring | 1,024 × 8 B, the unit's data |
+| DMA memory | dTDs `0x80007c00` (128 B), packet buffers `0x80007c80` (384 B), EP0 reply `0x80007f80` (64 B): `Claims.sram` |
+| host-port buffer | `in_tx`, 192 B, through the uncached alias (+`0x08000000`) → core 0 X bank +`$320`..+`$380` |
+| descriptors | USB MIDI's `usbmidi_cfg` unit, interface 5 in the high-speed configurations |
+
+## Crossbar
+
+The USB controller bursts over the crossbar and is served first on the
+SDRAM and SRAM-backdoor slaves. Written once at the stock USB controller
+init (`0x4001e030`) and left on.
+
+| register | stock | this module | meaning |
+|---|---|---|---|
+| SCM BCR `0xfc040024` | `0` (reset; nothing sets it) | `0x3ff` | USB bursts to and from every slave |
+| XBS PRS2 / PRS4 | `0x65403210` (USB level 6 of 7) | `0x60504321` (USB level 0) | master priority on SDRAM (slave 2) and the SRAM backdoor (slave 4) |
+| XBS CRS2 / CRS4 | `0x110` (round robin) | `0x10` (fixed, park on last) | arbitration mode |
+
+### Measured
+
+The boot-time write has run under the port only (the port does not model SCM or XBS registers).
+
+### On the unit
+
+Bryan T's MKII, usbin-test builds 12-14, 26 Sep 2026. Same busy project, one minute per row unless stated:
+
+| setting | bad OUT packets |
+|---|---|
+| stock | 1,189 / min |
+| BCR 0x3ff | 5-11 / min |
+| BCR 0x3ff + USB first (this module's values) | 0 in 10 min, no audible or UI change |
+
+Ruled out on the way: the cable and port, USBMODE.SDIS, RXPBURST 1-8 (16
+exceeds the FIFO), packet buffers in SRAM alone, a four-channel IN stream
+alone, bit errors.
+
+In those builds the registers were written when the host opened the
+stream, from the frame-transfer interrupt, and never restored; DISK MODE
+and a further session ran under them (build 16, 27 Sep 2026). This module
+writes the same values at boot instead, so the setting does not depend on
+which module opens a stream.
+
+erreye's MK1, 7 Oct 2026: the same remix (`felipe`, a local branch with
+USB AUDIO OUT TRACKS POST) without this module (OCTABAM3) and with it
+(OCTABAM4), one after the other, a 2 m cable straight into an M1 Mac, Live
+holding the stream open:
+
+| image | time | EP 0x83 transaction errors (macOS) | device counters |
+|---|---|---|---|
+| OCTABAM3, without | ~5 min | 0 | 0 underruns, 0 overruns, 0 bankdup, fill 240–271 |
+| OCTABAM4, with | ~4 min | 0 | 0 underruns, 0 overruns, 0 bankdup, fill 238–265 |
+
+No difference on that unit and cable. Their 5 Oct before/after (~2,270
+errors a minute, then 0) is retracted by them: the earlier image (OCTABAM2
+or 3) was not recorded and a 3 m cable they also used was bad
+(`docs/contributing/FAILURE_MODES.md`, "A marginal USB cable"). Streaming
+and DISK MODE ran normally with this module on the MK1.
+
+The voice path under this priority (Bryan T's CF METER takes, 4 Oct 2026,
+`docs/firmware/ARCHITECTURE.md` "ColdFire time per frame on a unit"): each
+added FLEX voice costs the frame interrupt 16.6 µs with the USB cable out
+and 16.9 µs with a host streaming both directions, so USB DMA on the SDRAM
+slave does not stall the renderer measurably. The USB stack itself (IN
+ABCD + OUT TRACKS MAIN CUE) costs ~14 µs of mean ISR per frame idle and
+~24–26 µs once anything plays; OUT MAIN CUE in its place reads 27–50 µs
+less (the OUT TRACKS MAIN CUE README, *On the unit*). The
+stock DELAY on T1–T4 with seven FLEX voices and USB streaming added
+nothing measurable to the ISR mean.
+
+### Open
+
+- CAPTURE and card writes under this priority on a MKI (nordseele's review
+  of PR #468, 27 Sep 2026); DISK MODE ran on erreye's MK1.
+- Whether a MK1 under a busy project shows the MKII's bad OUT packets with
+  BCR 0: erreye's remix has no USB AUDIO IN, so their A/B streamed
+  device to host (EP 0x83) only; the MKII's errors were on host-to-device
+  packets.
+- The stock DELAY on eight tracks with Flex playback (SDRAM-heavy DMA)
+  under USB-first arbitration: four tracks with seven voices measured
+  clean on the ISR mean (above); eight tracks, and the routine's own
+  eDMA waits, not.
+
+### Why
+
+In device mode the controller has one 16-byte RX FIFO (MCF54455RM 10.4.3),
+about 270 ns of slack at 480 Mbit/s. With BCR 0 it is emptied one beat at a
+time; under a busy project it overflowed near the end of an isochronous OUT
+packet and the controller flagged a transaction error (CRC), 2 to 12 bytes
+short. Stock's own USB traffic is bulk and retried, so stock never showed
+it.
+
+### Ground
+
+| what | where |
+|---|---|
+| code | DRAM unit `usbcrossbar`, 10 instructions |
+| hook | `0x4001e030`, the USB controller init's `movel #0x08000000,%d0`, replayed |
