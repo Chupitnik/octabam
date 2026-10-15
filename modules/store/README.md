@@ -64,7 +64,9 @@ A client that cannot use a file (unknown version, bad length or CRC) calls
 written over. STORE lists up to 16 refusals (`store_pend`, `store_npend`,
 cleared at a load of every bank). At the first encoder turn after the load
 (the only UI-task site STORE holds; a list cannot be opened from the engine
-task) a three-row list opens, each row naming the file:
+task) FILE NOT LOADED names the file and says INVALID OR INCOMPATIBLE.
+YES opens the three recovery choices, each naming the file. NO keeps the
+file protected and dismisses the prompt until the next project load:
 
 | row | answer | what the client does |
 |---|---|---|
@@ -86,4 +88,7 @@ and BACKUP read it as a missing file; the list opens at an encoder turn, LEVEL +
 answers OVERWRITE, YES on row 0 answers IGNORE), `verify_plocksp2` (a bad `p2lk` header is
 listed and survives SAVE PROJECT), `verify_scenes --persist` (a bad `scenes.work` stays byte
 for byte under IGNORE; OVERWRITE and BACKUP give a good file, BACKUP also `scenes.bak`).
-Not covered: the rows' text on the LCD, a list opened over another window, the prompt on a unit.
+15 Oct 2026 (#742): `verify_kits` also checks the initial information
+dialog, YES opening the choices, and NO keeping the file protected without
+reopening on another encoder turn. Not covered: the rows' text on the LCD,
+a list opened over another window, the new prompt on a unit.

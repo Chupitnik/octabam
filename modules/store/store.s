@@ -406,6 +406,7 @@ store_answer_cb:
         .set    M_REDRAW,   0x4006d784
         .set    T_OBJ,      0x460e7612      | nonzero: a text editor is open
         .set    CTL_DISP,   0x40031944      | (control, delta): the encoders' dispatch
+        .set    DIALOG,     0x4006d57c      | (title, count, lines, 3, answer)
         .globl  store_ctl
 
 | 0x40061e00 (jsr CTL_DISP, control, delta): an encoder turn.
@@ -423,6 +424,8 @@ sc_closed:
         tstl    M_OBJ
         bne.s   sc_pass
         tstl    T_OBJ
+        bne.s   sc_pass
+        tstl    0x460e5cd0              | a stock confirmation dialog owns the keys
         bne.s   sc_pass
         bra.w   prompt_open             | the turn that opens it is spent
 sc_open:
@@ -475,6 +478,29 @@ prompt_open:
         pea     store_name
         jsr     SPRINTF
         lea     %sp@(12),%sp
+        | Explain the refusal before offering choices. No answer writes
+        | the card; NO leaves this file protected for the session.
+        moveq   #1,%d0
+        movel   %d0,store_shown
+        pea     store_info_answer
+        pea     3
+        pea     store_info_lines
+        pea     3
+        pea     store_info_title
+        jsr     DIALOG
+        lea     %sp@(20),%sp
+        movem.l %sp@,%d2-%d7/%a2-%a6
+        lea     %sp@(44),%sp
+        rts
+
+store_info_answer:
+        tstl    %sp@(4)                 | 0 YES: the recovery choices
+        beq.s   store_choices
+        rts                             | NO: no answer, no overwrite
+
+store_choices:
+        lea     %sp@(-44),%sp
+        movem.l %d2-%d7/%a2-%a6,%sp@
         pea     store_name
         pea     fmt_ignore
         pea     store_row0
@@ -655,6 +681,11 @@ store_lbtab: .long store_row0, store_row1, store_row2
 fmt_ignore:  .asciz "IGNORE %s"
 fmt_over:    .asciz "OVERWRITE %s"
 fmt_back:    .asciz "BACKUP %s"
+store_info_title: .asciz "FILE NOT LOADED"
+store_info_bad: .asciz "INVALID OR INCOMPATIBLE"
+store_info_next: .asciz "YES: RECOVERY OPTIONS"
+        .align  4
+store_info_lines: .long store_name, store_info_bad, store_info_next
         .align  4
 CRCREADY: .long 0
 store_npend: .long 0

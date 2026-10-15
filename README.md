@@ -16,8 +16,9 @@ user's machine, and a built image must never be shared.
 
 Every module is contributed by its author and credited in the table below.
 Pull requests are accepted: a module, a port of an existing mod, a fix, a
-doc correction. Issues are disabled and there is no request queue. The
-licence is MIT; a fork that takes requests and tracks issues is allowed.
+doc correction. Report bugs in [GitHub Issues](https://github.com/sambanks/octabam/issues),
+including the remix, image build, hardware model and steps to reproduce.
+The licence is MIT.
 
 ## Start here
 
@@ -135,7 +136,7 @@ from the card (section 5).
 | [**CF METER**](modules/cfmeter/README.md) | [sambanks](https://github.com/sambanks) | Probe: frame-interrupt duration and (with CF METER IDLE) idle time, plus core 0's frame spin count, ESAI underrun/overrun frames and frame period, printed as audio on T8's FX2. | port-gated: ColdFire half on image 92 (Sam's MKII, 3 Oct 2026: interrupt 123.1 us stopped, 213.5 us playing); the DSP slots and DBRN under the port only (4 Oct 2026) |
 | [**CF METER IDLE**](modules/cfmeter-idle/README.md) | [sambanks](https://github.com/sambanks) | Probe: main's idle loop timed, for CF METER's idle-time slot. | `make check`: boots and loads a project under the port (28 Sep 2026); the idle number needs the unit |
 | [**LOAD METER**](modules/load-meter/README.md) | [sambanks](https://github.com/sambanks) | The frame interrupt's share of the ColdFire, each DSP core's busy time per frame and each effect call's cost, for BRAIN's OTOP screen. | port-gated: the window and both DSP cores' figures under the port (verify_loadmeter, verify_brain); not on a unit |
-| [**REMIX SWITCH**](modules/remix-switch/README.md) | [sanderlegit](https://github.com/sanderlegit) | MAIN MENU > BRAIN lists the raw OS images (.RMX) in /BRAIN/REMIXES/ and boots the one picked without writing the flash; a power-cycle returns to the flashed image. | on hardware: an MKII, 29 Sep 2026 (OCTABAM14 with BOOT TRACE): switched to its own image and to stock 1.40C, audio and play working; and with the park moved into the dead vector run (BSRETVEC) booted, played and switched away again -- 40 region words down to 18; `verify_remixswitch`. The list in BRAIN's pane and /BRAIN/REMIXES/ (8 Oct 2026): under the port only |
+| [**REMIX SWITCH**](modules/remix-switch/README.md) | [sanderlegit](https://github.com/sanderlegit) | MAIN MENU > BRAIN lists the raw OS images (.RMX) in /BRAIN/REMIXES/ and boots the one picked without writing the flash; remembers the choice across reboots. | on hardware: an MKII, 29 Sep 2026 (OCTABAM14 with BOOT TRACE): switched to its own image and to stock 1.40C, audio and play working; and with the park moved into the dead vector run (BSRETVEC) booted, played and switched away again -- 40 region words down to 18; `verify_remixswitch`. The list in BRAIN's pane and /BRAIN/REMIXES/ (8 Oct 2026), and the persisted selection (#743): under the port only |
 | [**WAVE LOAD**](modules/waveload/README.md) | [sambanks](https://github.com/sambanks) | Probe: K 4-voice wave engines per frame interrupt (CF METER's BURN), for CF METER's duration readout. | on hardware: image 92, Sam's MKII, 3 Oct 2026: one 4-voice engine 69.2 us of the 362.8 us frame, clean beside four sample tracks |
 
 <!-- modules:end -->

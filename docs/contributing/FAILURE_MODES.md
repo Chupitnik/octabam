@@ -3,6 +3,37 @@
 Symptom → cause (measured, inferred or open) → fix. Add an entry the moment
 a mode is seen on hardware.
 
+## MIDI TRACK → CHROMATIC halts at the LCD surface descriptor (#741)
+
+- **Seen:** BUKKAKEBOREALIS's MKII, octabam-core, reported 15 Oct 2026:
+  `ssp: 4 VEC: 04 FS:0 SR:2000 ADDR: 400BF10A R0178`. KITS seemed good
+  in the same session; the image build identifier was not supplied.
+- **Cause (measured under the port):** the quantizer's octave-number hook
+  nopped a shared stack push at `0x400449be`. MIDI branches directly into
+  it and bypasses the replacement runtime, so the CHROMATIC drawer returns
+  four bytes off its stack into `0x400bf10a` (the LCD descriptor).
+- **Fix:** shorten the installed audio detour to six bytes and `Keep` the
+  shared push. The original report's path runs clean with CHROMATIC selected
+  under the port; `verify_quantizer_ui` covers both modes and models.
+  Hardware retest remains open. A halt on the fixed image would falsify
+  the claim that this accounts for the reporter's entire failure.
+
+## A selected remix is lost after another reboot (#743)
+
+- **Seen:** BUKKAKEBOREALIS's MKII, starting in octabam-core, reported
+  15 Oct 2026: the automatic switch boots the selected remix, then a later
+  reboot returns to core. The maintainer confirmed that the selection must
+  persist; target remix and image build identifiers were not supplied.
+- **Cause (read from the source):** the loader consumes the DRAM mailbox
+  once and the switcher stores no persistent selection. The previous
+  documented power-cycle behaviour fails the intended workflow.
+- **Fix (measured under the port):** keep the selected filename in BRAIN's
+  card store and restore it at boot before the project loads. Missing targets
+  release the project load in FLASHED; STARTUP MENU > EXIT bypasses the choice;
+  the selected image does not recursively switch. Both DSP cores restart.
+  `verify_remixswitch` covers these paths. Hardware retest is open, including
+  the real boot duration and startup-menu bypass on the reporter's MKII.
+
 `git show 666b6154:docs/remixer/FAILURE_MODES.md` holds the earlier text of
 the entries that existed at that commit. These entries are newer than it and
 are not in that blob: "PLAY or a sample load halts the unit in Octakit's

@@ -754,20 +754,24 @@ def main():
             run(cmd, OUT / f"{tag}.txt")
         with ThreadPoolExecutor(3) as ex:
             list(ex.map(lambda t: kbad(*t), [("kbad_ignore", None), ("kbad_over", 1), ("kbad_back", 2)]))
-        # the prompt: an encoder turn opens the list, LEVEL scrolls, YES answers
+        # The refusal explanation comes first; YES opens the recovery list.
         def ui(tag, *rows):
             sc = Script(); sc.tap("no", 400); sc.send("enc 1 1", 800)
+            if tag != "kui_info" and tag != "kui_cancel":
+                sc.tap("yes", 400)
             for r in rows:
                 sc.send(r, 700)
             sp = OUT / f"{tag}.script"; sp.write_text(sc.text())
             dmp = (f"{KS:#x},48={OUT / f'{tag}_st.bin'};{sym['store_npend']:#x},4={OUT / f'{tag}_np.bin'};"
                    f"{sym['store_pend']:#x},32={OUT / f'{tag}_pend.bin'};{sym['KBACKUP']:#x},8={OUT / f'{tag}_bk.bin'};"
                    f"0x460e5e28,4={OUT / f'{tag}_cbs.bin'};0x460e5e30,4={OUT / f'{tag}_obj.bin'};"
-                   f"{sym['store_mown']:#x},4={OUT / f'{tag}_mown.bin'}")
+                   f"{sym['store_mown']:#x},4={OUT / f'{tag}_mown.bin'};"
+                   f"0x460e5cd0,4={OUT / f'{tag}_dialog.bin'}")
             run([EMU, "--image", image, "--card", c, "--set", "OCTABAM", "--project", "KBAD", "--load-ms", "90000",
                  "--live-script", sp, "--mem-dump", dmp], OUT / f"{tag}.txt")
         with ThreadPoolExecutor(3) as ex:
-            list(ex.map(lambda t: ui(*t), [("kui_open",), ("kui_over", "enc 6 1", "key 0x31 down", "key 0x31 up"),
+            list(ex.map(lambda t: ui(*t), [("kui_info",), ("kui_cancel", "key 0x32 down", "key 0x32 up", "enc 1 1"),
+                                           ("kui_open",), ("kui_over", "enc 6 1", "key 0x31 down", "key 0x31 up"),
                                            ("kui_ignore", "key 0x31 down", "key 0x31 up")]))
 
     defer("reboot", ("saveproj",), lambda: boot("reboot", OUT / "saved.img"))
@@ -1272,6 +1276,12 @@ def main():
     if (not only or "krefuse" in only) and exists("base") and "store_answer_cb" in sym:
         joined("krefuse")
         w = lambda tag, n: struct.unpack(">I", (OUT / f"{tag}_{n}.bin").read_bytes())[0]
+        check("kui_info: explains the refused file before the recovery choices, still protected",
+              w("kui_info", "dialog") != 0 and w("kui_info", "mown") == 0 and w("kui_info", "np") == 1
+              and st("kui_info")["NOWRITE"] == 1)
+        check("kui_cancel: NO leaves the file protected and another encoder turn does not reopen the prompt",
+              w("kui_cancel", "dialog") == 0 and w("kui_cancel", "mown") == 0 and w("kui_cancel", "np") == 1
+              and st("kui_cancel")["NOWRITE"] == 1)
         check(f"kui_open: the encoder turn opened STORE's list (M_OBJ {w('kui_open', 'obj'):#x}, callbacks {w('kui_open', 'cbs'):#x} "
               f"= store_cbtab {sym['store_cbtab']:#x}, open flag {w('kui_open', 'mown')}); the file is still listed ({w('kui_open', 'np')})",
               w("kui_open", "obj") != 0 and w("kui_open", "cbs") == sym["store_cbtab"] and w("kui_open", "mown") == 1
