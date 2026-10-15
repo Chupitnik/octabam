@@ -1,5 +1,3 @@
-## What it does
-
 Provides the native Part-state access used by MIDI Loopback. Include MIDI PART
 STATE when selecting MIDI LOOPBACK in a custom remix. It adds no screen or
 control of its own.

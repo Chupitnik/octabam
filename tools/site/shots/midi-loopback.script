@@ -1,3 +1,4 @@
+# Probe walk; publish manual captures with capture_manual.py midi-loopback.
 # Use the disposable routing fixture from verify_midi_loopback_ui_port.py.
 # It starts on audio T1. The capture tool dismisses the date prompt.
 key 0x35
