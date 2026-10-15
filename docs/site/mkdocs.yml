@@ -30,8 +30,8 @@ nav:
   - Using Octabam:
       - Brain: brain.md
       - Kits and Patterns: reference/modules/kits.md
-      - Scenes: reference/modules/scenes-p2.md
-      - Parameter Locks: reference/modules/plocks-p2.md
+      - Page 2 Scene Locks: reference/modules/scenes-p2.md
+      - Page 2 Parameter Locks: reference/modules/plocks-p2.md
       - MIDI Scenes: reference/modules/midi-scenes.md
       - Mute Modes: reference/modules/mute-modes.md
       - USB Audio and MIDI: reference/modules/usb.md
