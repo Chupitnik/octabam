@@ -713,6 +713,23 @@ def main():
             bg.pop(name).result()
 
 
+    # The blank boot: no CS1 -- an EMPTY RESET's next power-up (the stock
+    # checksum fails, the boot takes the blank path). The stock blank project
+    # never runs the store's new-project event, so without the boot hook
+    # (kits_bootblank) KITS stays off and PART opens the stock Part window
+    # (a field report, 15 Oct 2026). The hook makes the boot's blank project
+    # a KITS project: the empty library, READY from the first screen.
+    def blankboot_run():
+        dmp = (f"{KS:#x},48={OUT / 'blank_st.bin'};0x100f85a0,72={OUT / 'blank_cs1.bin'};"
+               f"0x46c82456,4={OUT / 'blank_cur.bin'}")
+        run([EMU, "--image", image, "--card", card, "--set", "OCTABAM", "--project", "KITS",
+             "--load-ms", "90000", "--no-post", "--live-script", s1, "--mem-dump", dmp], OUT / "blank.txt")
+
+    if not only or "blank" in only:
+        for f in ("blank_st.bin", "blank_cs1.bin", "blank_cur.bin", "blank.txt"):
+            (OUT / f).unlink(missing_ok=True)
+        defer("blank", (), blankboot_run)
+
     def newboot_run():
         files = emu_card.extract_image((OUT / "newsave.img").read_bytes())
         name = next(k.split("/")[1] for k in files if k.startswith("OCTABAM/") and k.count("/") == 2
@@ -1242,6 +1259,21 @@ def main():
               f"({held[0]}), the engine on it (engine {eng[0] + 1}:{eng[1] + 1})",
               im[O_ASSIGN:O_VALID] == w[O_ASSIGN:O_VALID] and kit(im, 2) == kit(w, 2) and kit(im, 5) == kit(w, 5)
               and held[0] and eng[0] == 0 and eng[1] == sl[0])
+
+    # ---- the blank boot (no CS1: an EMPTY RESET's next power-up) -------------
+    # The boot's own migration then fills the library (every bank's Parts as
+    # Kits), as it does on a stock NEW PROJECT; what the hook adds is READY
+    # from the first screen and the CS1 copy, asserted here.
+    if not only or "blank" in only:
+        joined("blank")
+        if exists("blank"):
+            clean("blank")
+            cs1 = (OUT / "blank_cs1.bin").read_bytes()
+            check("blank: CS1 holds the KCS1 header (the empty library, saved at the boot)",
+                  cs1[:4] == b"KCS1")
+            cur = (OUT / "blank_cur.bin").read_bytes()
+            check(f"blank: the boot took the stock blank path (project {cur.hex()})",
+                  cur == b"\x40\x0e\x21\xe0")
 
     # ---- Em's v3 files ----------------------------------------------------------
     if (not only or "import" in only) and all(f.is_file() for f in v3):
