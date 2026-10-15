@@ -50,8 +50,8 @@ from the user's image at build time.
    on it; GitHub holds a first-time contributor's first CI run until a
    maintainer approves it.
 
-Issues are turned off (`README.md`): a question about your change goes in
-its PR.
+Report bugs in [GitHub Issues](https://github.com/sambanks/octabam/issues).
+A question about a change under review goes in its PR.
 
 ## A module
 

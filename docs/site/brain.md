@@ -31,9 +31,14 @@ of the LEVEL encoder opens TOOLS > LOAD.
 The remix switch. Every `.RMX` file in `/BRAIN/REMIXES/` on the CF card is
 listed, sorted; the one whose name matches the running image (case and
 spaces ignored) has RUNNING at the right. YES on one asks `BOOT <NAME>?` and
-boots it without writing the flash. After a switch, a FLASHED separator
-shows the image a power-cycle returns to: switching is temporary, and
-OFF/ON always comes back to the flashed image.
+boots it without writing the flash. The choice is saved in BRAIN/card.work
+and restored at the next reboot, before the project loads. After a switch,
+a FLASHED separator shows the installed image; select its name to return
+to it and clear the saved choice.
+
+To bypass the selection for one boot, hold FUNC at power-on and choose
+EXIT in the stock STARTUP MENU, or remove the card. This new persistence
+path has port coverage; its MKII hardware retest remains open.
 
 Making `.RMX` files (an image is a whole OS: stock 1.40C with one remix's
 modules built in):

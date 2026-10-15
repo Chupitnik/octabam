@@ -31,6 +31,26 @@ upgrade.
 
 TRIG 2 → EMPTY RESET clears battery-backed RAM and settings, not the card.
 
+## A saved-data file could not be loaded
+
+If a project file for FX page 2 parameter locks, Kits or MIDI scenes is
+unreadable or incompatible, a message names the affected data and file.
+This can happen with damaged or incomplete files as well as older formats.
+An ordinary stock project without these extra files does not need them.
+
+Press **NO** to dismiss the message and keep the original file protected,
+or **YES** to see the options. Turn **LEVEL** to choose, then press **YES**:
+
+| Choice | Result |
+|---|---|
+| KEEP FILE / SKIP SAVED DATA | Leaves the original file untouched. Its saved data is unavailable for this session. |
+| START FRESH / REPLACE FILE | Continues without the old saved data. The next save replaces the file. For Kits, the project's stock Parts become the starting Kits. |
+| BACKUP FILE THEN START FRESH | Starts fresh, but the next save first copies the original to a `.bak` file. |
+
+These choices do not upgrade or recover the old contents. Keep the file
+if you want to investigate or recover its data later. Pressing **NO** from
+the choices also leaves it protected until the next project load.
+
 ## FAQ
 
 **Is this official Elektron firmware?**
@@ -47,10 +67,12 @@ Both run the same OS 1.40C file, and both can flash an octabam image.
 octabam's own effects have only been tested on an MKII.
 
 **Has any of the three remixes run on a unit?**
-No. Each is verified under the port: the emulator boots the image and
-every gate passes, but the emulator is not the hardware. The closest
-thing to a hardware run is bottleservice — the same delay and reverb bus
-without the core modules — which ran on Sam's MKII.
+octabam-core is being tested on a MKII. Reports from 15 Oct 2026 include
+the MIDI CHROMATIC exception, the unclear file-recovery prompt and a
+remix selection lost after reboot; their fixes need hardware retesting.
+The remixes also have port gates, which cannot prove hardware behaviour.
+bottleservice — the delay and reverb bus without the core modules — has
+run on Sam's MKII.
 
 **Why can I not download a built image?**
 A built `.bin` or `.syx` contains Elektron's OS. Distributing it would

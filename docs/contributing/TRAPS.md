@@ -10,6 +10,27 @@ states the symptom, what it cost, the fix, and what now gates it.
 Add a new trap here the moment it costs real work, and add its one-line
 index entry in `AGENTS.md`'s trap index.
 
+<a id="trap-detour-interior"></a>
+### A branch can enter the middle of a displaced instruction span
+
+**Seen:** BUKKAKEBOREALIS's MKII, octabam-core, 15 Oct 2026 (#741):
+MIDI TRACK → CHROMATIC raised VEC 04 at `0x400bf10a`, the LCD surface.
+Reproduced under the port: stock's MIDI branch at `0x400449b6` enters
+`0x400449be`, a `movel d0,sp@-` shared with the audio drawer. The quantizer's
+eight-byte detour at `0x400449b8` replaced that push with a NOP; its runtime
+replays it for audio, but MIDI bypasses the runtime. The formatter then
+pops four bytes too many, and the drawer returns into its surface argument.
+
+**Cost:** the hook assembled and booted, and audio CHROMATIC worked, while
+the MIDI path lost its return address. Whole instructions at a hook's
+edges do not prove that every branch enters at those edges.
+
+**Fix and gate:** the integration installs a six-byte jump over only the
+audio load, leaving the shared push stock and claiming it with `Keep`.
+The author's runtime is unchanged. `verify_quantizer_ui` selects CHROMATIC
+through the panel in audio and MIDI on both models. Inspect incoming
+branches before taking any instruction span for a detour.
+
 ## Traps that have already cost real work
 
 <a name="trap-asm"></a>
@@ -769,6 +790,18 @@ all oracle failures.
 **A loader draft clobbered d0 across its copy loop and reused a0 after the
 hash.** Register discipline in a boot stub is not checkable by anything but
 the port: `verify_dram_boot` watches the loader's entry and its `fatal` hang.
+
+<a name="trap-word-fixture"></a>
+
+### The memory word-count fixture can race reach and shard snapshots
+
+The DSP memory word counter (`tools/remix/state.py`) writes a temporary
+`remixes/_words.py` while it builds measurement images. On 16 Oct 2026,
+`reach.py` read it as a changed remix and `check_shards.py` copied it into
+a shard just as the shared gate removed it. The planned `_words` check then
+failed with "no remix '_words'". Ignore that generated path: it is a build
+fixture, not a user selection. Its ignore rule keeps it out of both reach's
+untracked-file scan and shard snapshots.
 
 <a name="trap-tmp-race"></a>
 
