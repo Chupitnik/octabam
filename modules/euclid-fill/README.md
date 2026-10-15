@@ -44,7 +44,7 @@ FUNC + PAGE (SCALE SETUP) and PAGE alone stay stock.
 
 ## On the unit
 
-Not hardware-tested.
+Cursory testing on Sam's MKII (owner report, 16 Oct 2026).
 
 ## Gates
 
