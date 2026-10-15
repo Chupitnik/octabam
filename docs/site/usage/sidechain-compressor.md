@@ -4,13 +4,17 @@ filter and gain, and a switch to listen to the key.
 
 ## Access
 
-An effect on a track: select the track, press the FX key, and pick
-COMPRESSOR from the chooser; its page 2 carries the new knobs. Not in an
+An effect on a track: select the track, press FX2, and pick
+COMPRESSOR from the chooser; the setup page shows the new knobs. Not in an
 official remix; build the test remix `sidechain-compressor` (or
 `kyoti-mute-sidechain`). It uses SPRING REV's words, so SPRING REV is off
 the chooser in those images. It does not coexist with BusDelay or BusVerb:
 their core-private and cross-core memory overlaps, and the build refuses
 the pair.
+
+![FX2 SETUP with COMPRESSOR selected, showing RMS, KFLT, KGN, KEY and MON.](../../img/sidechain-compressor/chooser.png)
+
+*FX2 SETUP with COMPRESSOR selected, showing RMS, KFLT, KGN, KEY and MON.*
 
 ## Operation
 

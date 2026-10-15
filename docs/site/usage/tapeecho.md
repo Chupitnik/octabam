@@ -12,6 +12,10 @@ disabled. Not in an official remix; build the test remix `tapeecho`.
 Not hardware-qualified: earlier builds froze the unit while editing with
 three to six instances, and the current build is not flashed.
 
+![FX2 SETUP with Tape Echo selected.](../../img/tapeecho/chooser.png)
+
+*FX2 SETUP with Tape Echo selected.*
+
 ## Operation
 
 - SYNC FREE: TIME is continuous, 46 to 231 ms.

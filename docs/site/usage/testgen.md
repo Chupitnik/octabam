@@ -12,6 +12,10 @@ Not in an official remix; build the test remix `testgen`.
 LEVL starts at 0, so choosing TESTGEN makes no sound until you turn it up.
 Start low: a full-level tone is hard on ears and speakers.
 
+![FX1 SETUP with TESTGEN selected: the SINE mode and CHAN.](../../img/testgen/chooser.png)
+
+*FX1 SETUP with TESTGEN selected: the SINE mode and CHAN.*
+
 ## Operation
 
 MODE on page 2 picks the signal:

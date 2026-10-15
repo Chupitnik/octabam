@@ -21,6 +21,10 @@ Not in an official remix; build the test remix `wave`, which takes DARK
 REV's and SPRING REV's words, so both reverbs are off its chooser. The
 first 23 ms after the effect starts are silent while it writes its tables.
 
+![FX2 SETUP with Wave Synth selected: FDEP, FRAT, VDEP, VRAT and DETN on its page 2.](../../img/wave/chooser.png)
+
+*FX2 SETUP with Wave Synth selected: FDEP, FRAT, VDEP, VRAT and DETN on its page 2.*
+
 ## Operation
 
 - FRAM morphs through sine, triangle, saw, square and pulses 1/4 to 1/32.

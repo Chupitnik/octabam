@@ -9,6 +9,10 @@ An effect on a track: select the track, press FX2, and pick MINIVERB from
 the chooser, where DARK REV was. Not in an official remix; build the test
 remix `miniverb`. Not flashed or verified on hardware.
 
+![FX2 SETUP with Mini Verb selected.](../../img/miniverb/chooser.png)
+
+*FX2 SETUP with Mini Verb selected.*
+
 ## Operation
 
 - The default settings give about 4.6 seconds of decay (RT60, measured on

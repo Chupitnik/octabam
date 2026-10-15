@@ -15,6 +15,10 @@ Heard on a MKII on 4-5 Oct 2026, by ear: it plays and is intelligible, and
 one or two per core ran clean. Left-only click bursts on T1 were measured,
 which is why T1 and T5 are excluded.
 
+![FX2 SETUP with VOCODER selected: MODE INT.](../../img/vocoder/chooser.png)
+
+*FX2 SETUP with VOCODER selected: MODE INT.*
+
 ## Operation
 
 - MODE INT: the carrier is built in, two sawtooths an octave apart at
