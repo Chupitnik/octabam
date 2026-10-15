@@ -30,8 +30,8 @@ nav:
       - Feature Directory: reference/modules.md
   - Effects:
       - Send: reference/modules/send.md
-      - Bus Delay: reference/modules/busdelay.md
-      - Bus Reverb: reference/modules/busverb.md
+      - Delay Server: reference/modules/busdelay.md
+      - Reverb Server: reference/modules/busverb.md
       - Spectrum: reference/modules/spectrum.md
       - Character: reference/modules/character.md
       - Character TXTR: reference/modules/character-txtr.md
@@ -68,18 +68,18 @@ nav:
       - Mute Modes: reference/modules/mute-modes.md
       - Page 2 Parameter Locks: reference/modules/plocks-p2.md
   - Kits and Scenes:
-      - Kits and Patterns: reference/modules/kits.md
+      - Kits: reference/modules/kits.md
       - MIDI Scenes: reference/modules/midi-scenes.md
       - Page 2 Scene Locks: reference/modules/scenes-p2.md
-      - Store: reference/modules/store.md
   - MIDI and USB:
-      - USB Audio and MIDI: reference/modules/usb.md
+      - USB: reference/modules/usb.md
       - CC Map: reference/modules/cc-map.md
       - CC Feedback: reference/modules/cc-feedback.md
   - Settings:
       - Brain: brain.md
       - Memory: reference/modules/memory.md
       - Random Naming: reference/modules/rnd-name.md
+      - Store: reference/modules/store.md
   - Fixes:
       - ATA Write Guard: reference/modules/ata-write-guard.md
       - Batch Bugfixes: reference/modules/batch-bugfixes.md
