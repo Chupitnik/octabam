@@ -128,6 +128,14 @@ trig. Nothing carries page 2, and every byte of the pattern data is used.
   load and the masked bank loads, and emptied for a new project. A missing
   source copies as an empty file.
 
+## Trig edit and release
+
+The page-2 editor marks a held trig as edited and clears native pending tap
+masks before committing a lock. Otherwise releasing that trig can treat the
+gesture as a bare tap and delete the lock just entered. `verify_plocksp2.py`
+checks the held-step edit followed by release and subsequent bare-tap clearing.
+This editor correction leaves the retained layout and capacity unchanged.
+
 ## KITS
 
 KITS (in bottleservice beside this module since 6 Oct 2026) hooks the
