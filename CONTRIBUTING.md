@@ -234,6 +234,12 @@ costs (memory pages, DSP words) or proof status — updates the
 hand-written manual site pages under `docs/site/` in the same PR. The
 generated reference pages update themselves from the manifests.
 
+A manifest, remix selection or module README change leaves the generated
+copies stale: `make docs` renders `README.md`, `remixes/README.md` and
+`remixes/test/README.md` from the manifests and the selections. Run
+`make docs` and commit the result; `make verify-docs` is the local
+check, and CI's `docs and links` job refuses a stale copy.
+
 ## What CI checks
 
 `.github/workflows/ci.yml` runs on every PR, on `main` and by hand, with
