@@ -50,7 +50,6 @@ nav:
       - Send: reference/modules/send.md
       - Bus Delay: reference/modules/busdelay.md
       - Bus Reverb: reference/modules/busverb.md
-      - Tempo Controls: reference/modules/tempo-bus.md
       - Spectrum: reference/modules/spectrum.md
       - Character: reference/modules/character.md
       - Character TXTR: reference/modules/character-txtr.md
@@ -78,6 +77,7 @@ nav:
       - Stem Recording: reference/modules/stems.md
       - Synth Machine: reference/modules/synth.md
       - Tuner: reference/modules/tuner.md
+      - Tempo Controls: reference/modules/tempo-bus.md
   - Fixes:
       - ATA Write Guard: reference/modules/ata-write-guard.md
       - Batch Bugfixes: reference/modules/batch-bugfixes.md
