@@ -882,7 +882,8 @@ def main():
              # Zac Kyoti's ColdFire modules on the stock effects, no DSP words
              **{_k: () for _k in ("direct-jump-kyoti", "batch-bugfixes", "reload-from-project",
                                   "quantize-live-rec-toggle", "erase-empty-trigless-locks",
-                                  "mute-modes", "kyoti-mute-jump", "kyoti-fixes", "rec-trig-mute")},
+                                  "mute-modes", "kyoti-mute-jump", "kyoti-fixes", "rec-trig-mute",
+                                  "euclid-fill")},
              # the twelve io remixes: the IN module's RX inject is placed in SPATIALIZER's words
              **{f"usb-io-{o}-{i}": ("SPATIALIZER",) for o in ("tracks", "tracks-main-cue", "main-cue", "main") for i in ("ab", "cd", "abcd")},
              "octatrick": ("SPATIALIZER",),   # USB AUDIO IN's ABCD inject, as in the io remixes
