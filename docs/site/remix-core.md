@@ -19,13 +19,18 @@ FIX module). The other official remixes add effects to this set:
 | | CC MAP, CC FEEDBACK | CC onto page 2; knob changes out as CC |
 | | DIRECT_JUMP_KYOTI, RELOAD_FROM_PROJECT | clock-locked direct jump; reload one track from the card |
 | | SCALE QUANTIZER, TUNER | scale quantizing on PTCH; a tuner window (UP + TEMPO) |
-| USB | USB MIDI, USB AUDIO OUT | MIDI both ways; tracks, MAIN and CUE to a computer (layout MAIN CUE) |
+| USB | USB | MIDI both ways; MAIN and CUE to a computer (LAYOUT MAIN CUE, INPUTS OFF) |
 | recorder and fixes | RECORDER LOOP FIX, RLEN PLEN | the loop click; RLEN value PLEN |
 | | BATCH_BUGFIXES, ERASE_EMPTY_TRIGLESS_LOCKS, QUANTIZE_LIVE_REC_TOGGLE, REC_TRIG_MUTE, MUTE_MODES | Zac-Kyoti's fixes and mute modes (MUTE_MODES runs from DRAM) |
 
 Every module in the image, credited to its author:
 
 --8<-- "reference/_remix-octabam-core.md"
+
+USB combines MIDI, audio output, audio input and the input crossbar in one
+module. In this first merge, LAYOUT and INPUTS are build settings: changing
+them requires rebuilding the image. On-device USB configuration is planned
+but is not implemented in this version.
 
 ## What it costs
 
