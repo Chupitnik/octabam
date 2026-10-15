@@ -15,9 +15,10 @@ rules are in tools/verify/doclinks.py; 14 references pointed at no file on
 The hand-written site pages link to the generated reference pages, so this
 renders them first (tools/site/gen_pages.py, gitignored output); CI's docs
 job runs the generator before this anyway. Every contributed module needs
-an entry in the site nav (docs/site/mkdocs.yml), under its category.
+an entry in the site nav (docs/site/mkdocs.yml), under its category, and each
+nav label equals the page title tools/site/gen_pages.py gives that module.
 """
-import pathlib, sys
+import pathlib, re, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1])); import toolpath  # noqa: E402,F401
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "site"))  # gen_pages lives outside the toolpath groups
 from remix import index, registry
@@ -43,6 +44,11 @@ def main():
         if not m.is_stock and m.name != "brain" and f"reference/modules/{m.name}.md" not in nav:
             fails.append(f"docs/site/mkdocs.yml: no nav entry for module {m.name} "
                          f"(reference/modules/{m.name}.md)")
+    for label, name in re.findall(r"^\s+- (.+?): reference/modules/([\w-]+)\.md$", nav, re.M):
+        m = next((x for x in registry.modules().values() if x.name == name), None)
+        if m is not None and gen_pages._label(m) != label:
+            fails.append(f"docs/site/mkdocs.yml: nav label '{label}' for {name} differs from its page title "
+                         f"'{gen_pages._label(m)}'")
     fails += doclinks.check()
     for f in fails:
         print("  [FAIL]", f)

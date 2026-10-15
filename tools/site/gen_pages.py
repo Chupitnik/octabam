@@ -100,6 +100,7 @@ def _label(m) -> str:
         "rnd-name": "Random naming",
         "scenes-p2": "Page 2 scene locks",
         "stems": "Stem recording",
+        "tempo-bus": "Tempo controls",
     }
     if m.name in names:
         return title_case(names[m.name])
