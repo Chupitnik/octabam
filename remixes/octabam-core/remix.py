@@ -2,7 +2,7 @@
 
 CORE (BRAIN, STORE, KITS, MIDI SCENES, SCENES P2, PLOCKS P2, CC MAP, CC FEEDBACK,
 USB at MAIN CUE, the recorder and bug fixes, MUTE_MODES from
-DRAM, SCALE QUANTIZER, TUNER, DIRECT_JUMP_KYOTI, RELOAD_FROM_PROJECT, RLEN PLEN)
+DRAM, SCALE QUANTIZER, TUNER, DIRECT_JUMP_KYOTI, RELOAD_FROM_PROJECT, RLEN PLEN, ATA WRITE GUARD)
 with all 14 stock effects and LOFI AMF FIX. No octabam DSP code and no LOAD
 METER (its DSP half needs 156 words per payload; the 14 stock effects leave none).
 """

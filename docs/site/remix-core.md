@@ -22,6 +22,7 @@ FIX module). The other official remixes add effects to this set:
 | USB | USB | MIDI both ways; MAIN and CUE to a computer (LAYOUT MAIN CUE, INPUTS OFF) |
 | recorder and fixes | RECORDER LOOP FIX, RLEN PLEN | the loop click; RLEN value PLEN |
 | | BATCH_BUGFIXES, ERASE_EMPTY_TRIGLESS_LOCKS, QUANTIZE_LIVE_REC_TOGGLE, REC_TRIG_MUTE, MUTE_MODES | Zac-Kyoti's fixes and mute modes (MUTE_MODES runs from DRAM) |
+| | ATA WRITE GUARD | keeps the first PIO card write and its bookkeeping atomic against the completion interrupt |
 
 Every module in the image, credited to its author:
 
