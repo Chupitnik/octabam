@@ -251,3 +251,26 @@ out/emu/ot_emu --image /tmp/codex-usb-diag/b0-first-sector-guard-dram.bin \
 
 No cleanup of other sessions' worktrees, stashes, index or processes.
 The inherited usb-cfmeter-main and usb-bisect-b29 worktrees were left intact.
+
+## Final checkpoint before stopping for credits
+
+The integrated `python3 tools/verify/verify_ata_write.py ata-write-guard`
+finished successfully (exit 0). `/tmp/codex-ata-probe.log` shows PASS for
+stock control and all five guarded IPL cases (0,1,3,5,7). This supersedes
+references above to that specific gate being pending. Full `make check`
+and shipping composition/validation are STILL outstanding.
+
+Committed checkpoints:
+
+- USB handoff/manual changes: `9b77bd19` on `usb-module`.
+- Independent guard module and integrated gate: `e867e1c6` on
+  `codex/ata-write-guard`.
+
+If cherry-picking the guard onto USB, expect generated-index and possibly
+add/add handoff conflicts. Preserve the USB module merge, keep the USB
+branch's handoff, and regenerate README indexes with `make docs`; do not
+replace the merged USB module index with the old four-module index from
+the guard branch. The guard is still not enabled in shipping remixes.
+
+Background validation jobs were left running to preserve their work;
+inspect their logs/ownership before starting another build in those trees.
