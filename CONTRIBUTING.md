@@ -50,7 +50,8 @@ from the user's image at build time.
    on it; GitHub holds a first-time contributor's first CI run until a
    maintainer approves it.
 
-Report bugs in [GitHub Issues](https://github.com/sambanks/octabam/issues).
+[GitHub Issues](https://github.com/sambanks/octabam/issues) take bug reports,
+module proposals and hardware test reports (`.github/ISSUE_TEMPLATE/`).
 A question about a change under review goes in its PR.
 
 ## A module
