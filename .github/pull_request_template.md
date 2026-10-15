@@ -28,7 +28,7 @@ Remixes reached: <!-- every remix that carries a changed module -->
 can see, ships its docs in the same PR. -->
 
 - [ ] `docs/site/usage/<name>.md` added or updated (new module or a user-visible change)
-- [ ] Screenshots re-captured when the UI changed, or main changed a screen the scripts show (`docs/contributing/SCREENSHOTS.md`): remix, project and script run:
+- [ ] Screenshots re-captured when the UI changed, or main changed a screen a capture shows (`docs/contributing/SCREENSHOTS.md`): groups, project and remix run:
 - [ ] `mkdocs build --strict --config-file docs/site/mkdocs.yml` passes
 
 ## Hardware

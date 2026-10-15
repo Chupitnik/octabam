@@ -1,12 +1,23 @@
 # Screenshots for the manual site
 
-The manual site (`docs/site/`) shows LCD screens captured from the port, the
-ColdFire machine in `tools/emu/ot_emu`. A capture is a scripted panel session:
-`tools/emu/live_shots.py` builds a remix, boots it on a card staged from a
-project, replays a script of key presses, and writes one PNG per `shot` line.
+The manual site (`docs/site/`) shows LCD screens captured from the emulator
+through the panel UART. Two tools capture; the final image names come from
+one of them.
 
-Confidence markers: **measured** = run on the port; **read** = from the
-source of the tool, not run for this document.
+| tool | what it does | writes |
+|---|---|---|
+| `tools/site/capture_manual.py` | builds a remix, boots it, drives the panel with named steps per module, renders black-on-white PNGs | `docs/site/img/<module>/<screen>.png` and a record in `docs/site/screenshots.json` |
+| `tools/emu/live_shots.py` + `tools/site/shots/*.script` | replays a key script on the port (`ot_emu`); one `shot` line per PNG | `docs/site/img/<module>/<screen>.png` for the `shot <module>/<screen>` names in the script |
+
+`capture_manual.py` is the capture path for the manual. The four scripts in
+`tools/site/shots/` write 70 of their shots under `raw/` and `raw2/`
+(probe walks, measured: no `raw/` or `raw2/` directory is in the tree, and
+no tool or doc maps those names to a final name). Those shots are scratch.
+A screen that goes in the manual is a step in `capture_manual.py`, whose
+`shot(p, module, name, caption, remix)` call sets the final name.
+
+Confidence markers: **measured** = checked in the tree or on a run; **read**
+= from the source of the tool, not run for this document.
 
 ## When to re-capture
 
@@ -15,69 +26,83 @@ Re-capture in the same PR when the diff changes anything a shot shows:
 - a module's menu rows, names, value formatters, pages or `FxPage` layout;
 - BRAIN screens;
 - a remix's module set, where it changes what a screen lists;
-- the first-boot sequence the scripts rely on (the single `[NO]` after the date prompt).
+- the panel steps a capture function relies on (menu rows, popup geometry).
 
 After a rebase onto `origin/main`, check whether main changed any of those
 since the merge-base:
 
 ```bash
 git diff --stat $(git merge-base HEAD origin/main) origin/main -- \
-  modules/*/manifest.py modules/brain tools/site/shots docs/site/usage docs/site/img
+  modules/*/manifest.py modules/brain tools/site docs/site/usage docs/site/img docs/site/screenshots.json
 ```
 
-A non-empty result touching a module your branch also touches, or a script
-for a remix your branch builds, means re-capture that remix's scripts.
+A non-empty result touching a module your branch also touches means
+re-capture that module's group.
 
 `mkdocs build --strict` checks that image links resolve. It does not compare
 a PNG with the current UI; a stale shot passes CI.
 
-## Prerequisites (read)
-
-- a worktree with `vendor/` and `.venv/` linked and `out/raw/section_3_MAIN_OS.bin` present (`AGENTS.md`, "Worktrees and the shared checkout");
-- the port built in the worktree: `make emu-cf` (`out/emu/ot_emu`; never symlink `out/emu`);
-- an Octatrack project directory: `OT_PROJECT=<dir>`, `--project <dir>`, or the path in `~/.octabam_project`. The scripts name the gate projects `OCTABAM89_setgate` (bus) and `OCTABAM89_shots` (inserts); neither is in the repo, because a project holds sample data. A script's header comment says which effect sits on which track. Without those projects, build the same layout with `tools/hw/ot_project.py set-fx` (below).
-
-## Run
+## Run (read, from `tools/site/README.md` and `capture_manual.py`)
 
 ```bash
-OT_PROJECT=<project dir> .venv/bin/python3 tools/emu/live_shots.py <remix> \
+python3 tools/site/capture_manual.py <group> [<group> ...] [--project <dir>]
+```
+
+Groups and what each captures, from the `shot(...)` calls:
+
+| group | remix built | modules shot |
+|---|---|---|
+| `core` | `octabam-core` | rec-trig-mute, quantize-live-rec-toggle, mute-modes, quantizer, rlen-plen, midi-scenes, scenes-p2, plocks-p2, direct-jump-kyoti, reload-from-project |
+| `features` | `octabam-core` with REC THRESHOLD, EUCLID FILL, RND NAME and STEM REC added and REC TRIG MUTE removed (a scratch selection; THR and REC_TRIG_MUTE share a hook) | euclid-fill, rec-threshold, stems, rnd-name |
+| `inserts` | `octabam-inserts`, one effect per track | setup and main pages of SPECTRUM, CHARACTER, MODULATION, TRANSIENT, EUCLID, LOFI2, GATE VERB, DELAY |
+| `bus` | `octabam-bus` | fx2-lock, tempo-bus, load-meter, memory, usb, and the DELAY SERVER, SEND and REVERB SERVER pages |
+| `extras` | one test remix per module (character-txtr, testgen, sidechain-compressor, miniverb, tapeecho, vocoder, wave) | setup and main page of each |
+| `machines` | `analog-bassdrum`, `octatrick` | analog-bassdrum, synth, direct-jump |
+| `probes` | `cfmeter` | CF METER |
+
+The project is `--project`, `OT_PROJECT`, or the path in
+`~/.octabam_project`. The tool copies it to `out/manual-captures/<remix>/project`
+and edits only the copy: it assigns each track's effect with
+`ot_project.set_fx` (so the project needs no pre-arranged layout), builds
+with `BUILD=91 XBUS=1 SPEC=1`, and stages a card with `stage_card.py`.
+Logs: `build.log`, `stage.log`, `port.log` beside the image.
+
+Prerequisites: a worktree with `vendor/`, `.venv/` and
+`out/raw/section_3_MAIN_OS.bin` (`AGENTS.md`, "Worktrees and the shared
+checkout"), and the submodules initialised (`git submodule update --init`).
+
+## Records and coverage
+
+- `docs/site/screenshots.json`: one entry per image: file, caption, remix, source, and the sha256 of the firmware image it was taken on. Commit it with the PNGs.
+- `docs/site/screen-notes.json`: for a module with no LCD screen of its own, the sentence that says why. The generated `reference/screenshots.md` page shows the record count, else the note, else "Capture pending."
+
+A new module is therefore one of: a capture step in `capture_manual.py` and
+its PNGs, or an entry in `screen-notes.json`. Without either it shows as
+"Capture pending."
+
+## Review each capture
+
+A key sequence that ran does not show that it reached the intended page.
+Open every changed PNG before committing.
+
+## The probe scripts
+
+Use `live_shots.py` when walking the panel to find out what a key does:
+
+```bash
+OT_PROJECT=<dir> .venv/bin/python3 tools/emu/live_shots.py <remix> \
   --script tools/site/shots/<remix>.script
 ```
 
-Options: `--bank N` (default: the project's current bank + 1, or `OT_BANK`),
-`--scale N` (PNG scale, default 4), `--keep-card`, `--dsp` (runs the DSP pair,
-about 4x slower than real time), `--audio-in`, `--main-level`.
+The directives are in the `live_shots.py` docstring (`key`, `chord`, `hold`,
+`release`, `enc`, `wait`, `shot <module>/<screen>`, `quit`). Each script
+header records the walk it was written for. Key codes used there: `0x25`
+FX1, `0x26` FX2, `0x10` `0x11` `0x12` tracks 1-3, `0x32` NO, `0x28` PROJ.
+`shot raw/<name>` writes `docs/site/img/raw/<name>.png`, which is not
+gitignored (measured: `git check-ignore` is silent); delete `raw/` and
+`raw2/` before committing.
 
-The tool builds the remix with `BUILD=91 XBUS=1 SPEC=1`, copies
-`out/mainos_bus.bin` to `out/live/image.bin`, stages the card at
-`out/live/card.img`, and logs the port to `out/live/port.txt`. Output PNGs go to
-`docs/site/img/<module>/<screen>.png`.
-
-## Script format
-
-The directives are in the `live_shots.py` docstring: `key`, `chord`, `hold`,
-`release`, `enc`, `wait`, `shot <module>/<screen>`, `quit`. One line per
-directive; `#` starts a comment. Key codes are hex panel codes. Used in the committed scripts: `0x25` FX1,
-`0x26` FX2, `0x10` `0x11` `0x12` tracks 1-3 (tracks 4-8 are read from the
-scripts, not probed here), `0x32` NO, `0x28` PROJ. Each script's header
-records the probe walk that fixed its sequence.
-
-## Project layout the scripts assume
-
-One effect per track, assigned in the project file, so a script needs only
-track keys and the FX keys, with no chooser navigation:
-
-```bash
-python3 tools/hw/ot_project.py set-fx <PROJECT_DIR> fx1|fx2 <TRACK> <MODULE>
-```
-
-Effect ids sit at `PART_BASE + part*PART_STRIDE + 0x09` (FX1) and `+ 0x11`
-(FX2) of the bank file (`tools/hw/ot_project.py`). The writes cover all eight
-part records (parts 5-8 are the saved copies; see the comment above `PART_BASE`).
-Use a copy of the project; `ot_project.py` refuses writes without a same-day
-backup directory.
-
-## FX page behaviour (measured on the port, 16 Oct 2026)
+FX page behaviour, measured on the port 16 Oct 2026:
 
 - Boot restores the FX1 setup on **page 2** (the routing grid).
 - Track keys switch tracks on both pages.
@@ -87,38 +112,11 @@ backup directory.
 - The bus FX2 servers have one page and no routing page.
 - The tuner shows `--` under the live path: the port's DSP track chain produced no output (tone on the DSP input, gain table filled, TX0 ring all zero, 16 Oct 2026).
 
-## What each script covers
-
-| script | remix | covers |
-|---|---|---|
-| `octabam-core.script` | `octabam-core` | main menu, BRAIN screens, KITS, tuner |
-| `octabam-inserts.script` | `octabam-inserts` | FX1/FX2 pages and the per-track effects |
-| `octabam-inserts-p2.script` | `octabam-inserts` | page 2 walk, per-effect choosers |
-| `octabam-bus.script` | `octabam-bus` | bus servers' FX2 pages, locked FX2 chooser, TEMPO window |
-
-A new remix gets its own `tools/site/shots/<remix>.script`, named after the
-remix directory.
-
-## Naming and what is committed
-
-`shot <module>/<screen>` writes `docs/site/img/<module>/<screen>.png`. The
-usage fragment `docs/site/usage/<module>.md` references it as
-`../../img/<module>/<screen>.png`.
-
-The committed scripts write most of their 70 shots under `raw/` and `raw2/`
-(probe walks); `docs/site/img/` in the tree has no `raw/` or `raw2/`
-directory, and the committed images (`brain/`, `busdelay/`, `character/`, ...)
-carry the final names. The step that turned the `raw/` captures into the
-final names is not in the repo (measured: no script or doc references
-`img/raw`). Until a script does it, a re-capture of a module's final image
-needs a `shot <module>/<screen>` line with the final name in the script.
-
 ## Before the PR
 
 ```bash
-git status --short docs/site/img          # only the PNGs you meant to change
+git status --short docs/site                # the PNGs and the two JSON files you meant to change
 mkdocs build --strict --config-file docs/site/mkdocs.yml
 ```
 
-Commit the PNGs with the script change. Name the remix, project and script
-you ran in the PR body.
+Name the groups, project and remix in the PR body.
