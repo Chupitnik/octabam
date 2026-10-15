@@ -1,14 +1,15 @@
 """STEM REC -- tracks to the card while the sequencer plays, streamed.
 
-MAIN MENU > PROJECT > STEMS > REC arms a recording, or starts one if the
-sequencer is running; selecting it again stops it, and so does the
-sequencer stopping or 60 minutes. T1 to T8, MAIN, CUE, AB and CD turn
-sources on and off (the eight tracks at boot; locked during a take);
-AB STEREO and CD STEREO (on at boot) record an input pair as one stereo
-file or two mono ones; 24 BIT (off at boot) records 24-bit files. Each
-source is a file, <set>/AUDIO/YYMMDD-HHMM/<name>.wav: the tracks after
-the fader, MAIN and CUE as mixed, the inputs raw. stems_peak keeps the
-take's largest ring fill, for the menu's PEAK row. Design:
+UP + REC opens STEMS (toggle); REC alone stays stock. In STEMS, REC arms
+a recording, or starts one if the sequencer is running; selecting it
+again stops it, and so does the sequencer stopping or 60 minutes. T1 to
+T8, MAIN, CUE, AB and CD turn sources on and off (the eight tracks at
+boot; locked during a take); AB STEREO and CD STEREO (on at boot) record
+an input pair as one stereo file or two mono ones; 24 BIT (off at boot)
+records 24-bit files. Each source is a file,
+<set>/AUDIO/YYMMDD-HHMM/<name>.wav: the tracks after the fader, MAIN and
+CUE as mixed, the inputs raw. stems_peak keeps the take's largest ring
+fill, for the menu's PEAK row. Design:
 git show 4d2d6456:docs/superpowers/specs/2026-09-22-stem-rec-streaming-design.md; the menu,
 git show 4d2d6456:docs/superpowers/specs/2026-09-28-stem-rec-menu-design.md.
 Every stock fact the unit uses: docs/firmware/STEM_REC.md.
@@ -27,17 +28,18 @@ free top of the platform reserve, so the module costs no sample memory
 beyond what any DRAM remix already gives up. A third region, `stems_buf`,
 holds fourteen 512-byte sector-0 copies (the header's fix).
 
-Placement: STEMS is a row under PROJECT (not a fifth MAIN MENU root
-category), so BRAIN can own the root's fifth slot. The ledger refuses two
-modules growing MAIN MENU's root.
+Placement: UP + REC (detour on the REC press handler) opens STEMS as its
+own WCREATE window (tuner-shaped), not a MAIN MENU row — stock PROJECT
+and root stay stock so BRAIN can own the fifth root slot. Selection and
+labels live on stems_list / stems_rows; the window draws them itself.
 
 On hardware: STEMS1 to STEMS3 on Yves's MKII (docs/firmware/STEM_REC.md
-section 17) used the earlier root placement; PROJECT placement is port-gated.
+section 17) used the earlier root placement; the chord is port-gated.
 """
 
 import pathlib
 
-from remix.schema import Category, Detour, DramRegion, Gate, Kind, Linked, Module, Poke, Proof, TableGrow
+from remix.schema import Category, Detour, DramRegion, Gate, Kind, Linked, Module, Proof
 
 # The per-frame routine's only call site, inside the audio interrupt at
 # IPL 5: `jsr %pc@(0x400031a0)` then `move.w #0x2700,%sr` (cfprobe's site).
@@ -52,15 +54,10 @@ FRAME_STOCK = bytes.fromhex("4ebae68c" "46fc2700")
 ATA_FIRST_SITE = 0x40014CFE
 ATA_FIRST_STOCK = bytes.fromhex("207946c8c594")
 
-# MAIN MENU > PROJECT (docs/firmware/MAINMENU.md §2): list descriptor
-# 0x400cbcac (count at +0x00, row array at +0x18), stock 15 rows at
-# 0x400cc308. TableGrow copies those rows and appends STEMS: label +
-# action stems_enter (YES from a non-root list never follows +0x10;
-# stems_enter repoints PROJECT onto stems_rows so the pane redraws).
-# Window/getter/child/id zero. The STEMS rows are in stems.s.
-PROJECT_DESC = 0x400CBCAC
-PROJECT_ROWS = 0x400CC308
-PROJECT_N, ROW_WORDS = 15, 6
+# REC press handler (keymaps code 0x29, PANEL.md): `tst.l 8(sp); beq.w`.
+# UP held opens STEMS instead; REC alone falls through to stock.
+REC_SITE = 0x40048774
+REC_STOCK = bytes.fromhex("4aaf0008" "670000c0")
 
 # Core 0's gain table (X:0x6c00, 258 words, 3 bytes each, little-endian)
 # from the USER'S stock slice at build time: the OS reuses the RAM the
@@ -85,22 +82,17 @@ MODULE = Module(
     proof=Proof.HARDWARE, proof_note="Yves's MKII: STEMS1 (30 Sep 2026), T1-T8 for about two minutes; "
         "STEMS3 (6 Oct 2026), T1-T8 after the fader, MAIN and AB at 16 and 24 bits",
     doc="Multitrack recording to the card: each track (after its fader), MAIN, CUE and the "
-        "inputs as separate WAV files, 16 or 24 bits, up to 60 minutes. MAIN MENU > PROJECT > STEMS.",
+        "inputs as separate WAV files, 16 or 24 bits, up to 60 minutes. UP + REC opens STEMS.",
     linked=(Linked("stems", "modules/stems/stems.s", dram=True, include=gtab_inc),),
     detours=(Detour(FRAME_SITE, FRAME_STOCK, "stems", "stems_frame_hook",
                     "per-frame tap: the enabled tracks into the ring, then the stock routine",
                     kind="jsr", pad_to=8),
              Detour(ATA_FIRST_SITE, ATA_FIRST_STOCK, "stems", "stems_ata_first",
                     "the PIO write's first sector, pointer and count advanced first",
-                    kind="jmp"),),
-    tables=(TableGrow("PROJECT + STEMS", old=PROJECT_ROWS,
-                      count=PROJECT_N * ROW_WORDS,
-                      symbols=(("stems", "stems_cat_label"), ("stems", "stems_zero"),
-                               ("stems", "stems_enter"), ("stems", "stems_zero"),
-                               ("stems", "stems_zero"), ("stems", "stems_zero")),
-                      refs=((PROJECT_DESC + 0x18, PROJECT_ROWS),)),),
-    pokes=(Poke(PROJECT_DESC, expect=(PROJECT_N).to_bytes(4, "big"),
-                write=(PROJECT_N + 1).to_bytes(4, "big"), note="PROJECT rows 15 -> 16 (STEMS)"),),
+                    kind="jmp"),
+             Detour(REC_SITE, REC_STOCK, "stems", "stems_rec_key",
+                    "REC press: UP held toggles STEMS; else stock grid recording",
+                    kind="jmp", pad_to=8),),
     requires=("MEMORY",),
     dram_regions=(DramRegion("stems_ring", 0x800000),
                   DramRegion("stems_stack", 0x2000),
@@ -110,8 +102,8 @@ MODULE = Module(
     # 1.5.3; it SKIPs the port runs by name without one) and runs the takes
     # under the port. The card reader's round trip is remix-independent:
     # every take is read back through it. verify_stems_menu boots the image
-    # twice (MKII, MKI) under `ot_emu --interactive` and presses the menu's
-    # keys; it SKIPs by name without the port or the template.
+    # twice (MKII, MKI) under `ot_emu --interactive` and presses UP+REC /
+    # the STEMS keys; it SKIPs by name without the port or the template.
     gates=(Gate("tools/verify/verify_card_reader.py", remix_arg=False, venv=True),
            Gate("tools/verify/verify_stems.py", venv=True),
            Gate("tools/verify/verify_stems_menu.py", venv=True)),

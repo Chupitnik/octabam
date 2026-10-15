@@ -1,12 +1,12 @@
-# `stems-brain` — STEM REC under PROJECT with BRAIN
+# `stems-brain` — STEM REC (UP+REC) with BRAIN
 
-Coexistence proof: STEM REC grows `MAIN MENU > PROJECT` (STEMS row);
-BRAIN grows the root's fifth category. Previously both grew the root and
-the ledger refused the pair.
+Coexistence proof: STEM REC opens by UP + REC (no MAIN MENU grow);
+BRAIN grows the root's fifth category. Previously STEM REC also grew the
+root and the ledger refused the pair.
 
 ## What is in it
 
-- **STEM REC** (yvesrosius) — `MAIN MENU > PROJECT > STEMS`.
+- **STEM REC** (yvesrosius) — UP + REC opens STEMS.
   [The module page](../../../modules/stems/README.md).
 - **BRAIN** — root category; pulls **REMIX SWITCH** with it.
 - **MEMORY** — required by STEM REC's DramRegions.
@@ -15,11 +15,10 @@ the ledger refused the pair.
 ## Status
 
 Port: builds without a root-grow collision; `verify_stems_menu.py
-stems-brain` walks PROJECT > STEMS. Not hardware-flashed.
+stems-brain` opens STEMS with UP+REC beside BRAIN. Not hardware-flashed.
 
 ## Build
 
 ```bash
-make image REMIX=stems-brain BUILD=1
-python3 tools/verify/verify_stems_menu.py stems-brain
+make image REMIX=stems-brain
 ```

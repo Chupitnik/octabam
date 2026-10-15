@@ -1,12 +1,11 @@
 """STEMS -- STEM REC on the stock effects.
 
-Every track to the card while the sequencer plays, one file each, from
-MAIN MENU > PROJECT > STEMS, streamed while it records
-(docs/firmware/STEM_REC.md). No octabam DSP: the 14 stock effects are
-listed so the FX2 chooser is stock's. STEMS1 listed STEM REC alone and
-drew a one-row chooser with nothing in it (Yves's MKII, 30 Sep 2026);
-ok-ms lists them for the same reason. Under PROJECT so BRAIN can own the
-root's fifth category.
+Every track to the card while the sequencer plays, one file each; UP +
+REC opens STEMS (docs/firmware/STEM_REC.md). No octabam DSP: the 14 stock
+effects are listed so the FX2 chooser is stock's. STEMS1 listed STEM REC
+alone and drew a one-row chooser with nothing in it (Yves's MKII, 30 Sep
+2026); ok-ms lists them for the same reason. No MAIN MENU row so BRAIN
+can own the root's fifth category.
 """
 
 from remix.schema import Proof, Remix

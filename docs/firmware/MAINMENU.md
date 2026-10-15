@@ -64,16 +64,15 @@ five tall (`init(&0x400cbd90, 5, count)` at `0x40064c70`) and stock fills
 four. BRAIN adds its category this way (rows pointer `0x400cbda4` repointed
 to a five-row array in DRAM, count `0x400cbd8c` 4 → 5, its child descriptor
 shipped initialised with 7 visible rows). STEMS used to do the same through
-a `TableGrow` of the root, so the two were refused together; it now grows
-PROJECT instead (count `0x400cbcac` 15 → 16, row action `stems_enter`
-repoints PROJECT onto `stems_rows` because YES never follows `+0x10` from
-a non-root list — section 4), so it coexists with BRAIN. A pane can be rebuilt
+a `TableGrow` of the root, so the two were refused together; STEMS no
+longer grows any MAIN MENU list — UP + REC opens its own WCREATE window
+(section 4), so it coexists with BRAIN. A pane can be rebuilt
 each time MAIN MENU opens from a detour at `0x40064c32`, the opener's
 new-window path (skipped while the menu is already up), before the window
 is created: its row count and cursor may change there (REMIX SWITCH's rows
 in BRAIN's pane, sanderlegit). ✅ drawn and driven under the port, 29 Sep
 2026 (OS SWITCH's own category then) and 8 Oct 2026 (`verify_remixswitch`,
-BRAIN); STEMS under PROJECT, `verify_stems_menu` / `stems-brain`.
+BRAIN); STEMS own window, `verify_stems_menu` / `stems-brain`.
 
 Root rows: window descriptor set, child set, action 0. Leaf rows: window 0,
 child 0, action or page id set.
@@ -173,15 +172,16 @@ there passed a static zero-check and a no-project boot and faulted on
 added: a null-action row is a heading the cursor skips; a row inside a
 pane cannot descend (`+0x10` read on the root only); the descriptor must
 ship initialised. `RANDOMIZE PAGE` = `0x4005b9c0`, via `0x400bab22`.
-STEMS (`modules/stems`) sits under PROJECT: a `TableGrow` of the fifteen
-stock PROJECT rows plus STEMS and a `Poke` of the count 15 → 16; YES on
-STEMS runs `stems_enter`, which swaps PROJECT's rows onto the STEMS list
-in DRAM (the engine is two levels only — section 4). Earlier builds (29 Sep 2026)
-grew the root as a fifth category; that placement is retired so BRAIN can
-own the fifth root slot. Port: MKII and MKI keys (`verify_stems_menu`);
-coexistence remix `stems-brain`. Hardware proof of the take path remains
-Yves's MKII (STEMS1–STEMS3) under the earlier root placement.
-`STEM_REC.md` section 16.
+STEMS (`modules/stems`) opens with UP + REC (detour on the REC press
+handler) as its own WCREATE window (tuner-shaped class 5, not MAIN MENU
+class 1): no MAIN MENU row; stock PROJECT and root stay stock. Selection
+and labels live on `stems_list` / `stems_rows`; the window draws them.
+Earlier builds grew the root (29 Sep 2026), borrowed PROJECT, or poked a
+root-child YES into MAIN MENU; all retired so BRAIN can own the fifth
+root slot and STEMS stays separate from the menu chrome. Port: MKII and
+MKI (`verify_stems_menu`); coexistence remix `stems-brain`. Hardware
+proof of the take path remains Yves's MKII (STEMS1–STEMS3) under the
+earlier root placement. `STEM_REC.md` section 16.
 
 ## 6. Opening a parameter page from a handler ✅
 
