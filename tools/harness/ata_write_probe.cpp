@@ -79,7 +79,7 @@ bool run(const std::vector<uint8_t>& image, const std::vector<uint8_t>& runtime,
 
 int main(int argc, char** argv) {
     if(argc != 5) {
-        std::fprintf(stderr, "usage: ot_ata_write_test STOCK IMAGE RUNTIME BASE\n");
+        std::fprintf(stderr, "usage: ata_write_probe STOCK IMAGE RUNTIME BASE\n");
         return 2;
     }
     const auto stock = read(argv[1]), image = read(argv[2]), runtime = read(argv[3]);
