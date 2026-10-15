@@ -169,6 +169,7 @@ moment it costs real work, and add its line here.
 - [The port ran under Rosetta and nothing said so](docs/contributing/TRAPS.md#trap-rosetta) — `file out/emu/ot_emu` is the check.
 - [The report is API and prints paths](docs/contributing/TRAPS.md#trap-report-api) — re-save refhash only after the artifacts are shown identical.
 - [Same-named labels across units resolve by nm table order](docs/contributing/TRAPS.md#trap-nm-order) — per-unit tables; a ref naming a symbol its unit does not define is refused.
+- [A completion IRQ in the first-sector write window polls DRQ on the stale count](docs/contributing/TRAPS.md#trap-first-sector-irq) — the guard keeps the sector and its bookkeeping inside the existing mask; `verify_ata_write` gates it.
 
 ## How claims are written here
 
