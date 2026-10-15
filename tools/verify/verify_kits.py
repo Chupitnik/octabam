@@ -766,6 +766,7 @@ def main():
                    f"{sym['store_pend']:#x},32={OUT / f'{tag}_pend.bin'};{sym['KBACKUP']:#x},8={OUT / f'{tag}_bk.bin'};"
                    f"0x460e5e28,4={OUT / f'{tag}_cbs.bin'};0x460e5e30,4={OUT / f'{tag}_obj.bin'};"
                    f"{sym['store_mown']:#x},4={OUT / f'{tag}_mown.bin'};"
+                   f"{sym['store_info_lines']:#x},4={OUT / f'{tag}_explain.bin'};"
                    f"0x460e5cd0,4={OUT / f'{tag}_dialog.bin'}")
             run([EMU, "--image", image, "--card", c, "--set", "OCTABAM", "--project", "KBAD", "--load-ms", "90000",
                  "--live-script", sp, "--mem-dump", dmp], OUT / f"{tag}.txt")
@@ -1278,6 +1279,7 @@ def main():
         w = lambda tag, n: struct.unpack(">I", (OUT / f"{tag}_{n}.bin").read_bytes())[0]
         check("kui_info: explains the refused file before the recovery choices, still protected",
               w("kui_info", "dialog") != 0 and w("kui_info", "mown") == 0 and w("kui_info", "np") == 1
+              and w("kui_info", "explain") == sym["store_info_kits"]
               and st("kui_info")["NOWRITE"] == 1)
         check("kui_cancel: NO leaves the file protected and another encoder turn does not reopen the prompt",
               w("kui_cancel", "dialog") == 0 and w("kui_cancel", "mown") == 0 and w("kui_cancel", "np") == 1

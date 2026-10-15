@@ -391,7 +391,7 @@ store_answer_cb:
 
 | =============================================================== prompt ====
 | A refused file is offered three rows in the firmware's list window (the one
-| KITS opens for LOAD KIT): IGNORE, OVERWRITE, BACKUP, each naming the file.
+| KITS opens for LOAD KIT): keep the file, start fresh, or back up then start fresh.
 | The list opens at the first encoder turn after the load, the only UI-task
 | site STORE holds (a window cannot be opened from the engine task), and
 | LEVEL scrolls it. A row's callback answers the first listed file; the next
@@ -478,6 +478,9 @@ prompt_open:
         pea     store_name
         jsr     SPRINTF
         lea     %sp@(12),%sp
+        lea     store_info_text,%a0
+        movel   %a0@(0,%d2:l:4),%d0
+        movel   %d0,store_info_lines
         | Explain the refusal before offering choices. No answer writes
         | the card; NO leaves this file protected for the session.
         moveq   #1,%d0
@@ -486,7 +489,7 @@ prompt_open:
         pea     3
         pea     store_info_lines
         pea     3
-        pea     store_info_title
+        pea     store_name
         jsr     DIALOG
         lea     %sp@(20),%sp
         movem.l %sp@,%d2-%d7/%a2-%a6
@@ -501,21 +504,6 @@ store_info_answer:
 store_choices:
         lea     %sp@(-44),%sp
         movem.l %d2-%d7/%a2-%a6,%sp@
-        pea     store_name
-        pea     fmt_ignore
-        pea     store_row0
-        jsr     SPRINTF
-        lea     %sp@(12),%sp
-        pea     store_name
-        pea     fmt_over
-        pea     store_row1
-        jsr     SPRINTF
-        lea     %sp@(12),%sp
-        pea     store_name
-        pea     fmt_back
-        pea     store_row2
-        jsr     SPRINTF
-        lea     %sp@(12),%sp
         clrl    store_msel
         pea     store_cbtab
         pea     store_lbtab
@@ -678,14 +666,17 @@ store_shown: .long 0            | the prompt has been shown since the last proje
 store_msel:  .long 0
 store_cbtab: .long store_cb0, store_cb1, store_cb2
 store_lbtab: .long store_row0, store_row1, store_row2
-fmt_ignore:  .asciz "IGNORE %s"
-fmt_over:    .asciz "OVERWRITE %s"
-fmt_back:    .asciz "BACKUP %s"
-store_info_title: .asciz "FILE NOT LOADED"
-store_info_bad: .asciz "INVALID OR INCOMPATIBLE"
-store_info_next: .asciz "YES: RECOVERY OPTIONS"
+store_row0: .asciz "KEEP FILE / SKIP SAVED DATA"
+store_row1: .asciz "START FRESH / REPLACE FILE"
+store_row2: .asciz "BACKUP FILE THEN START FRESH"
+store_info_plk: .asciz "FX PAGE 2 LOCKS NOT LOADED"
+store_info_kits: .asciz "SAVED KITS NOT LOADED"
+store_info_scn: .asciz "MIDI SCENES NOT LOADED"
+store_info_bad: .asciz "UNREADABLE OR INCOMPATIBLE"
+store_info_next: .asciz "NO: KEEP FILE  YES: OPTIONS"
         .align  4
-store_info_lines: .long store_name, store_info_bad, store_info_next
+store_info_text: .long store_info_plk, store_info_kits, store_info_scn
+store_info_lines: .long store_info_plk, store_info_bad, store_info_next
         .align  4
 CRCREADY: .long 0
 store_npend: .long 0
@@ -695,6 +686,3 @@ store_npend: .long 0
 CRCTAB: .space  256*4
 store_pend: .space 32
 store_name: .space 32
-store_row0: .space 40
-store_row1: .space 40
-store_row2: .space 40
