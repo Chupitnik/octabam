@@ -1,7 +1,5 @@
-## What it does
-
-Class-compliant USB MIDI in and out, and USB audio out, on the
-Octatrack's own USB port. The stock USB storage mode still works.
+Connect the Octatrack to a computer for USB MIDI and audio. USB storage mode
+continues to work as it does in stock OS.
 
 ## USB MIDI
 

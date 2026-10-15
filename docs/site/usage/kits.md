@@ -1,5 +1,3 @@
-## What it does
-
 255 Kits per project. A Kit is a saved Part with a name; each pattern
 plays the Kit assigned to it. Loading a Kit loads its Part.
 
@@ -15,7 +13,7 @@ settings.
 
 ## The keys
 
-| action | MKII | MKI |
+| Action | MKII | MKI |
 |---|---|---|
 | LOAD KIT | PART | FUNC+MIDI |
 | SAVE KIT | FUNC+PART | FUNC+MIDI, then FUNC+BANK |
@@ -56,7 +54,3 @@ settings.
   are left on the card.
 - With MIDI SCENES in the remix, a Kit also carries the Part's scene
   lock table.
-
-## Screens
-
-![The KITS list from the PART menu, showing the current Kit](../../img/kits/list.png)

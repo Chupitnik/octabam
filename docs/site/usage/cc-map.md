@@ -1,16 +1,14 @@
-## What it does
-
 MIDI CC numbers stock ignores now reach page 2 of FX1 and FX2. Stock
 incoming CC writes page 1 only (CC 16–45).
 
 ## The CC numbers
 
-| CC | writes |
+| CC | Writes |
 |---|---|
 | 62–67 | FX2 page 2, slots 6–11 |
 | 68–73 | FX1 page 2, slots 6–11 |
 
-## How to use it
+## Operation
 
 Send the CC on a track's channel, with AUDIO CC IN on. The value is
 clamped to the slot's range. With MODE DEFAULTS in the image, a MODE

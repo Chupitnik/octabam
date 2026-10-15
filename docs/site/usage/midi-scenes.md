@@ -1,10 +1,8 @@
-## What it does
-
 Scene locks for the eight MIDI tracks, as stock has for the audio tracks.
 Each scene can lock any knob of a MIDI track's pages (NOTE, LFO, ARP,
 CTRL1, CTRL2), and the crossfader mixes scene A and B for them.
 
-## How to use it
+## Operation
 
 In MIDI mode (MIDI SEQUENCER), with scene A or B held:
 

@@ -1,6 +1,6 @@
 # The manual site
 
-The musician-facing manual, built with MkDocs Material and deployed to
+The musician-facing manual, built with MkDocs with the shadcn theme and deployed to
 GitHub Pages by `.github/workflows/pages.yml` on pushes to main. The same
 build, without the deploy, runs as the `site` job on every PR
 (`.github/workflows/ci.yml`).
@@ -67,3 +67,37 @@ python3 tools/site/gen_pages.py
 
 `gen_pages.py` needs the submodules initialized (`git submodule update
 --init`): the registry execs the authors' manifests.
+
+## LCD illustrations
+
+The manual uses exact firmware captures rendered in black on white.
+`tools/emu/lcd_view.py` now defaults to the white palette; `--palette yellow`
+selects the former LCD colours for PNG output. `live_shots.py` uses that
+renderer, so new scripted captures also default to white.
+
+Take fresh captures from the emulator's actual panel UART with:
+
+```bash
+python3 tools/site/capture_manual.py core features inserts bus extras machines probes
+```
+
+The command uses `OT_PROJECT` or `~/.octabam_project`, or accepts
+`--project <path>`. It copies the project and stages private cards beneath
+`out/manual-captures/`; the user's project is never edited. Each capture
+is recorded in `screenshots.json`, including the firmware hash and remix.
+The generated module galleries and screenshot coverage index read this
+manifest. `screen-notes.json` accounts for modules without a separate LCD
+interface and records blocked captures explicitly. Review the captured
+screens before publishing: a successful key sequence alone does not prove
+it reached the intended page. The `probes` group captures CF meter from
+the standalone `cfmeter` remix; the `waveload` image does not assemble
+(`meter.s:91`, short branch displacement 130).
+
+Keep image assets included in the site; only usage and remix fragments
+belong in `exclude_docs`.
+
+Usage fragments are included beneath a generated page title. Start them
+with an introduction, not another H1. Link screenshots relative to the
+resulting generated module page. Main manual chapters use their own local
+image paths. `manual.css` handles reading width, spacing and image framing
+while retaining the theme's typeface and colour tokens.

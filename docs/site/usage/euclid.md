@@ -1,17 +1,15 @@
-## What it does
-
 A stereo Euclidean modulation effect. A rhythm of 1–64 steps (evenly spaced
 in the cycle) drives one of five destinations: low-pass, band-pass,
 high-pass, notch, or amplitude. The rhythm follows the Octatrack transport,
 track speed and swing grid, keeps rolling across pattern loops, and PLAY
 resets its phase.
 
-## Where to find it
+## Access
 
 An effect on a track: select the track, press FX1 or FX2, and pick EUCLID
 from the chooser. In octabam-inserts only.
 
-## How to use it
+## Operation
 
 - STEPS is the cycle length, PULSE how many pulses land in it (limited to
   STEPS). DEPTH is bipolar: centre leaves the destination static, positive
@@ -34,9 +32,9 @@ from the chooser. In octabam-inserts only.
 - MIX 0 is an exact dry passthrough. Zero pulses and STOP return to the base
   cutoff or gain.
 
-## Knobs
+## Parameters
 
-| page | knob | what it does |
+| Page | Knob | What it does |
 |---|---|---|
 | Main | FREQ | base cutoff (LP/BP/HP/NOTCH); base gain (AMP) |
 | Main | RES | resonance for the four filters; inert for AMP |
@@ -50,9 +48,3 @@ from the chooser. In octabam-inserts only.
 | Setup | ATK / EDGE / SLEW | per OUT mode: ENV attack, GATE edge smoothing, RAND transition |
 | Setup | OUT mode | ENV, GATE, RAND, LOOP |
 | Setup | MIX | dry/wet; 0 is an exact dry passthrough |
-
-## Screens
-
-![The EUCLID page: the four knob boxes](../../img/euclid/main.png)
-
-![The routing grid (page 2): source, destination and modulation](../../img/euclid/setup.png)

@@ -46,15 +46,18 @@ def chord(fd, first, second):
     os.write(fd, f"key 0x{first:02x} up\n".encode()); time.sleep(0.25)
 
 
-def shot(lcd, module, screen, scale):
+def shot(lcd, module, screen, scale, palette="white", output=IMG):
     time.sleep(0.6)
-    target = IMG / module / f"{screen}.png"
+    target = output / module / f"{screen}.png"
     target.parent.mkdir(parents=True, exist_ok=True)
     r = subprocess.run([str(PY), str(ROOT / "tools/emu/lcd_view.py"), str(lcd),
-                        "--png", str(target), "--scale", str(scale)], cwd=ROOT)
+                        "--png", str(target), "--scale", str(scale), "--palette", palette], cwd=ROOT)
     if r.returncode:
         raise RuntimeError(f"shot {module}/{screen}: lcd_view exited {r.returncode}")
-    print(f"shot       : {target.relative_to(ROOT)}")
+    archive = OUT / "captures" / module / f"{screen}.lcd"
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(lcd, archive)
+    print(f"shot       : {target}", flush=True)
 
 
 def main():
@@ -64,6 +67,9 @@ def main():
     ap.add_argument("--project", default=os.environ.get("OT_PROJECT", ""))
     ap.add_argument("--bank", type=int, default=int(os.environ.get("OT_BANK", "0") or 0))
     ap.add_argument("--scale", type=int, default=4)
+    ap.add_argument("--palette", choices=("white", "yellow"), default="white")
+    ap.add_argument("--output-dir", type=pathlib.Path, default=IMG,
+                    help="capture directory (default: manual image assets)")
     ap.add_argument("--keep-card", action="store_true")
     ap.add_argument("--dsp", action="store_true", help="run the DSP pair (PLAY can then make audio)")
     ap.add_argument("--audio-in", default="", help="ot_emu --audio-in: a WAV onto RX0, or 'tones'")
@@ -145,7 +151,7 @@ def main():
                     time.sleep(float(w[1]))
                 elif w[0] == "shot" and len(w) == 2:
                     module, _, screen = w[1].partition("/")
-                    shot(lcd, module, screen, a.scale)
+                    shot(lcd, module, screen, a.scale, a.palette, a.output_dir)
                 else:
                     print(f"live_shots: unknown line {line!r}")
             if port.poll() is None:

@@ -1,5 +1,3 @@
-## What it does
-
 One modulator — ring mod, or a stereo frequency shifter (SHIFT UP / SHIFT
 DOWN) — into sample-rate and bit reduction and a high-shelf cut. An insert
 on its own FX2 id, so stock LO-FI stays in the chooser beside it.
@@ -8,13 +6,13 @@ The defaults are a passthrough (MIX, FREQ, FDBK, SRR and BRR at 0, AMPH at
 its centre, LPF at 127), so a fresh instance changes nothing until you turn
 it.
 
-## Where to find it
+## Access
 
 An effect on a track: select the track, press FX2, and pick LOFI2 from the
 chooser. Page 1: FREQ, MIX, FDBK/GAIN, SRR, BRR, LPF. Page 2: RANGE, MODE,
 AMPH. In octabam-inserts only.
 
-## How to use it
+## Operation
 
 - MIX is the modulator's depth, not a global wet/dry: SRR and BRR run after
   it and stay live at MIX 0.
@@ -26,9 +24,9 @@ AMPH. In octabam-inserts only.
   all eight in SHIFT, have run cleanly. An FX1 effect on the same track
   takes from the same core's budget.
 
-## Knobs
+## Parameters
 
-| page | knob | range | what it does |
+| Page | Knob | Range | What it does |
 |---|---|---|---|
 | 1 | FREQ | 0..127 | modulator frequency, exponential over six octaves; sweeps are smooth |
 | 1 | MIX | 0..127 | modulator depth: crossfades the ring or shift against the dry |
@@ -39,9 +37,3 @@ AMPH. In octabam-inserts only.
 | 2 | RANGE | LOW / HIGH | FREQ's base: RING 2 Hz / 60 Hz, SHIFT 2 Hz / 31.25 Hz |
 | 2 | MODE | RING / DOWN / UP | ring mod, or the shifter moving every partial down or up |
 | 2 | AMPH | -64..+63 | ring carrier's left/right phase offset, -90 to +88.6 degrees; 0 at the centre. RING only |
-
-## Screens
-
-![The LOFI2 page: the four knob boxes](../../img/lofi2/main.png)
-
-![The routing grid (page 2): source, destination and modulation](../../img/lofi2/setup.png)

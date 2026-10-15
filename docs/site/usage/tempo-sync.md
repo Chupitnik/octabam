@@ -1,10 +1,8 @@
-## What it does
-
 A held MIDI note feeds BusDelay's TIME knob, and the knob draws as a
 tempo division while the DSP's sticky snap holds one. The tempo itself is
 stock's.
 
-## How to use it
+## Operation
 
 No menu: it runs wherever BusDelay runs. Send a MIDI note into the delay
 host's track channel and hold it: TIME becomes that note's tempo

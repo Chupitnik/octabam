@@ -1,16 +1,14 @@
-## What it does
-
 A filter pedal that replaces stock FILTER: a Moog ladder, an Oberheim SEM
 state-variable filter, an isolator and a formant bank, with an envelope and
 an LFO on the cutoff. The defaults are an exact passthrough, so a part that
 chose FILTER sounds the same until you turn it.
 
-## Where to find it
+## Access
 
 Press FX1 on a track; SPECTRUM is in the chooser in place of FILTER. In
 octabam-inserts it is also on FX2; in octabam-bus it is FX1 only.
 
-## How to use it
+## Operation
 
 - MODE on page 2 picks the filter:
   - **LADR** — a 24 dB/oct Moog transistor ladder. RES 127 is the edge of
@@ -26,9 +24,9 @@ octabam-inserts it is also on FX2; in octabam-bus it is FX1 only.
   LDP is an LFO onto the cutoff; LSP sets its speed (~0.08–9 Hz).
 - WDTH is mid/side width on the output; the centre (64) is untouched.
 
-## Knobs
+## Parameters
 
-| page | knob | range | default | what it does |
+| Page | Knob | Range | Default | What it does |
 |---|---|---|---|---|
 | 1 | FREQ | 0–127 | 127 | the cutoff, exponential, 60 Hz → 15 kHz; LOW in ISO; the vowel morph in VOWL |
 | 1 | RES | 0–127 | 0 | resonance; COLR in ISO; SHRP (band narrowing) in VOWL |
@@ -36,7 +34,7 @@ octabam-inserts it is also on FX2; in octabam-bus it is FX1 only.
 | 1 | LDP | 0–127 | 0 | LFO onto the cutoff |
 | 1 | LSP | 0–127 | 64 | LFO speed ~0.08–9 Hz; ENV's release |
 | 1 | WDTH | bipolar | 64 | mid/side width on the output |
-| 2 | MODE | LADR / SEM / ISO / VOWL | | the filter |
+| 2 | MODE | LADR / SEM / ISO / VOWL | — | Selects the filter model. |
 | 2 | SHPE | 0–127 | 0 | SEM only (blank in other modes): LP → BP → HP |
 
 ## Old projects
@@ -48,9 +46,3 @@ SEM at whatever SHPE it held. Once per project, before play:
 ```bash
 python3 tools/hw/ot_project.py remap-slot <project> SPECTRUM MODE 2:1,3:2,4:3
 ```
-
-## Screens
-
-![The SPECTRUM page: the four knob boxes](../../img/spectrum/main.png)
-
-![The routing grid (page 2): source, destination and modulation](../../img/spectrum/setup.png)

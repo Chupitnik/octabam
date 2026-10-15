@@ -1,16 +1,14 @@
-## What it does
-
 Chooses what a muted or soloed-out audio track does. Default OT, stock's
 behaviour.
 
-## Where to find it
+## Access
 
 PERSONALIZE > MUTE MODE, the second row, after PREVIEW WITHOUT FX. The
 setting survives a power cycle.
 
 ## Modes
 
-| mode | what happens |
+| Mode | What happens |
 |---|---|
 | OT | stock: an instant cut after the FX |
 | OTFX | the dry sound cuts, FX tails ring out, the sequencer keeps running |
