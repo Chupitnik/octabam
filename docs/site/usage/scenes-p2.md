@@ -1,9 +1,7 @@
-## What it does
-
 Scene locks and the crossfader for page 2 of FX1 and FX2. Stock scenes
 lock page 1 only; the page-2 knobs (slots 6–11) had no scene lock.
 
-## How to use it
+## Operation
 
 Open an FX1 or FX2 page 2, hold scene A or B and turn a knob on slots
 6–11: the lock goes to the held scene. Hold FUNC while turning to remove

@@ -1,16 +1,14 @@
-## What it does
-
 The bus client: two knobs that send this track to the two engines. DEL is
 this track's level into the delay (track 1), REV its level into the reverb
 (track 5). Each engine's wet comes out on the track that hosts it. DEL 0
 and REV 0 is indistinguishable from no effect.
 
-## Where to find it
+## Open Send
 
 On every track except 1, 5 and 8, FX2 is SEND (a new part is born that
 way; the FX2 chooser cannot change it). Page 1 has the two knobs.
 
-## How to use it
+## Set the Sends
 
 - Raise DEL to hear the track in the delay's repeats; raise REV for the
   reverb tail.
@@ -21,13 +19,9 @@ way; the FX2 chooser cannot change it). Page 1 has the two knobs.
 - The delay follows the project tempo; its TIME knob sticky-snaps to tempo
   divisions.
 
-## Knobs
+## Parameters
 
-| knob | range | default | what it does |
+| Knob | Range | Default | Function |
 |---|---|---|---|
 | DEL | 0–127 | 0 | this track's level into the delay |
 | REV | 0–127 | 0 | this track's level into the reverb |
-
-## Screens
-
-![SEND's page on a track: the DEL and REV knobs](../../img/send/main.png)

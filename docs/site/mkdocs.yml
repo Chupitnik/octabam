@@ -4,14 +4,16 @@ repo_url: https://github.com/sambanks/octabam
 repo_name: sambanks/octabam
 docs_dir: .
 site_dir: ../../out/site
+use_directory_urls: false
 # the _remix-*.md fragments are snippet includes, not pages; usage/*.md
-# are included into the generated module pages. Gitignore-style specs.
+# are included into generated module pages; img/ holds image assets.
 exclude_docs: |
   reference/_remix-*.md
   usage/*.md
 extra_css:
   - css/sidebar-spacing.css
   - css/site-tables.css
+  - css/manual.css
 theme:
   name: shadcn
   # The theme follows the system appearance; its header toggle can override it.
@@ -21,20 +23,35 @@ theme:
     light: shadcn-light
     dark: github-dark
 nav:
-  - Get started:
-      - Overview: index.md
-      - Choose a remix: choosing.md
-      - Build and flash: build-flash.md
-      - Safety and recovery: safety.md
-  - Remixes:
-      - octabam-core: remix-core.md
-      - octabam-inserts: remix-inserts.md
-      - octabam-bus: remix-bus.md
-  - Customize:
-      - Build your own remix: own-remix.md
+  - Getting Started:
+      - About This Manual: index.md
+      - Choose a Remix: choosing.md
+      - Build and Install: build-flash.md
+  - Using Octabam:
       - BRAIN: brain.md
-  - Reference:
-      - Modules: reference/modules.md
+      - Kits and Patterns: reference/modules/kits.md
+      - Scenes: reference/modules/scenes-p2.md
+      - Parameter Locks: reference/modules/plocks-p2.md
+      - MIDI Scenes: reference/modules/midi-scenes.md
+      - Mute Modes: reference/modules/mute-modes.md
+      - USB Audio and MIDI: reference/modules/usb.md
+  - Effects:
+      - Feature Directory: reference/modules.md
+      - Spectrum: reference/modules/spectrum.md
+      - Character: reference/modules/character.md
+      - Modulation: reference/modules/modulation.md
+      - Send: reference/modules/send.md
+      - Bus Delay: reference/modules/busdelay.md
+      - Bus Reverb: reference/modules/busverb.md
+      - Tempo Controls: reference/modules/tempo-bus.md
+  - Remix Reference:
+      - Octabam Core: remix-core.md
+      - Octabam Inserts: remix-inserts.md
+      - Octabam Bus: remix-bus.md
+      - Create a Remix: own-remix.md
+  - Help:
+      - Safety and Recovery: safety.md
+      - Screenshot Coverage: reference/screenshots.md
       - Credits: reference/credits.md
 markdown_extensions:
   - admonition

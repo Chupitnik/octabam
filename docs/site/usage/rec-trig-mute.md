@@ -1,8 +1,6 @@
-## What it does
-
 Mutes a track's recorder trigs without deleting them.
 
-## How to use it
+## Operation
 
 Hold [TRACK] and press [NO]: the held tracks' recorder trigs stop firing
 — a recording already running finishes — and a toast reads

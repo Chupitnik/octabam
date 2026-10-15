@@ -1,5 +1,3 @@
-## What it does
-
 255 Kits per project. A Kit is a saved Part with a name; each pattern
 plays the Kit assigned to it. Loading a Kit loads its Part.
 
@@ -13,9 +11,9 @@ pattern holds — trigs, parameter locks, track lengths and scales. Nor
 the tempo, the arrangements, the track recorders or the project
 settings.
 
-## The keys
+## The Keys
 
-| action | MKII | MKI |
+| Action | MKII | MKI |
 |---|---|---|
 | LOAD KIT | PART | FUNC+MIDI |
 | SAVE KIT | FUNC+PART | FUNC+MIDI, then FUNC+BANK |
@@ -25,7 +23,7 @@ settings.
 | save the Kit, copy it and the pattern to the next empty ones, play the copy | PTN+FUNC+RIGHT | PTN+FUNC+RIGHT |
 | copy / paste / clear an inactive pattern of the current bank (paste or clear again: undo) | hold PTN and FUNC, press the pattern's TRIG; then REC / STOP / PLAY | the same |
 
-## The lists
+## The Lists
 
 - **LOAD KIT** lists UNDO KIT (the Kit the current pattern had before
   the last load), then the 255 Kits: `NNN name`, `*` on a Kit no pattern
@@ -56,7 +54,3 @@ settings.
   are left on the card.
 - With MIDI SCENES in the remix, a Kit also carries the Part's scene
   lock table.
-
-## Screens
-
-![The KITS list from the PART menu, showing the current Kit](../../img/kits/list.png)

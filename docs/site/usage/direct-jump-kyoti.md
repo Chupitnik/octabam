@@ -1,11 +1,9 @@
-## What it does
-
 An immediate pattern change. A cued pattern takes over on the next step,
 locked to the master clock: it plays where it would be had it been
 running since START, whatever its track lengths, scales or master
 settings.
 
-## How to use it
+## Operation
 
 Toggle with [PTN] + [YES]. OFF at every power-on.
 

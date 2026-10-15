@@ -1,14 +1,13 @@
-## What it changes
+In Octabam Bus, use the TEMPO window to view and edit the shared delay and
+reverb controls.
 
-The TEMPO window edits the bus engines. In octabam-bus only.
-
-## How to check
+## Controls
 
 Press [TEMPO]: the window opens at the menu window's size, with two boxes,
 DELAY and REVERB, listing each engine's knobs with the values the host
 page would show.
 
-| control | does |
+| Control | Does |
 |---|---|
 | UP / DOWN | move the cursor a row in the focused box (the box scrolls, five rows visible) |
 | A | edits the selected parameter on the host track (×7 while A is pushed is the stock fast turn) |
@@ -23,7 +22,3 @@ pattern tempo is on.
 
 The [delay's knobs](busdelay.md) and the [reverb's knobs](busverb.md) list
 what the boxes show.
-
-## Screens
-
-![The TEMPO window over the bus](../../img/tempo-bus/tempo.png)

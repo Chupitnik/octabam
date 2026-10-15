@@ -1,12 +1,10 @@
-## What it does
-
 The OT transmits a CC for every live knob byte that changes, whatever
 changed it, so a controller's encoders (a BCR2000's LED rings) follow
 the unit. Stock sends a page-1 knob's CC on a panel turn only; after a
 pattern or Part change, a project load, MODE DEFAULTS, an incoming CC or
 a page-2 knob turn the controller shows stale values.
 
-## How to check
+## Operation
 
 Connect the controller: OT MIDI OUT to its MIDI IN, and its output back
 to the OT's MIDI IN for the rings to follow. With AUDIO CC OUT on, change
@@ -14,9 +12,9 @@ a bank or pattern: the new values arrive paced at one message per UI
 tick, so a bank change reaches the controller over about three seconds
 instead of one burst.
 
-## The CC numbers
+## The CC Numbers
 
-| knob | CC |
+| Knob | CC |
 |---|---|
 | PLAYBACK page 1 | 16–21 |
 | AMP page 1 | 22–27 |

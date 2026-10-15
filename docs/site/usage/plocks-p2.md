@@ -1,9 +1,9 @@
-## What it does
+Use page 2 parameter locks to automate FX1 or FX2 parameters that are not
+available on stock page 1.
 
-Parameter locks on page 2 of FX1 and FX2, where stock only has them on
-page 1. Both pages of locks live on one step at once.
+A step can carry locks for both FX pages.
 
-## How to use it
+## Create and Remove a Lock
 
 Open the FX1 or FX2 SETUP page, hold one or more trigs and turn a knob:
 each held step gets that slot's page-2 lock. Hold FUNC while turning to
@@ -14,7 +14,7 @@ The locks move with the data: trig copy and paste, clear a trig's locks,
 pattern copy and paste, clear a pattern and its undo each carry or clear
 them. SAVE PROJECT writes them and a power cycle loads them back.
 
-## Limits
+## Limits and Saving
 
 - Page 2 has no slide: a slide trig moves page 1 only.
 - A held step with no trig takes a page-2 lock that never plays.

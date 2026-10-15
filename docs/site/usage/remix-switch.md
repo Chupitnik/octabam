@@ -1,9 +1,7 @@
-## What it does
-
 Boots an OS image from the card without writing the flash. Each `.RMX`
 file in `/BRAIN/REMIXES/` is a raw OS image.
 
-## How to use it
+## Operation
 
 BRAIN > REMIXES lists the `.RMX` files, sorted. The one whose name
 matches the running image (case and spaces ignored) has `RUNNING` at
