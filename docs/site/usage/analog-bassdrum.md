@@ -30,8 +30,8 @@ remix `analog-bassdrum`.
   tests; eight 909s with DJ EQ in both slots produced silent output.
   Eight voices do not guarantee every effect combination.
 - A MK1 report (28 Sep 2026) had all parameters working with no glitches
-  on the first image; the current engine browser and eight-track changes
-  are not hardware-qualified.
+  on the first image; the current engine browser and eight-track changes:
+  cursory testing on Sam's MKII (owner report, 16 Oct 2026).
 
 ## Parameters
 

@@ -8,7 +8,7 @@ stage is skipped and the result is bit-identical to the plain station.
 
 An effect on a track: select the track, press FX1, and pick CharTxtr
 from the chooser. It takes DJ EQ's id, which one module can hold. Not in an official
-remix; build the test remix `character-txtr`. Not flashed: four of them beside the reverb price a core at 2,751 of the
+remix; build the test remix `character-txtr`. Hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026). Four of them beside the reverb price a core at 2,751 of the
 3,120 cycles usable, and no hardware has run that load.
 
 ![FX1 SETUP with CharTxtr selected: TAPE, KEY, KLVL and TXTR on its page 2.](../../img/character-txtr/chooser.png)

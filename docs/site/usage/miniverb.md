@@ -7,7 +7,7 @@ the stereo.
 
 An effect on a track: select the track, press FX2, and pick MINIVERB from
 the chooser, where DARK REV was. Not in an official remix; build the test
-remix `miniverb`. Not flashed or verified on hardware.
+remix `miniverb`. Hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026).
 
 ![FX2 SETUP with Mini Verb selected.](../../img/miniverb/chooser.png)
 
