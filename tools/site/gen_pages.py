@@ -6,8 +6,14 @@
 Writes the generated pages (gitignored, so the deploy builds them fresh):
 
   modules.md           every module by category, plus the stock effects
+  modules/<name>.md    one page per module: what it is, the manifest facts,
+                       where it runs, which official remixes carry it
   _remix-<name>.md     one per non-test remix: its module table
   credits.md           authors grouped, with their module keys
+
+The per-module pages are not in the site nav (there are ~70): the modules
+index and every remix page's module table link to them. Each carries a
+`not_in_nav` line so the build stays quiet about it.
 
 The pages are rendered at deploy time (the Pages workflow on main; the site
 job of ci.yml on a PR), so the site and the manifests cannot drift. Stdlib
@@ -20,6 +26,7 @@ scans it too, and every path it finds must exist.
 """
 
 import pathlib
+import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -57,11 +64,25 @@ def _module_url(m) -> str:
     return f"{GH}/tree/main/{d}"
 
 
+def _page(m) -> str:
+    """The per-module page, relative to a page in reference/: the fragment
+    tables sit in the site-root remix pages and write the reference/ prefix
+    out themselves."""
+    return f"modules/{m.name}.md"
+
+
+def _remix_pages() -> dict[str, str]:
+    """Remix name to hand-written page, from the site nav (the one file
+    that names the pages)."""
+    cfg = (ROOT / pathlib.Path("docs") / "site" / "mkdocs.yml").read_text()
+    return dict(re.findall(r"^\s*-\s*(\S+?):\s*(\S+\.md)\s*$", cfg, re.M))
+
+
 def _module_rows(ms) -> list[str]:
     out = ["| module | category | author | what it does | proof |", "|---|---|---|---|---|"]
     for m in ms:
         cat = CATEGORY_TITLE[m.category or Category.REFERENCE]
-        out.append(f"| [**{m.key}**]({_module_url(m)}) | {cat} | {_author(m)} "
+        out.append(f"| [**{m.key}**](reference/{_page(m)}) | {cat} | {_author(m)} "
                    f"| {_cell(m.doc)} | {index.proof_text(m)} |")
     return out
 
@@ -87,7 +108,7 @@ def modules_page(mods) -> str:
                 knobs = ", ".join(f"{n}@{i}" for n, i in sorted(
                     m.knob_map().items(), key=lambda kv: kv[1]))
                 rows.append(f"| knobs | {knobs} |")
-            lines += [f"### {m.key}", "",
+            lines += [f"### [{m.key}]({_page(m)})", "",
                       m.doc, "",
                       "| | |", "|---|---|"] + rows
     from remix import stock
@@ -97,19 +118,61 @@ def modules_page(mods) -> str:
               "effect on neither chooser gives up its DSP words.", "",
               "| effect | FX2 id | what it does |", "|---|---|---|"]
     for m in stock.MODULES:
-        lines.append(f"| {m.key} | `0x{m.menu.fx2_id:02x}` | {_cell(m.doc)} |")
+        lines.append(f"| [{m.key}]({_page(m)}) | `0x{m.menu.fx2_id:02x}` | {_cell(m.doc)} |")
+    return "\n".join(lines) + "\n"
+
+
+def module_page(m, mods, official) -> str:
+    """One page per module (stock included, so every remix table can link
+    every row). The manifest facts, then where it runs."""
+    lines = ["---", "not_in_nav: true", "---", "",
+             f"# {m.key}", "",
+             m.doc, ""]
+    if m.is_stock:
+        lines += ["A stock effect: its code, descriptor and dispatch are in "
+                  "every image. A remix lists one by key to keep its chooser "
+                  "row; an effect on neither chooser gives up its DSP words.", ""]
+    rows = []
+    if not m.is_stock:
+        rows += [f"| author | {_author(m)} |",
+                 f"| category | {CATEGORY_TITLE[m.category or Category.REFERENCE]} |",
+                 f"| kind | `{m.kind.value}` |",
+                 f"| proof | {index.proof_text(m)} |"]
+    if m.menu is not None:
+        rows.append(f"| FX2 id | `0x{m.menu.fx2_id:02x}` |")
+        if not m.is_stock:
+            knobs = ", ".join(f"{n}@{i}" for n, i in sorted(
+                m.knob_map().items(), key=lambda kv: kv[1]))
+            if knobs:
+                rows.append(f"| knobs | {knobs} |")
+    if m.requires:
+        needs = ", ".join(f"[{k}]({mods[k].name}.md)" if k in mods else k
+                          for k in m.requires)
+        rows.append(f"| requires | {needs} |")
+    if m.conflicts:
+        cells = []
+        for other, why in m.conflicts:
+            link = f"[{other}]({mods[other].name}.md)" if other in mods else other
+            cells.append(f"{link} — {why}")
+        rows.append(f"| conflicts | {'; '.join(cells)} |")
+    carrying = [n for n, r in official if m.key in r.modules]
+    pages = _remix_pages()
+    if carrying:
+        cells = [f"[{n}](../../{pages[n]})" if n in pages else n for n in carrying]
+        rows.append("| carried by | " + ", ".join(cells) + " |")
+    elif not m.is_stock:
+        rows.append("| carried by | no official remix |")
+    lines += ["| | |", "|---|---|"] + rows
+    if not m.is_stock:
+        lines += ["", f"On GitHub: {_module_url(m)}"]
+    lines += ["", f"[All modules](../modules.md)"]
     return "\n".join(lines) + "\n"
 
 
 def remix_fragment(r, mods) -> str:
     lines = [f"{r.doc}", "",
-             f"Proof: {index.proof_text(r)}", "",
-             "| module | category | author | what it does | proof |", "|---|---|---|---|---|"]
-    for key in r.modules:
-        m = mods[key]
-        cat = CATEGORY_TITLE[m.category or Category.REFERENCE]
-        lines.append(f"| [**{m.key}**]({_module_url(m)}) | {cat} | {_author(m)} "
-                     f"| {_cell(m.doc)} | {index.proof_text(m)} |")
+             f"Proof: {index.proof_text(r)}", ""]
+    lines += _module_rows([mods[key] for key in r.modules])
     return "\n".join(lines) + "\n"
 
 
@@ -131,18 +194,24 @@ def credits_page(mods) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main() -> int:
+def main(quiet: bool = False) -> int:
     mods = registry.modules()
+    official = [(n, registry.remix(n)) for n in registry.remix_names()
+                if not registry.is_test(n) and registry.remix_dir(n) is not None]
     OUT.mkdir(parents=True, exist_ok=True)
+    (OUT / pathlib.Path("modules")).mkdir(parents=True, exist_ok=True)
     jobs = {"modules.md": modules_page(mods),
             "credits.md": credits_page(mods)}
+    for m in mods.values():
+        jobs[f"modules/{m.name}.md"] = module_page(m, mods, official)
     for name in registry.remix_names():
         if registry.is_test(name) or registry.remix_dir(name) is None:
             continue
         jobs[f"_remix-{name}.md"] = remix_fragment(registry.remix(name), mods)
     for name, text in sorted(jobs.items()):
         (OUT / name).write_text(text)
-        print(f"wrote docs/site/reference/{name}")
+        if not quiet:
+            print(f"wrote docs/site/reference/{name}")
     return 0
 
 

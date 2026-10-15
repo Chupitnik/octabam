@@ -11,18 +11,18 @@ FIX module). The other official remixes add effects to this set:
 
 | group | module | what it does |
 |---|---|---|
-| platform | BRAIN | card-wide settings, defaults and templates, remix switch, TOOLS (MIDI monitor, LOAD) |
-| | STORE | the save, load, copy and Part sites KITS and PLOCKS P2 share |
-| sequencing | KITS | 255 Kits per project; each pattern plays its Kit |
-| | MIDI SCENES | scene locks for MIDI tracks |
-| | SCENES P2, PLOCKS P2 | scene locks and parameter locks on FX page 2 |
-| | CC MAP, CC FEEDBACK | CC onto page 2; knob changes out as CC |
-| | DIRECT_JUMP_KYOTI, RELOAD_FROM_PROJECT | clock-locked direct jump; reload one track from the card |
-| | SCALE QUANTIZER, TUNER | scale quantizing on PTCH; a tuner window (UP + TEMPO) |
-| USB | USB | MIDI both ways; MAIN and CUE to a computer (LAYOUT MAIN CUE, INPUTS OFF) |
-| recorder and fixes | RECORDER LOOP FIX, RLEN PLEN | the loop click; RLEN value PLEN |
-| | BATCH_BUGFIXES, ERASE_EMPTY_TRIGLESS_LOCKS, QUANTIZE_LIVE_REC_TOGGLE, REC_TRIG_MUTE, MUTE_MODES | Zac-Kyoti's fixes and mute modes (MUTE_MODES runs from DRAM) |
-| | ATA WRITE GUARD | keeps the first PIO card write and its bookkeeping atomic against the completion interrupt |
+| platform | [BRAIN](reference/modules/brain.md) | card-wide settings, defaults and templates, remix switch, TOOLS (MIDI monitor, LOAD) |
+| | [STORE](reference/modules/store.md) | the save, load, copy and Part sites KITS and PLOCKS P2 share |
+| sequencing | [KITS](reference/modules/kits.md) | 255 Kits per project; each pattern plays its Kit |
+| | [MIDI SCENES](reference/modules/midi-scenes.md) | scene locks for MIDI tracks |
+| | [SCENES P2](reference/modules/scenes-p2.md), [PLOCKS P2](reference/modules/plocks-p2.md) | scene locks and parameter locks on FX page 2 |
+| | [CC MAP](reference/modules/cc-map.md), [CC FEEDBACK](reference/modules/cc-feedback.md) | CC onto page 2; knob changes out as CC |
+| | [DIRECT_JUMP_KYOTI](reference/modules/direct-jump-kyoti.md), [RELOAD_FROM_PROJECT](reference/modules/reload-from-project.md) | clock-locked direct jump; reload one track from the card |
+| | [SCALE QUANTIZER](reference/modules/quantizer.md), [TUNER](reference/modules/tuner.md) | scale quantizing on PTCH; a tuner window (UP + TEMPO) |
+| USB | [USB](reference/modules/usb.md) | MIDI both ways; MAIN and CUE to a computer (LAYOUT MAIN CUE, INPUTS OFF) |
+| recorder and fixes | [RECORDER LOOP FIX](reference/modules/recorder-loop-fix.md), [RLEN PLEN](reference/modules/rlen-plen.md) | the loop click; RLEN value PLEN |
+| | [BATCH_BUGFIXES](reference/modules/batch-bugfixes.md), [ERASE_EMPTY_TRIGLESS_LOCKS](reference/modules/erase-empty-trigless-locks.md), [QUANTIZE_LIVE_REC_TOGGLE](reference/modules/quantize-live-rec-toggle.md), [REC_TRIG_MUTE](reference/modules/rec-trig-mute.md), [MUTE_MODES](reference/modules/mute-modes.md) | Zac-Kyoti's fixes and mute modes (MUTE_MODES runs from DRAM) |
+| | [ATA WRITE GUARD](reference/modules/ata-write-guard.md) | keeps the first PIO card write and its bookkeeping atomic against the completion interrupt |
 
 Every module in the image, credited to its author:
 

@@ -35,10 +35,10 @@ flowchart LR
 
 | track | FX2 | knobs |
 |---|---|---|
-| 1 | DELAY (locked) | page 1: DEL · REV · FDBK · TONE · PING · WET; page 2: MODE · SCTR · DENS · SIZE · PTCH · TIME |
-| 5 | REVERB (locked) | page 1: DEL · REV · SIZE · SHMR · SHFT · WET; page 2: MODE · TONE · DIFF · GATE · DLY · TIME |
-| 2–4, 6–7 | SEND | DEL · REV |
-| 8 (master) | stock DELAY | stock's, for its beat repeat |
+| 1 | [DELAY](reference/modules/busdelay.md) (locked) | page 1: DEL · REV · FDBK · TONE · PING · WET; page 2: MODE · SCTR · DENS · SIZE · PTCH · TIME |
+| 5 | [REVERB](reference/modules/busverb.md) (locked) | page 1: DEL · REV · SIZE · SHMR · SHFT · WET; page 2: MODE · TONE · DIFF · GATE · DLY · TIME |
+| 2–4, 6–7 | [SEND](reference/modules/send.md) | DEL · REV |
+| 8 (master) | stock [DELAY](reference/modules/delay.md) | stock's, for its beat repeat |
 
 A new part is born wired this way (the RIG HOSTS module: T1 FX2 = BusDelay,
 T5 = BusVerb, T8 = the stock DELAY, the rest SEND). The delay follows the
@@ -50,9 +50,9 @@ engines' knobs (TEMPO BUS). The FX2 chooser cannot change a track's effect
 
 | effect | in place of | modes |
 |---|---|---|
-| SPECTRUM | FILTER | LADR · SEM · ISO · VOWL |
-| CHARACTER | LO-FI | SAT: TAPE · TUBE · INFL |
-| MODULATION | CHORUS | JUNO · DIM · FLNG · COMB · PHSR |
+| [SPECTRUM](reference/modules/spectrum.md) | [FILTER](reference/modules/filter.md) | LADR · SEM · ISO · VOWL |
+| [CHARACTER](reference/modules/character.md) | [LO-FI](reference/modules/lofi.md) | SAT: TAPE · TUBE · INFL |
+| [MODULATION](reference/modules/modulation.md) | [CHORUS](reference/modules/chorus.md) | JUNO · DIM · FLNG · COMB · PHSR |
 
 The FX1 chooser lists NONE and these three. The 13 stock effects not listed
 give up their DSP code to the bus.

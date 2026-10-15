@@ -11,16 +11,23 @@ README.md. Eight merged modules and four remixes had no row or page on
 27 Sep 2026, when the README was a hand copy nothing compared. The link
 rules are in tools/verify/doclinks.py; 14 references pointed at no file on
 30 Sep 2026, when nothing checked them.
+
+The hand-written site pages link to the generated reference pages, so this
+renders them first (tools/site/gen_pages.py, gitignored output); CI's docs
+job runs the generator before this anyway.
 """
 import pathlib, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1])); import toolpath  # noqa: E402,F401
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "site"))  # gen_pages lives outside the toolpath groups
 from remix import index, registry
 import doclinks
+import gen_pages
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 def main():
+    gen_pages.main(quiet=True)
     fails = [f"{p.relative_to(ROOT)} is stale: make docs" for p in index.stale()]
     for name in registry.remix_names():
         d = registry.remix_dir(name)
