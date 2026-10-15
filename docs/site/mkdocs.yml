@@ -28,7 +28,7 @@ nav:
       - Choose a Remix: choosing.md
       - Build and Install: build-flash.md
   - Using Octabam:
-      - BRAIN: brain.md
+      - Brain: brain.md
       - Kits and Patterns: reference/modules/kits.md
       - Scenes: reference/modules/scenes-p2.md
       - Parameter Locks: reference/modules/plocks-p2.md
