@@ -234,13 +234,20 @@ counted to exactly one before they are replaced.
 
 ### An instruction form the chip has never run is not proven by the port
 
-**AN INSTRUCTION FORM THE CHIP HAS NEVER RUN IS NOT PROVEN BY THE PORT.**
-The assembler encodes it, the vendored emulator decodes it the same way, and
-the chip may not: image 44 (21 Sep 2026) wedged on its first block on four
+**A DSP FORM SHIPS ONLY IF A STOCK PAYLOAD RUNS IT OR A ROW IN THE
+INSTRUCTION-FORM REGISTER (`docs/firmware/CHIP.md`, section 1) APPROVES
+IT.** The assembler encodes it, the vendored emulator decodes it the same
+way, and the chip may not — the port proves nothing about a form the chip
+has never run. Image 44 (21 Sep 2026) wedged on its first block on four
 one-word displaced Y stores (`move a,y:(r3+$1)`), a form with no site in
-either stock payload; the X form has 533. Before using a form, grep it in
-`out/dsp/payload_*.asm` (`tools/build/dsp_disasm_all.py`); no precedent means
-a hardware probe first, or the form everything else uses.
+either stock payload; the X form has 533. The pin is not to the form
+alone: image 45 used `move a,y:(r3)+`, which stock runs, and wedged the
+same way (FAILURE_MODES "Sequencer stuck on step 1", cause 🟡 inferred) —
+which is the point: the port showed it for neither form. Before using a
+form, grep it in `out/dsp/payload_*.asm`
+(`tools/build/dsp_disasm_all.py`); no precedent means a hardware probe
+first and then a PR adding the register row with the evidence, or the form
+everything else uses.
 
 <a name="trap-rep-dma"></a>
 
