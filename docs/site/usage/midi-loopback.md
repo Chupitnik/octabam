@@ -15,6 +15,16 @@ CHAN shows an I or B suffix for INT or BOTH. CHAN OFF still disables sequencer
 output. Receiver channel assignments and receive switches still apply.
 DEST is saved per MIDI track in each native Part. Fresh Parts use EXT.
 
+## Screens
+
+LCD captures from the emulator, using the standalone test remix (BUILD 91).
+
+| Destination | Routing window | NOTE SETUP indicator |
+|---|---|---|
+| EXT | ![Routing: EXT](../../img/midi-loopback/routing-ext.png) | ![CHAN 1](../../img/midi-loopback/channel-ext.png) |
+| INT | ![Routing: INT](../../img/midi-loopback/routing-int.png) | ![CHAN 1I](../../img/midi-loopback/channel-int.png) |
+| BOTH | ![Routing: BOTH](../../img/midi-loopback/routing-both.png) | ![CHAN 1B](../../img/midi-loopback/channel-both.png) |
+
 ## Notes
 
 Select MIDI PART STATE alongside MIDI LOOPBACK. This contribution supplies a

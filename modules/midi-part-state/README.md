@@ -39,3 +39,11 @@ covers project save/load and retained resume. No hardware acceptance is claimed.
 The source is extracted from integration `8f8e00d061d17a890a3b01d5f340492f912712e2`.
 Future Harmony/SRAM conditionals remain dormant source; the Follow/Harmony
 NOTE SETUP staging hook is omitted from this standalone contribution.
+
+## Author source
+
+Pinned source: [`2726e4fd7fcf210ed1b78333c72e924ebdb51079`](https://github.com/radiohagen/octatrack-modules/commit/2726e4fd7fcf210ed1b78333c72e924ebdb51079).
+Review both modules in that narrow author history alongside these adapters.
+The cold-entry reference is enforced at build time; the combined cross-unit
+runtime reference is enforced by `verify_midi_loopback_reference.py`. A native
+source build and the adapter build are compared at the same upstream base.

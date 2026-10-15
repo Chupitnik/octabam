@@ -152,3 +152,11 @@ is explicitly incompatible until its producers are routed through the bridge.
 Stock DIN behavior is covered; USB-host and combined-module acceptance remain
 separate qualification. No hardware flash, MIDI timing or worst-case interrupt
 latency has been measured for this contribution.
+
+## Author source
+
+Pinned source: [`2726e4fd7fcf210ed1b78333c72e924ebdb51079`](https://github.com/radiohagen/octatrack-modules/commit/2726e4fd7fcf210ed1b78333c72e924ebdb51079).
+Review both modules in that narrow author history alongside these adapters.
+The cold-entry reference is enforced at build time; the combined cross-unit
+runtime reference is enforced by `verify_midi_loopback_reference.py`. A native
+source build and the adapter build are compared at the same upstream base.
