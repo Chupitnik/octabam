@@ -14,7 +14,8 @@ rules are in tools/verify/doclinks.py; 14 references pointed at no file on
 
 The hand-written site pages link to the generated reference pages, so this
 renders them first (tools/site/gen_pages.py, gitignored output); CI's docs
-job runs the generator before this anyway.
+job runs the generator before this anyway. Every contributed module needs
+an entry in the site nav (docs/site/mkdocs.yml), under its category.
 """
 import pathlib, sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1])); import toolpath  # noqa: E402,F401
@@ -36,6 +37,12 @@ def main():
                          f"(or remixes/test/{name}/remix.py) + README.md")
         elif not (d / "README.md").exists():
             fails.append(f"{d.relative_to(ROOT)}/README.md: missing")
+    nav = (ROOT / "docs/site/mkdocs.yml").read_text()
+    for m in registry.modules().values():
+        # BRAIN's page is hand-written (brain.md), not the generated one
+        if not m.is_stock and m.name != "brain" and f"reference/modules/{m.name}.md" not in nav:
+            fails.append(f"docs/site/mkdocs.yml: no nav entry for module {m.name} "
+                         f"(reference/modules/{m.name}.md)")
     fails += doclinks.check()
     for f in fails:
         print("  [FAIL]", f)
