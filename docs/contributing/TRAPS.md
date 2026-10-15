@@ -791,6 +791,18 @@ all oracle failures.
 hash.** Register discipline in a boot stub is not checkable by anything but
 the port: `verify_dram_boot` watches the loader's entry and its `fatal` hang.
 
+<a name="trap-shard-interrupt"></a>
+
+### Interrupting the shard driver can leave its workers running
+
+On 16 Oct 2026, SIGINT interrupted `check_shards.py`'s main-thread join,
+but worker threads continued taking jobs from the queue. A replacement
+reach run began refreshing the same shard directories while those jobs
+were alive. Both runs were stopped and their partial results discarded;
+the replacement needed another clean restart. Stop the old run's entire
+process group and confirm that its workers have exited before reusing
+`out/shards/`. This is an operational check, not an automated gate.
+
 <a name="trap-tmp-race"></a>
 
 ### Two builds on one machine corrupted each other through fixed `/tmp` names

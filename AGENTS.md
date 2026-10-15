@@ -166,6 +166,7 @@ moment it costs real work, and add its line here.
 - [Matching an author's bytes with GNU as](docs/contributing/TRAPS.md#trap-gnu-as) — `lea SYM:l` for same-unit labels; `moveq`; the `-Ttext` 2-mod-4 `nop`.
 - [A loader draft clobbered d0 and reused a0 after the hash](docs/contributing/TRAPS.md#trap-loader-regs) — `verify_dram_boot` watches entry and `fatal`.
 - [Fixed `/tmp` names corrupted parallel builds](docs/contributing/TRAPS.md#trap-tmp-race) — mkdtemp per process now; a failure moving between remixes is a shared-scratch race.
+- [Interrupting the shard driver can leave its workers running](docs/contributing/TRAPS.md#trap-shard-interrupt) — stop the whole run's process group and confirm it exited before refreshing the same shards.
 - [Replacing a stock routine can halt every other caller](docs/contributing/TRAPS.md#trap-stock-callee) — diff the routine and its callers with `tools/build/where.py`.
 - [A forked port shares its DSP memory with its siblings](docs/contributing/TRAPS.md#trap-fork-shm) — `unshareRanges`; new shared maps need the same.
 - [The port ran under Rosetta and nothing said so](docs/contributing/TRAPS.md#trap-rosetta) — `file out/emu/ot_emu` is the check.
