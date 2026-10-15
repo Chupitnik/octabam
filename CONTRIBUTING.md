@@ -50,8 +50,8 @@ from the user's image at build time.
    on it; GitHub holds a first-time contributor's first CI run until a
    maintainer approves it.
 
-Issues are turned off (`README.md`): a question about your change goes in
-its PR.
+Report bugs in [GitHub Issues](https://github.com/sambanks/octabam/issues).
+A question about a change under review goes in its PR.
 
 ## A module
 
@@ -228,6 +228,17 @@ A remix with a DSP module that declares no `dear` makes `make accept`
 report `blocked` with the module's name; say so in the PR. List each
 command and its result in the PR body (`make reach`'s output is the list;
 the PR template asks for it).
+
+A change that alters what a remix does — its modules, effects, menus,
+costs (memory pages, DSP words) or proof status — updates the
+hand-written manual site pages under `docs/site/` in the same PR. The
+generated reference pages update themselves from the manifests.
+
+A manifest, remix selection or module README change leaves the generated
+copies stale: `make docs` renders `README.md`, `remixes/README.md` and
+`remixes/test/README.md` from the manifests and the selections. Run
+`make docs` and commit the result; `make verify-docs` is the local
+check, and CI's `docs and links` job refuses a stale copy.
 
 ## What CI checks
 

@@ -6,17 +6,13 @@
  },
  "settings": {
   "1": {
-   "labels": [
-    "AB",
-    "CD",
-    "ABCD"
-   ],
-   "name": "INPUTS",
-   "type": "option"
+   "max_bytes": 24,
+   "name": "BOOT REMIX",
+   "type": "blob"
   }
  },
  "store": {
-  "id": "octabam.usb-audio-in",
+  "id": "octabam.remix-switch",
   "major": 1
  }
 }

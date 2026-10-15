@@ -15,13 +15,13 @@ stock COMPRESSOR keeps its id, undisturbed, with no side-chain KEY.
 
 | effect | FX1 | FX2 | what it is |
 |---|---|---|---|
-| SPECTRUM | ✓ | ✓ | filter: Moog ladder, SEM, Capacitor2, formants |
-| CHARACTER | ✓ | ✓ | fold, saturation, tilt, compressor, width |
-| MODULATION | ✓ | ✓ | Juno, Dimension, flanger, phaser, comb |
-| TRANSIENT | ✓ | ✓ | transient shaper (Ignorato) |
-| EUCLID | ✓ | ✓ | Euclidean filter / amp sequencer (repeat98) |
-| DELAY | | ✓ | stock |
-| GATE VERB | | ✓ | gated plate reverb (the reverb stage of Mutable Instruments Clouds plus a gate): AMNT, GAIN, TIME, DIFF, TONE, GATE |
+| [SPECTRUM](reference/modules/spectrum.md) | ✓ | ✓ | filter: Moog ladder, SEM, Capacitor2, formants |
+| [CHARACTER](reference/modules/character.md) | ✓ | ✓ | fold, saturation, tilt, compressor, width |
+| [MODULATION](reference/modules/modulation.md) | ✓ | ✓ | Juno, Dimension, flanger, phaser, comb |
+| [TRANSIENT](reference/modules/transient.md) | ✓ | ✓ | transient shaper (Ignorato) |
+| [EUCLID](reference/modules/euclid.md) | ✓ | ✓ | Euclidean filter / amp sequencer (repeat98) |
+| [DELAY](reference/modules/delay.md) | | ✓ | stock |
+| [GATE VERB](reference/modules/gateverb.md) | | ✓ | gated plate reverb (the reverb stage of Mutable Instruments Clouds plus a gate): AMNT, GAIN, TIME, DIFF, TONE, GATE |
 
 The three stations are FX1-only in the bus remix; here each has its SLOTS
 build setting at FX1+FX2, so an FX2 instance runs live. CHARACTER's KEY = T1

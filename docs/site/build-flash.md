@@ -1,16 +1,18 @@
 # Build and flash
 
 From nothing installed to a flashed unit. Every image is built on your own
-computer from your own copy of Octatrack OS 1.40C. The full recipe with
-Linux/WSL2 details and the toolchain notes:
-https://github.com/sambanks/octabam/blob/main/docs/guide/BUILDING.md
-This page is the short version.
+computer from your own copy of Octatrack OS 1.40C. This page is the short
+version of the [detailed build guide](https://github.com/sambanks/octabam/blob/main/docs/guide/BUILDING.md),
+which includes Linux/WSL2 setup and toolchain notes.
 
 !!! warning "This is not official Elektron firmware"
-    Flashing a modified OS can leave the unit unusable until you recover it
-    ([Safety and recovery](safety.md)), and puts your warranty in
-    question. You flash at your own risk. **Do not share a built image**: a
-    built `.bin` or `.syx` contains Elektron's OS.
+    octabam is community software and is not supported by Elektron. A failed
+    flash can leave the installed OS unable to boot until stock OS is
+    reinstalled. Recovery requires a working Startup Menu, a DIN MIDI
+    interface, and a copy of the stock OS. Keep these available before
+    flashing. See
+    [Safety and recovery](safety.md) before flashing. **Do not share a built
+    image**: a built `.bin` or `.syx` contains Elektron's OS.
 
 ## What you need
 
@@ -67,10 +69,15 @@ The build prints what it did: every module placed, every hook wired, every
 module checked against its author's own build. It refuses, with the
 reason, rather than write an image it cannot prove.
 
-Optional: `make emu-cf` builds the local emulator; `make check
-REMIX=octabam-bus` runs the build plus every gate and boots the image
-under the emulator. The gates take minutes; the image itself builds
-without them.
+Before you flash, run the checks for the remix:
+
+```bash
+make check REMIX=octabam-bus
+```
+
+This builds the image, runs its gates and boots it under the local emulator.
+It is the minimum project check; a successful build alone does not establish
+that an image works. `make check` does not replace a hardware run.
 
 ## Back up
 

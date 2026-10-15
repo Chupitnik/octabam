@@ -39,27 +39,18 @@ sudo chmod +x /usr/local/bin/afplay
 
 ## The remixer: three panes
 
-Nothing in it touches hardware. `ok-ms` loaded (`l`), the cursor in
-AVAILABLE, a 118-column terminal (captured while `ok-ms` carried Octakit
-and KITS RELOAD, before 6 Oct 2026):
+The remixer does not modify hardware. The three panes are arranged as
+follows; their contents depend on the selected remix and terminal width:
 
 ```
- Available                      Choosers · ok-ms                BusDelay
-── Effects: the bus ──           FX1  10 rows                   Effects: the bus · Bus · id 0x06 · FX2 · tracks 1-4
-   BusDelay           FX2         1 Filter                      Multi-mode delay: CLEAN / pitched GRAIN cloud / REVERSE, tape wow.
-   BusVerb            FX2         2 Equalizer                   FX1  no row — and cannot take one: a bus server is one per core
-   Mode Defaults      ✓           …                             FX2  pins all 4 buffer slots on the core serving tracks 1-4
-   Send               FX2        FX2  17 rows                    SOURCE …/out/test_audio
-── Effects: on a track ──         · Midi Scenes                  DEL      0    [............] p1
-   Character          FX1+FX2     · Octakit                      FDBK    60    [######......] p1
-   Spectrum           FX1+FX2     · Kits Reload                  WET    127    [############] p1
-── Machines and the sequencer ──  1 Filter                       MODE   CLEAN  [············] p2
-   Repitch            ✓           …                              TIME    20    [##..........] p2
-Budget free:  words A none  ·  words B none  ·  buf A 4/4  ·  buf B 4/4  ·  rows 17  ·  cave 4,412 B
+ Available       Choosers       Unit
+ ─────────────   ────────────   ─────────────────
+ modules         FX1 rows       selected module
+ stock effects   FX2 rows       settings and resources
+                               source audio
 ```
 
-(Rendered from the app under Textual's test pilot on 30 Sep 2026, rows
-elided.) Three panes need 118 columns, two need 92; narrower shows one
+(Three panes need 118 columns, two need 92; narrower shows one
 pane at a time, with a tab bar naming all three (`WIDE_COLS`,
 `TWO_UP_COLS` in `tools/remix/app.py`).
 
@@ -79,7 +70,7 @@ pane at a time, with a tab bar naming all three (`WIDE_COLS`,
 | `d` | choose the sample folder |
 | `?` / `q` | help / quit |
 
-**AVAILABLE** is everything that could be in an image: modules grouped
+**AVAILABLE** lists modules grouped
 as in the module table (the bus, on a track, machines and the sequencer,
 Parts/Kits/scenes, MIDI and USB, fixes, reference), then the stock effects
 the unit ships. `✓` marks what the selection holds; for an effect the `FX1+FX2`
@@ -292,9 +283,8 @@ REMIX = Remix(
   refused by name; `make modules` prints the pairwise matrix.
 - `settings` fixes or re-defaults a module's settings for this image:
   `(store id, setting name) -> value` or `Pin(value)`. A module whose
-  setting chooses its code (USB AUDIO OUT's `LAYOUT`, USB AUDIO IN's
-  `INPUTS`) builds that code:
-  `settings={("octabam.usb-audio-out", "LAYOUT"): Pin("MASTER")}`.
+  setting chooses its code (USB's `LAYOUT`, its `INPUTS`) builds that code:
+  `settings={("octabam.usb", "LAYOUT"): Pin("MASTER")}`.
   `python3 tools/remix/brain.py resolve mine` prints every setting and the
   layer its value came from; the build report prints the same.
 - `defaults` replaces a knob's default in this image:

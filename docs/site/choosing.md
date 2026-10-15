@@ -2,8 +2,8 @@
 
 Three remixes are built from the same core modules; they differ in what they
 do with the effects. One keeps stock exactly as stock has it. One adds
-insert effects that run on any track. One turns tracks 1 and 5 into a delay
-and reverb bus with a send from every other track.
+insert effects that run on any track, on FX1 and FX2. One adds the delay and
+reverb bus and keeps three of the inserts on FX1.
 
 | | octabam-core | octabam-inserts | octabam-bus |
 |---|---|---|---|
@@ -32,7 +32,8 @@ Pick:
 - octabam-inserts if you want new effects per track, on FX1 and FX2, with no
   bus wiring to set up.
 - octabam-bus if you want the delay and reverb bus: tracks 1 and 5 become
-  the two engines, every other track gets a SEND with two knobs, DEL and REV.
+  the two engines, every other track gets a SEND with two knobs, DEL and
+  REV. Its FX1 keeps three of the inserts: SPECTRUM, CHARACTER, MODULATION.
 
 Each remix's page lists its modules and how to flash it:
 

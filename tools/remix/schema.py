@@ -581,7 +581,7 @@ class DspHook:
     `jsr >label`; the section replays the displaced instruction itself. The
     build asserts `stock` before it writes, on every payload the section is
     placed on, and the ledger refuses two modules hooking one site. This is
-    how DSP code with no chooser row is reached at all: USB AUDIO IN's RX
+    how DSP code with no chooser row is reached at all: USB's audio-in RX
     inject at the frame head, P:0x88.
     """
 
@@ -968,7 +968,7 @@ class Claims:
     part_window: tuple[tuple[int, int, str], ...] = ()
     # ON-CHIP SRAM a module's DMA engine reads or writes: (address, length,
     # what). 32 KB at 0x80000000; stock's highest static use ends at
-    # 0x80007874 (a 768-byte buffer at 0x80007574). USB AUDIO IN keeps its
+    # 0x80007874 (a 768-byte buffer at 0x80007574). USB (INPUTS on) keeps its
     # dTDs and packet buffers in the top 1 KB. The ledger refuses an overlap
     # between two modules; the stock extent is the author's census. The
     # check is on address overlap, so a range in CS1 (battery SRAM at
@@ -1088,12 +1088,10 @@ class Gate:
 
 @dataclass(frozen=True)
 class ModeView:
-    """What ONE position of a module's MODE select renames and re-defaults.
+    """Names and defaults for one position of a module's MODE select.
 
-    A multi-mode effect reuses knobs: BusDelay's MDEP is the tape modulation
-    depth in CLEAN and the grain scatter in GRAIN, and a panel that prints
-    MDEP in both is telling the operator the wrong thing half the time (Sam,
-   : "it's only got four settings ... just feels a lil confusing").
+    Multi-mode effects can reuse a knob slot for different controls. `names`
+    and `defaults` provide the label and default value for that mode.
 
     `names` renames slots for this mode -- up to 5 characters plus the field's
     terminator. `defaults` is what the OTHER knobs should
@@ -1510,7 +1508,7 @@ class Module:
     # module's Apply.BUILD settings resolved for the remix ({name: value},
     # an Option as its label). registry.bound() applies it once per remix,
     # so every reader of `linked`, `dsp`, `detours` or `gates` sees the
-    # chosen code without asking (modules/usb-audio-out is the first).
+    # chosen code without asking (modules/usb is the first).
     variant: object | None = None
     # The values a bound module was built with ({name: value}); empty on an
     # unbound one. An `include` callable reads them from the selection.
@@ -1812,40 +1810,18 @@ class Module:
         return self.kind is Kind.STOCK
 
     def knob_map(self) -> dict[str, int]:
-        """Panel label -> slot index, for the test harness.
-
-        THE single source of this map. It used to be hand-copied into
-        send_probe, render_reverb, verify_delay, verify_bus, the build tables
-        and the docs; four of those carry a comment about a time they drifted.
-        """
+        """Return the declared panel label-to-slot mapping."""
         return {p.name.decode(): i for i, p in enumerate(self.params)
                 if p.name}
 
 
-# ---- the fallback that is not a module -------------------------------------
-# An unimplemented id has to dispatch SOMEWHERE, and the answer has always
-# been a module of ours -- SEND, which passes the audio through and only taps
-# it. That costs 215-250 words, and an INSERT-ONLY remix was paying them for
-# a client nothing reads: with no server in the image, nothing ever consumes
-# the bus accumulators SEND writes.
-#
-# So a remix may name this sentinel instead, and unimplemented ids resolve to
-# the FIRMWARE's own NONE: its descriptor (the one at list position 0 of a
-# stock FX2 chooser, which our rebuilt list otherwise drops) and, on the DSP
-# side, the per-payload null stub the build already points silenced donor ids
-# at. It costs one list row -- four bytes of cave -- and no words at all.
-#
-# ⚠️ IT IS REFUSED BESIDE ANY BUS PARTICIPANT, and that is the whole safety
-# argument. Housekeeping -- flipping the rotation word and clearing the
-# accumulators, once per block -- is gated to payload A and done by the FIRST
-# CORE-0 PARTICIPANT DISPATCHED that block (send_client.asm's `bus_seen`
-# election). Today every unassigned track runs SEND, so core 0 always has
-# one. Under this fallback an unassigned track runs nothing, so a project
-# with tracks 5-8 all unassigned has no housekeeper -- and a server on the
-# OTHER core then reads an accumulator that is never rotated and never
-# cleared. With no server and no client in the image there is no bus, no
-# rotation and nothing to clear, so the question does not arise. That is the
-# only case this is allowed in; registry.remix() enforces it.
+# ---- fallback to the firmware's NONE ---------------------------------------
+# NO_FALLBACK maps unimplemented ids to the firmware's NONE descriptor and
+# the payload's null DSP stub. This uses no DSP words and one chooser row.
+# It is valid only when the selection has no bus participant. Bus rotation
+# and accumulator clearing run on the first core-0 participant each block;
+# without one, a server could read stale accumulators. registry.remix()
+# enforces this restriction.
 #
 # ⚠️ AND IT CANNOT BE SETTLED LOCALLY EITHER WAY: dsp_host is single-core, so
 # no local test can reproduce a bus timing defect (AGENTS.md). The refusal is

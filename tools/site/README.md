@@ -15,10 +15,18 @@ Generated, gitignored:
 
 - the module reference (every module grouped by category, with author,
   kind, proof status, FX2 id and knobs; stock effects in their own
-  section)
+  section; every module name links to its own page)
+- one `modules/<name>.md` page per module (what it does, the manifest
+  facts — author, kind, proof, FX2 id, knobs, requires, conflicts — and
+  which official remixes carry it; stock effects included). The pages are
+  not in the nav (there are ~70): each carries a `not_in_nav` line and is
+  reached from the module reference and the remix pages' module tables.
+  The remix-page link back is looked up in the nav in `mkdocs.yml` (the
+  one file that names the hand-written pages).
 - the credits (authors linked, with their module keys)
 - one `_remix-<name>.md` fragment per non-test remix (the remix doc, its
-  proof line, and its module table), pulled into each remix page with
+  proof line, and its module table, whose rows link to the per-module
+  pages), pulled into each remix page with
   `pymdownx.snippets` (`--8<-- "reference/_remix-<name>.md"`)
 
 ## Rules the doclinks gate forces on these files
@@ -37,7 +45,10 @@ included. Three consequences:
   (strings containing `{}` are exempt), so it stays quiet too.
 - Markdown links in a tracked page must resolve from the page's own
   directory, and `#anchor` targets must match a heading under GitHub's
-  slug rule.
+  slug rule. The hand-written remix pages link into `reference/`, whose
+  files are generated and untracked, so `tools/verify/verify_docs.py`
+  renders them (quietly) before it resolves links — as does CI's docs
+  job.
 - No section sign in any tracked page ("section N" instead).
 
 `mkdocs build --strict` is the complementary gate: it fails on a broken

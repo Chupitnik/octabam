@@ -129,8 +129,8 @@ def main():
             shutil.copy2(f, copy / f.name)
     tracks = {"fx2": 0, "fx1": 1}
     for kind, k, m in cases:
-        p1 = [p.default for p in m.params[:6]]
-        p2 = [p.default for p in m.params[6:12]]
+        p1 = [p.default or 0 for p in m.params[:6]]
+        p2 = [p.default or 0 for p in m.params[6:12]]
         ot_project.set_fx(copy, kind, tracks[kind] + 1, k, page=p1, page2=p2, guard=False)
     card = OUT / "card.img"
     r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
@@ -157,15 +157,23 @@ def main():
     midi = cc_dump = None
     cc_case = None
     if "CC MAP" in remix.modules and cases:
-        kind0, k0, m0 = cases[0]
-        slot2 = m0.mode_slot - 6
-        want_mode = 1 if expect_view(m0, 1) else (2 if expect_view(m0, 2) else None)
-        if want_mode is not None:
-            cc = (62 if kind0 == "fx2" else 68) + slot2
-            midi = OUT / "cc.midi"
-            midi.write_text(f"40 B0 {cc:02X} {want_mode:02X}\n")   # T1: MIDI_TRIG_CH1 = 0 in the fixture
-            cc_dump = OUT / f"cc_{kind0}_lanes.bin"
-            cc_case = (kind0, k0, m0, slot2, cc, want_mode)
+        # CC MAP's FX2 block writes only on bus hosts (Part FX2 id 6 or 7:
+        # its clamp tables are theirs, modules/cc-map/cc_map.s); the FX1
+        # block writes for any non-zero FX1 id. Take the first case the cave
+        # can write, so a remix without a bus host still exercises the
+        # MODE DEFAULTS adapter over the FX1 block.
+        for kind0, k0, m0 in cases:
+            if kind0 == "fx2" and (m0.menu is None or m0.menu.fx2_id not in (6, 7)):
+                continue
+            slot2 = m0.mode_slot - 6
+            want_mode = 1 if expect_view(m0, 1) else (2 if expect_view(m0, 2) else None)
+            if want_mode is not None:
+                cc = (62 if kind0 == "fx2" else 68) + slot2
+                midi = OUT / "cc.midi"
+                midi.write_text(f"40 B0 {cc:02X} {want_mode:02X}\n")   # MIDI channel 1: T1's MIDI_TRIG_CH1 = 0 in the fixture; T2 (the FX1 case) proved on the same channel before LOFI2 joined the FX2 cases
+                cc_dump = OUT / f"cc_{kind0}_lanes.bin"
+                cc_case = (kind0, k0, m0, slot2, cc, want_mode)
+                break
     log = OUT / "port.txt"
     run_port(image, card, a.set_name, a.name, steps, midi, cc_dump, log)
     for kind, k, m in cases:

@@ -25,9 +25,9 @@ remix name.
   uv provisions `.venv` (`make emu-setup`: `unicorn`, `textual`,
   `sounddevice`) for `make remix` and the label gates in `make check`.
 - An Octatrack MKI or MKII on OS 1.40C. Elektron's MKI and MKII download
-  pages serve the byte-identical file (compared 19 Aug 2026). octabam's own
-  effects have only been tested on an MKII; the DRAM platform has run on
-  both (MKI: octalab, 11 Sep 2026; MKII: OKMS1, 14 Sep 2026). octabam
+  pages serve byte-identical OS files. octabam's own effects have only
+  been tested on an MKII; the DRAM platform has run on both (MKI: octalab;
+  MKII: OKMS1). octabam
   images keep 1.40C's internal version code 0178, which the updater's
   "MK1 not allowed" check (error −5, against "0156") accepts.
 - A CompactFlash card in the unit (the fast flashing path).
@@ -59,12 +59,11 @@ local patches and builds them. Re-running it is safe. It ends with
 
 ### 1a. Linux and WSL2
 
-The build is bash + Makefile + CMake and does not run on native Windows;
-it runs inside WSL2 (WSL 2, not WSL 1: [Microsoft's install
-guide](https://learn.microsoft.com/windows/wsl/install)). What is written
-here was verified on Ubuntu 26.04.1 under WSL2 on 3 Sep 2026 and re-read
-against the tree of 28 Sep 2026; the last paragraph says what has not been
-verified since.
+The build uses Bash, Make, and CMake. It runs on macOS and Linux, including
+WSL2; it does not run in native Windows. See [Microsoft's WSL install
+guide](https://learn.microsoft.com/windows/wsl/install) to install WSL2.
+The Linux commands below were verified on Ubuntu 26.04.1 under WSL2 in
+September 2026.
 
 Clone into the Linux filesystem, not `/mnt/c`: over the 9p bridge the
 CMake build is slow, and a Windows-side clone loses the exec bit and can
@@ -107,12 +106,11 @@ MIDI SCENES, the USB modules, every DRAM module) refuses without them, and
 missing, so on a machine without Homebrew `make setup` stops at `brew:
 command not found`.
 
-**Build the bare-metal toolchain (recommended).** Upstream's authors use
+**Build the bare-metal toolchain (recommended).** Module authors use
 Homebrew's `m68k-elf-binutils` and `m68k-elf-gcc`. The same toolchain
 builds from GNU's sources on Linux, with the formulae's configure flags:
-binutils 2.47 (Homebrew's current) and GCC 16.1.0 (the version Octakit's
-recipe pinned; Homebrew is on 16.2.0). Measured on Ubuntu 26.04 under WSL2,
-28 Sep 2026; about an hour with two compile jobs:
+binutils 2.47 and GCC 16.1.0. This setup was verified on Ubuntu 26.04
+under WSL2 on 28 Sep 2026; allow about an hour with two compile jobs:
 
 ```bash
 sudo apt install -y libgmp-dev libmpfr-dev libmpc-dev libisl-dev zlib1g-dev libzstd-dev pkgconf texinfo
@@ -133,23 +131,22 @@ for f in /opt/m68k-elf/bin/m68k-elf-*; do sudo ln -sf "$f" /usr/local/bin/; done
 
 - `pkgconf` is needed: without `pkg-config`, binutils' configure stops on
   `--with-zstd was given, but pkgconfig/libzstd.pc is not found`.
-- ✅ USB MIDI's linked unit matches its author's build at `0x400d24f0`,
-  1,124 bytes (`make bus REMIX=octatrick-usb`, 28 Sep 2026; the remix
-  became `octatrick` on 29 Sep and sits in remixes/test/).
+- ✅ USB's `usbmidi` unit matches its author's build at `0x400d24f0`,
+  1,124 bytes (`make bus REMIX=octatrick`).
 - ✅ This repository's pinned ColdFire bytes still match
   (`tools/build/label_fmt.py`), and `scripts/disasm.sh emac 0x40003664 8`
   still prints `msacl`.
-- ✅ A module that isn't checked against an author's bytes can change: the
-  bare-metal assembler reads a same-section global PC-relative, where
-  Ubuntu's keeps an absolute address. STEM REC's runtime came out 48 bytes
-  shorter, and its gates pass on both (`docs/firmware/STEM_REC.md` 15.5).
-- On a VM with 3.8 GB, never compile beside a port run: on 28 Sep 2026 an
-  8-job port build there set off the kernel's OOM killer, which killed the
-  verifier.
+- ✅ STEM REC's runtime differs by 48 bytes between the bare-metal and
+  Ubuntu toolchains because their assemblers encode a same-section global
+  PC-relative reference differently. Its gates pass with both toolchains
+  (`docs/firmware/STEM_REC.md` section 15.5).
+- A VM with 3.8 GB of memory ran out of memory when an eight-job port build
+  ran beside another compile. Limit parallel jobs on machines with similar
+  memory.
 
-**The older route: Ubuntu's Linux-target tools.** Ubuntu's packages ship
-the tools under another prefix. This route was run with them, measured on
-Ubuntu 26.04 under WSL2 (10 and 27 Sep 2026, on branch `stem-rec-v2`):
+**Ubuntu's Linux-target tools.** Ubuntu's packages ship the tools under
+another prefix. The following setup was verified on Ubuntu 26.04 under WSL2
+on 27 Sep 2026:
 
 ```bash
 sudo apt install -y gcc-m68k-linux-gnu      # GCC 15.2.0; binutils 2.46 comes with it
@@ -171,19 +168,16 @@ done
   (`bne.s` to a `.global` label more than 127 bytes into the section: it
   emits an `R_68K_PC8` relocation that overflows). The same loop with a
   local label assembles at any offset.
-- ❌ USB MIDI's linked unit links to 1,130 bytes that aren't its author's
+- ❌ USB's `usbmidi` unit links to 1,130 bytes that differ from its author's
   (sha256 `b49af01e…`, not `6291d91e…`), so the build refuses it.
-- ✅ Both refusals are the toolchain: the bare-metal toolchain above
-  builds both to their authors' bytes from the same trees (28 Sep 2026).
-  This line was inferred until then.
+- ✅ Both differences are caused by the toolchain: the bare-metal toolchain
+  above builds both units to match their authors' bytes from the same source.
 
-With these tools `make check` passes, and the every-remix sweeps skip the
-remixes the machine can't build, by name, with the reason
-(`tools/remix/prereq.py`). `make accept` doesn't pass with them: it
-refuses any `[SKIP]`, so its `check_shared` stage fails for every remix.
-Use the bare-metal toolchain instead. ❌ Retracted: this paragraph said
-until 28 Sep 2026 that the symlinked tools had "not been tried" and that
-`make check` on Linux was unverified.
+With these tools, `make check` passes for remixes the machine can build.
+The all-remix sweeps report unavailable remixes as `[SKIP]` with a reason
+(`tools/remix/prereq.py`). `make accept` requires every check to run, so it
+fails when a check is skipped. Use the bare-metal toolchain to build all
+remixes and run `make accept`.
 
 Flashing from a Windows host hasn't been done: the card copy is a plain
 file copy, and the MIDI path needs a SysEx app on the host.
@@ -320,9 +314,9 @@ is the register of what has gone wrong on a unit and why.
 
 ## 7. If it goes wrong
 
-The Startup Menu is the bootloader and lives in flash the OS upgrade never
-touches, so the unit can always be returned to stock, even with a corrupt
-OS ("Z" screen, no boot, a hang):
+The Startup Menu is stored separately from the operating system. If it is
+available, it can install stock OS when the modified OS will not boot
+(including a "Z" screen or a hang):
 
 1. Power off. Hold **FUNC** and power on → **STARTUP MENU**.
 2. **TRIG 3 → MIDI UPGRADE** → "READY TO RECEIVE MIDI UPGRADE".

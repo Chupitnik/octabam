@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""The remixer: swap effects, hear them, see the panel draw them.
+"""The remixer: select effects, audition them, and preview the panel.
 
     make remix          (or: .venv/bin/python3 tools/remix/app.py)
 
-One page, three panes: AVAILABLE (what could be in the image), LOADED (what
-is), UNIT (the selected effect's knobs and the firmware's own draw of its
-page). Point at a stock effect, `enter` to swap one of ours in, `r` to
-hear it.
+One page, three panes: AVAILABLE (modules and stock effects), CHOOSERS (the
+FX1 and FX2 lists), and UNIT (the selected effect's settings and panel view).
+Press `enter` to add a module or remove a chooser row. Press `r` to audition
+the selected effect.
 
 The image follows the selection: every selection change rebuilds (~0.3 s)
 and re-boots the ColdFire emulator (~5 s) in the background, so the panel
@@ -54,29 +54,9 @@ def step_label(mod, name, v):
 
 
 # ---- the palette -----------------------------------------------------------
-# COLOUR CARRIES MEANING HERE, it does not decorate. Three axes, and nothing
-# else gets colour:
-#
-#   whose is it   OURS is aqua, the box's own is plain. In a remixer that is
-#                 the distinction you scan for -- "which of these did we
-#                 write" -- and it was carried by nothing at all.
-#   what state    green fits / ochre is a trade or a caution / red blocks.
-#   what is live  a soft purple for the one-of-a-kind markers (the fallback).
-#
-# ⚠️ THESE WERE ANSI NAMES AND THEY CAME OUT AS SATURATED PRIMARIES --
-# `cyan` rendered #00ffff, `yellow` #ffff00 -- because Rich resolves a name
-# to its standard value rather than delegating to the terminal, so the
-# "it wears your palette" reasoning was simply wrong. Against a warm dark
-# background that read as a wall of electric blue. These are gruvbox's own
-# tones instead: same three axes, desaturated, and chosen to sit on a dark
-# ground rather than shout off it.
-#
-# WHERE colour goes matters as much as which. The knob bars are twelve rows
-# deep, so ONE tint across them made the accent the largest thing on screen
-# and said nothing -- but neutralising them entirely went too far the other
-# way. They are graded by their OWN VALUE instead: a soft warm ramp, so the
-# variety comes from the values themselves and a row's colour means
-# something. No red in the ramp -- a full LP cutoff is not an alarm.
+# Colours encode module ownership, build state, and special markers. Explicit
+# hex values avoid terminal-dependent ANSI colors. Knob bars use a warm ramp
+# based on the value's position in its range.
 OURS = "#8ec07c"       # aqua -- a module from modules/
 OK = "#b8bb26"         # green -- fits, present, healthy
 WARN = "#d79921"       # ochre -- a trade, a caution, a knob that renders dry
@@ -97,22 +77,10 @@ _ACRONYMS = {"DJ", "EQ", "FX", "HP", "LP", "MS", "AB"}
 
 
 def titlecase(s: str) -> str:
-    """One naming rule for every name the remixer prints.
+    """Format names while preserving internal capitals and known acronyms.
 
-    The lists mixed three conventions and it showed: OUR modules carry a
-    panel name in camel case (`BusDelay`), the STOCK effects carry the
-    firmware's own, which is upper (`DJ EQUALIZER`, `LO-FI`), and a module
-    with no chooser row falls back to its directory slug (`tempo-sync`). So
-    one column read BusDelay / EQUALIZER / tempo-sync.
-
-    Deliberate inner capitals are LEFT ALONE -- `BusDelay` must not become
-    `Busdelay`, which is the failure mode of a naive .title(). A word is
-    only re-cased when it is entirely upper (or entirely lower), and known
-    acronyms keep their case.
-
-    ⚠️ This is the REMIXER's own text only. The emulated panel draws
-    strings captured from the firmware and is never re-cased -- it has to
-    show what the unit shows.
+    This applies to remixer labels only. Panel text is read from firmware
+    descriptors and is displayed without reformatting.
     """
     def word(w):
         if not w:
@@ -139,26 +107,11 @@ def disp(mod) -> str:
 
 
 def placeable(sel, total, used, harvest=None):
-    """Words this selection can still PLACE in one payload's donor region.
+    """Return (placeable_words, placement_ceiling) for one payload.
 
-    Not the build's own FREE figure, which reports the whole region as free
-    because nothing of OURS is in it yet: PLATE, SPRING and DARK REV's code
-    IS that region, so a reverb kept in the chooser is spending its own
-    words and has to be subtracted like anything else.
-
-    And the subtraction is not the reverbs' sizes. The region packs from
-    PLATE upward, so holding a LOW reverb makes the space above it
-    unreachable even though nothing occupies it -- keeping PLATE alone
-    leaves 2,130 words by size and 0 you can actually place. The ceiling is
-    the offset of the lowest reverb kept, which equals the plain subtraction
-    for every other combination (verified for all four).
-
-    Returns (free, cap): `total - cap` is what the listed reverbs hold, so
-    used + held + free is exactly total.
-
-    ONE definition of "free", used by both the line under LOADED and the
-    budget pane. They used to disagree on the same screen -- 2,509 there
-    against 379 here -- which is a good way to make a budget unreadable.
+    Retained stock reverbs occupy the beginning of the donor region. The
+    lowest retained reverb sets the ceiling; module words above it are
+    available for placement. `total - cap` is occupied by retained reverbs.
     """
     hv = tuple(harvest) if harvest else stock.CONSUMED
     cap = min((stock.consumed_at(c, hv) for c in hv if c in sel),
@@ -167,18 +120,10 @@ def placeable(sel, total, used, harvest=None):
 
 
 def chooser_slot(order, key):
-    """Where an effect goes when it is added: for a STOCK one, ITS OWN PLACE.
+    """Choose an insertion index for an effect.
 
-    A stock effect has a position on the unit -- FILTER first, DARK REV
-    fourteenth -- and that order is the one the library lists it in and the
-    one an untouched chooser shows. Appending ignored it: remove PLATE REV
-    from row 12 and add it back and it landed at row 14, below DARK REV, so
-    a removal you undid left the panel reordered. Nothing warned, because
-    the order was still a legal chooser.
-
-    One of OURS has no such place -- the position is a real choice and the
-    end is the only honest default -- so it still appends, and left/right in
-    LOADED moves it.
+    Stock effects return to their stock order. Modules append because their
+    chooser order is selected by the user.
     """
     seq = [m.key for m in stock.MODULES]
     if key not in seq:
@@ -216,7 +161,7 @@ def save_config(cfg):
         CONFIG.parent.mkdir(parents=True, exist_ok=True)
         CONFIG.write_text(json.dumps(cfg, indent=2) + "\n")
     except OSError:
-        pass                                    # not worth an error dialog
+        pass                                    # saved folder preference is optional
 
 
 def source_dir():
@@ -314,125 +259,72 @@ class Chooser(ModalScreen[str]):
 
 
 HELP = {
-    # ⚠️ PARAGRAPHS ARE ONE LINE EACH, deliberately. Rich re-wraps to the
-    # box's real width, so prose hard-wrapped in this file wrapped TWICE --
-    # every paragraph ended in an orphan ("order", "draw", "your", "a") and
-    # the page read as broken. Only the key table is hard-wrapped, and it is
-    # short enough never to be re-flowed.
-    "remixer": """[bold]THE REMIXER[/] — compose the effects list your unit shows, and hear each one before you commit to it.
+    "remixer": """[bold]THE REMIXER[/] — select modules, edit the effect choosers, and audition effects.
 
-[bold]AVAILABLE[/] is everything that COULD be in an image: your modules, then the stock effects the box already ships. [bold]CHOOSERS[/] is the image you are composing — the unit's two effect menus, FX1 above FX2, each in the row order the panel will show. [bold]UNIT[/] follows the cursor — the selected effect's knobs, what it costs, and `r` to hear it on the SOURCE wav.
-
-The loop is one move long: highlight one of yours in AVAILABLE and press `enter`. The image rebuilds and re-boots by itself, so the panel on the right is never showing something else.
+[bold]panes[/]
+  AVAILABLE  modules and stock effects that can be selected
+  CHOOSERS   the FX1 and FX2 lists in panel order
+  UNIT       the selected module's settings, resource use, and audio source
 
 [bold]keys[/]
-  tab  next pane           up/down (j/k)  move the cursor
-  enter   AVAILABLE: add it to the FX2 chooser (it displaces nothing).
-          CHOOSERS: remove the row you are on, from ITS list.
-  left/right   UNIT: the knob value, hold to run, SHIFT for ×10
-               CHOOSERS: move the row within its own chooser
-  r  render + hear     space  replay
-  a  mark the last render A     b  render this one and mark it B     , / .  play A / B
-  1  put the highlighted effect on the FX1 chooser (or take it off)
-  x  apply the fix the ⚠ is offering (only shown when there is one)
-  d  sample folder     l  load a remix      s  save this one as a remix
-  c  full check        f  choose the fallback        K  back to stock
-  ?  this              esc  stop audio      q  quit
+  tab / shift+tab   change pane
+  up/down (j/k)     move the cursor
+  enter             AVAILABLE: add; CHOOSERS: remove from the current list
+  left/right        UNIT: change a value; CHOOSERS: reorder the current list
+  1                 add or remove the selected effect from FX1
+  r / space         render and play / replay
+  a / b             mark the current render A / render and mark B
+  , / .             play A / play B
+  d                 choose the source audio folder
+  l / s             load / save a remix
+  f                 choose the fallback effect
+  x                 apply the fix shown by the warning
+  c                 run make check
+  K                 reset the selection to stock
+  esc / q / ?       stop audio / quit / show this help
 
-[bold]two slots, two chooser lists[/]
-Every track has TWO effect slots — FX1 then FX2, in that order through the audio — and each has its own chooser list. The middle pane holds BOTH, stacked, and every gesture applies to the list you are standing in: `enter` removes from it, `←→` reorders within it (a row cannot cross from one list to the other by being nudged off the end), and `1` puts the highlighted effect on FX1 or takes it off.
+[bold]chooser behavior[/]
+FX1 and FX2 are separate lists. FX2 starts empty; FX1 starts with the ten
+stock effects. Removing an effect from a chooser removes its row, not its
+code from the image. Left and right reorder rows within the current chooser.
 
-They start from opposite places, and that is the only asymmetry left:
+Adding an FX1 row adds no DSP code. The DSP dispatch table is shared by both
+menus, but FX1 adds four possible effect instances per core and can increase
+cycle use. Only buffer-free modules or modules whose buffer fits the FX1
+allocation can use FX1. Bus servers cannot use FX1. The UNIT pane reports
+these restrictions.
 
-  [bold]FX2[/] is built from nothing. Every row on it is one this remix listed.
-  [bold]FX1[/] starts as the ten stock ships, because that is what the box does. Drop them, reorder them, add yours.
+[bold]resource budget[/]
+The budget reports DSP words for each payload, FX2 buffers, estimated DSP
+cycles, chooser rows, and ColdFire cave bytes. A module must fit in one
+contiguous DSP region. Removing a stock effect from both chooser lists makes
+its DSP words available; removing it from only one list does not. A retained
+stock reverb can limit the available region.
 
-Both are then equally yours. Leaving an effect off a chooser takes that ROW and nothing else — its code, descriptor and dispatch stay stock, so an old project that selects it still runs it, and dropping FLANGER from FX1 does not touch its FX2 row.
+The cycle figure estimates the heaviest allowed per-core effect mix. It does
+not model memory contention. The image can build when the DSP cycle budget
+is exceeded; the DSP may then stop processing correctly.
 
-`p` → FX1 draws the chooser you composed, as the firmware draws it.
+The CHOOSERS status shows boots when the image reaches the RTOS handoff in
+the ColdFire emulator. It does not verify behavior on hardware.
 
-[bold]the no-flash gate[/]
-The CHOOSERS line ends in `boots` when the built image reaches the RTOS handoff in the local ColdFire emulator. That is the whole of it: a cave that breaks early init faults there instead of on your unit. It is a fact about the IMAGE, so it is on the image's line.
+[bold]audition and fallback[/]
+r renders the selected effect using the SOURCE audio. a stores that render;
+b renders the selected effect again and stores it as B. Both renders use the
+same source. Comma and period play A and B. Some stock effects have a wet
+control set to zero by default and render the source unchanged; the UNIT pane
+identifies this case.
 
-If a selection ever patches the unit's top-level menu, the MAIN MENU appears under CHOOSERS as the firmware draws it. None do yet — a selection changes it only by writing the tables at `0x400cbc00` and every remix so far changes zero bytes of them.
-
-⚠️ There used to be a per-effect block here showing the firmware's own draw of the page. It is gone (3 Sep 2026) and the reason is worth knowing: the rows above already list every drawn parameter with its page number, from the same descriptor, so the picture said it again — and a picture of that screen is not even possible, because the chooser list and the parameter block are two overlaid windows whose coordinates are not comparable. What it was really being squinted at for is whether the descriptor the build WROTE matches the manifest that asked for it: a clone inherits its donor's name fields and slot names, so it can carry the right count, default and enable bit and still be labelled as the effect it was copied from. That is a CHECK, and it now lives in `verify_menu`, where a mismatch fails `make check` instead of having to be noticed in the corner of a pane.
-
-[bold]what an FX1 row costs[/]
-No words: the DSP dispatch table is indexed by the raw id and shared by both menus, so an effect's code already ran from FX1 the moment FX1 selected its id. It costs CYCLES — FX1 is four more slots on the same four tracks, so an effect on both menus can double the worst per-core load; watch the Budget's `cycles` row.
-
-Only a buffer-free INSERT of ours, or one whose buffer is declared to fit an FX1 slot, can take one, and the UNIT pane says which cannot and why: an FX1 buffer slot is 3,072 words against FX2's 16,384, a module with fixed FX2 buffers would write into another track's, and a bus server is one per core. The same reasons are why stock keeps DELAY and the three reverbs off FX1 — they do not fit either. An FX1-ONLY module (it passes dry on FX2) says so on its resource line.
-
-⚠️ The firmware's own NONE is always FX1 row 0 and is not shown here: it is how the slot is turned off, and no remix can lose it.
-
-The `FX1+FX2` column in the library says which menus an effect CAN appear on, not where its rows are today; the ✓ beside it is what says whether it is in the image.
-
-It costs no words. The DSP dispatch table is indexed by the raw id and shared by both menus, so the code already ran from FX1 the moment FX1 selected the id; what `1` adds is the panel side. What it DOES cost is cycles: FX1 is four more slots on the same four tracks, so an effect on both menus can double the worst per-core load — watch the Budget's `cycles` row.
-
-Only a buffer-free INSERT, or one whose buffer is declared to fit an FX1 slot, can take one, and the UNIT pane says which cannot and why: an FX1 buffer slot is 3,072 words against FX2's 16,384, a module with fixed FX2 buffers would write into another track's, and a bus server is one per core. An effect that replaces a stock one is listed here by its own name; with FX1 left stock it inherits that effect's row.
-
-[bold]a narrow terminal shows fewer panes[/]
-Under 118 columns the panes come in pairs that slide with the focus; under 92, one at a time. The tab bar at the top names all three and marks where you are. Lists longer than the pane scroll with the cursor and say so (`↑ 6 more`).
-
-[bold]what is actually scarce[/]
-Every row says what it IS in a column of its own, and under them is a MAP of the payload's effect code, drawn to scale from the real spans: thirteen segments, one per stock effect, `─` for the ones this selection keeps, `.` for the harvested run and `#` for how far your code reached into it. One bar per payload, because the layout is identical in both and only the fill differs. That is the picture the twenty-glyph `words` bar could not draw — it needed a legend and still said neither WHERE in the payload the region is nor WHICH effects it costs, and once the region became a choice those were the only two questions.
-
-Five things, and the Budget strip is one row for each: the two donor regions of 2,724 words (one per payload, and only YOUR modules spend them), the FX2 buffer slots (one per track, per core), the per-core CYCLES, the 31 chooser rows, and the ColdFire cave. Every row reads the same way — [bold]N free of TOTAL, and what took the rest[/].
-
-CYCLES is the one that does not fail as a refusal. Over budget the DSP does not decline to build, it wedges — so the row prices the WORST core under the worst mix this selection allows, which for a card of inserts is four copies of the dearest one: nothing stops all four tracks selecting it. The budget of 3,120 is what our code may spend after stock's own share, measured 23 Aug 2026, and the count is a floor: exact for the code, optimistic about memory contention.
-
-Rows are NOT the scarce thing, which is why `enter` adds rather than swaps: 31 rows fit, and leaving a stock effect out takes its chooser row and nothing else — an old project that selects it still runs it.
-
-THE DONOR REGION IS NOT A PLACE, IT IS A CHOICE. The thirteen DSP effects are laid out CONTIGUOUSLY in 6,158 words (`P:0x007d1..0x01fdf`, no other module between them, measured 3 Sep 2026), and every one is SELF-CONTAINED — no control flow leaves its own span and nothing enters it but its own dispatch entry. So ANY of them can be given up, and its words become ground your modules are placed into. The three reverbs are only the DEFAULT: they are the biggest and FX2-only, so taking them costs FX1 nothing.
-
-Taking an effect off ONE menu costs it only its row there — an old project that selects it still runs it. Taking it off BOTH is the decision to give up its words, and then it really is gone: its dispatch goes to the null stub wherever your code reached it.
-
-⚠️ A GAP IS A WALL. What you gave up becomes one or more contiguous RUNS, and a module is one code stream, so it must fit inside a SINGLE run — 3,880 words spread over three runs will not take a 3,500-word module. That is why the Budget names the largest opening beside the total, and why the map draws a bracket per run rather than one across the stock effects between them. Harvesting an effect that sits BETWEEN two runs joins them into one.
-
-[bold]on an unmodified unit every word is allocated[/]
-All 6,158 words of the payload's effect code belong to a stock effect that is using them, and the remixer opens saying exactly that: `no region — every word is a stock effect's`, the map all `─`. NOTHING is set aside for you until you decide what to give up.
-
-[bold]taking an effect off BOTH menus is that decision[/]
-There is no separate harvest gesture, because there was never a separate choice: an effect on neither chooser is one you do not want, so its words are where your modules go. `⌁` marks it in the library. That is derived from the two lists, not a third thing to manage — and it reproduces what the build has always done, because FX1 lists ten of the thirteen and the reverbs are FX2-only, so a remix listing none of them on FX2 gives up exactly those three.
-
-Add a module before giving anything up and the ⚠ says so, with `x` dropping the three reverbs — the biggest, and FX2-only, so they cost FX1 nothing.
-
-⚠️ BOTH menus. An effect off FX2 but still on FX1 is still wanted, and the DSP dispatch is one table shared by them, so overwriting its code would take it off FX1 too. Removing it says which: `still on FX1, so its 329 words stay its own` or `off both menus now, so its 329 words join the region`.
-
-⚠️ THE TWO LISTS STAY INDEPENDENT, and they have to. "Off one is off both" would be simpler to operate and would make the plain `bus` remix impossible: its FX2 chooser is BusVerb, BusDelay and Send, so every stock effect is off FX2 — and taking them off FX1 with it would leave the unit with NO FX1 EFFECTS AT ALL and hand your modules all 6,158 words they did not ask for.
-
-⚠️ AND IT ONLY COSTS WHERE YOUR CODE REACHES. What you gave up becomes one or more unbroken RUNS, and each module is packed into a run it fits, from that run's lowest address; anything the placer never reaches keeps its algorithm and its dispatch and simply has no chooser row — which is exactly what unlisting a stock effect has always done. A module is one code stream, so it must fit inside a SINGLE run: two runs of 1,500 words will not take a 2,000-word module, and the budget says the largest opening for that reason.
-
-[bold]a reverb you keep listed is spending words[/]
-PLATE, SPRING and DARK REV's code IS the donor region, so the `held by` line is the live trade: what they are holding, and what dropping the next one buys. The region packs from PLATE upward, so holding a LOW reverb also makes the space above it unreachable — keeping PLATE alone leaves 2,130 words by size and 0 you can actually place.
-
-You CAN keep them. The build takes only the reverbs your modules actually reach, and the pane says which went (`— Plate Rev  donor, taken`). (Until 2 Sep 2026 all three were nulled unconditionally and the honest answer here was "you cannot, ever". That is no longer true.)
-
-[bold]there is one FX2 buffer per track[/]
-"Free" there means "no module has pinned it", not "unused": a track whose buffer no module claims still HAS that buffer, ready for whatever is selected on it. Only a MODULE claims one for the life of the image. BusVerb holds all four of its core's, BusDelay two of its core's — and they go in PAIRS, so "4 free" is two pairs, not four independent slots.
-
-A stock effect never appears in that row: it takes a slot from the allocator at runtime, per effect per block, only while it is selected on that track — which no image can reserve. That runtime contest is why the ledger refuses an allocating stock effect beside a pinner, and it is what the ⚠ is asking you to remove. FLANGER, CHORUS, SPATIALIZER and COMB FILTER keep their FX1 rows and still work; the three reverbs were FX2-only in stock and are lost outright.
-
-[bold]A / B compares two EFFECTS[/]
-Not two renders ago against now. `r` to hear one, `a` to park it, point at the rival, `b` — which re-renders it on the SAME source — then `,` and `.` to flip. That is the question a remixer exists to answer: is mine better than the one the box came with?
-
-[bold]why an effect can render DRY[/]
-Six of the eleven stock effects ship with their wet control at zero — PHASER, FLANGER, CHORUS and COMB (MIX), SPATIALIZER and DELAY (SEND) — so `r` on one at its defaults plays the source back unchanged. That is faithful: the defaults are read from the firmware's own descriptor. The UNIT pane says `⚠ MIX is 0 — this renders DRY` when it applies.
-
-[bold]the fallback[/]
-An id the image does not implement aliases to the FALLBACK — normally SEND, so an old project degrades to a send rather than to noise. It is added for you the moment a selection needs one; `f` chooses another; `◀fb` marks it. A stock chooser with no modules of ours cannot build for exactly this reason: it has no fallback to name, and no stock effect is a safe one.""",
+An FX2 id without an implementation uses the selected fallback. The default
+fallback is SEND when a bus server is selected, and NONE otherwise. The
+chooser marks the fallback with ◀fb.""",
 }
 
 
 class HelpScreen(ModalScreen[None]):
     """The ? overlay: what this view is, its keys, and the concepts."""
 
-    # ⚠️ IT WAS SILENTLY CLIPPED. A Static in an auto-height box stops at
-    # max-height with no scrollbar and no hint, so `?` showed about the
-    # first 60% of the page and the rest could not be reached at all --
-    # including every answer about the budget. It scrolls now, and the box
-    # is a PERCENTAGE so an 80-column terminal is not handed a 76-column
-    # box with two columns of padding.
+    # The help content scrolls and the dialog width scales with the terminal.
     CSS = """
     HelpScreen { align: center middle; }
     #box { width: 90%; max-width: 84; height: 90%;
@@ -466,38 +358,20 @@ class HelpScreen(ModalScreen[None]):
 
 # ---- THE REMIXER: one page, three panes ---------------------------------------
 AVAILABLE, LOADED, UNIT = 0, 1, 2
-# The unit's own order: FX1 then FX2 are the two slots on a
-# track; MAIN MENU is the odd one out and goes last.
-# ⚠️ THERE WAS A `p` KEY cycling FX1 / FX2 / MENU here. Both FX pages are the
-# same descriptor for anything listed on both, so it showed the same knob
-# names twice; the MAIN MENU is the same picture in every remix that exists.
-# Neither is a per-effect view: what survives of both is in verify_menu and
-# on the CHOOSERS pane's own line -- see _ledger_line.
+# The unit's effect-slot order is FX1 followed by FX2. The MAIN MENU is
+# shown after the chooser panes when a remix changes it.
 
 
 class RemixerScreen(Screen):
-    """One page: the library, the image being composed, and the selected unit.
-
-    Three panes, left to right, matching how the work actually goes: what
-    COULD be in the image, what IS, and what the selected effect looks like on
-    the unit. There is no per-track view -- a remix is a statement about an
-    IMAGE, and the eight tracks were a second place to say the same thing.
-    Knob values belong to the effect, not to a track.
-
-    The default selection is STOCK: the chooser an unmodified unit shows. You
-    add to what the box already does rather than to somebody else's remix.
-    """
+    """Show available modules, the selected remix, and module settings."""
 
     BINDINGS = [
         Binding("tab", "pane(1)", "pane"),
         Binding("shift+tab", "pane(-1)", "prev pane", show=False),
-        # "swap / remove" was stale from the moment enter stopped swapping.
         Binding("enter", "add_remove", "add / remove"),
         Binding("r", "render", "hear it"),
         Binding("space", "play", "play last"),
-        # The sample folder belongs on the footer: it is the one setting that
-        # is about YOUR material rather than about the image, so it is the
-        # one a new pair of hands looks for and cannot guess.
+        # Show the active audio source in the footer.
         Binding("d", "source_dir", "sample folder"),
         Binding("a", "mark('A')", "A = this", show=False),
         Binding("b", "mark('B')", "B = this", show=False),
@@ -517,11 +391,8 @@ class RemixerScreen(Screen):
     ]
 
     def compose(self) -> ComposeResult:
-        # A TAB BAR, but only when the panes are not all on screen. It names
-        # all three and marks the one you are in, so a narrow terminal reads
-        # as a remixer showing you a third at a time rather than one with
-        # two thirds missing. Full width, because the titles carry context
-        # ("Loaded · bus") that will not fit in a 32-column pane head.
+        # The tab bar identifies the active pane when the terminal is too
+        # narrow to display all panes at once.
         yield Static(id="tabbar")
         with Horizontal(id="panes"):
             yield Static(id="pane_avail")
@@ -646,10 +517,8 @@ class RemixerScreen(Screen):
     def loaded_rows(self):
         """BOTH choosers, in one cursor path: FX1's rows then FX2's.
 
-        The unit has two effect slots and each has its own list; showing one
-        and tagging the other in a column was the confusion Sam named. They
-        stack, and the cursor walks through both -- so `enter` removes from
-        whichever list you are standing in and `←→` reorders that one.
+        Each effect slot has its own list. The cursor walks both lists, so
+        `enter` removes from the current list and `←→` reorders that list.
 
         -> [(menu, module)], menu being rig.FX1 or rig.FX2.
         """
@@ -660,9 +529,7 @@ class RemixerScreen(Screen):
     def unit_rows(self, mod):
         """What the UNIT cursor walks: the sample to audition, then the
         effect's drawn knobs in slot order. SOURCE is a row rather than a
-        hidden setting because "what am I hearing this on" is the first
-        question at a bench, and it was the one thing the old per-track view
-        got right."""
+        hidden setting so the selected audio source is visible and editable."""
         rows = [("SOURCE", None)]
         if mod is None or not mod.params:
             return rows
@@ -933,16 +800,9 @@ class RemixerScreen(Screen):
     def _pane_loaded(self, st, probs):
         """BOTH chooser lists, stacked, both editable.
 
-        The unit has two effect slots per track and each has its own list.
-        Composing one of them while the other sat in a column as an
-        `FX1+FX2` tag is what made the relationship unreadable -- so they are
-        two headed sections here, one cursor path, and every gesture applies
-        to the list you are standing in.
-
-        ⚠️ THEY ARE NOT SYMMETRIC and the headers say how. FX2's list is
-        built from nothing: its rows, their order and its membership are all
-        the remix's. FX1's starts as stock's ten and the firmware's own NONE
-        is always its row 0, which is why no row here is numbered 0.
+        FX1 and FX2 have separate lists. FX2 starts empty; FX1 starts with
+        the ten stock effects. The cursor identifies which list an action
+        will change.
         """
         rows = self.loaded_rows()
         name = st.loaded_name or "unsaved"
@@ -955,10 +815,6 @@ class RemixerScreen(Screen):
             if mn != menu:
                 menu, pos = mn, 0
                 n = sum(1 for x, _ in rows if x == mn)
-                # ⚠️ JUST THE NAME AND THE COUNT. The header carried why
-                # the two lists differ ("stock's ten to start" / "yours to
-                # compose") and wrapped at 40 columns, which turns a header
-                # into two mystery rows. `?` says it in full.
                 out.append(f"[bold] {mn}[/][dim]  {n} row"
                            f"{'' if n == 1 else 's'}[/]")
             here = self.pane == LOADED and i == self.cur[LOADED]
@@ -1006,9 +862,7 @@ class RemixerScreen(Screen):
                        f"cannot be listed — {escape(who)} "
                        f"{'holds' if len(pin) == 1 else 'hold'} "
                        f"the buffers they need[/]")
-        # THE MAIN MENU, only when this selection changes it -- which is
-        # never, so far. It is the image's business, not one effect's, so it
-        # sits here rather than following the cursor in the UNIT pane.
+        # Show the main menu only when a selected module patches it.
         self.ensure_sync(probs)
         if not probs and not self.sync_error and self.app.boot is not None:
             n = rig.menu_patched()
@@ -1024,14 +878,7 @@ class RemixerScreen(Screen):
                                             head=head, tail=tail + 3))
 
     def _ledger_line(self, st, probs):
-        """The fit, the blocker and the build state, in ONE line.
-
-        This pane used to close with five: a donor-region budget, a ● legend,
-        a "dim = stock" legend, a keys hint and a ⚠ -- roughly half its
-        height spent explaining constraints rather than showing the image.
-        Only two questions are actually live while swapping: does this fit,
-        and is the panel on the right showing it yet. The rest moved to `?`.
-        """
+        """Return the current constraint, build, or emulator status line."""
         if probs:
             # ⚠️ NOTHING TO PLACE INTO OUTRANKS THE REST. It is the only one
             # whose fix ADDS rather than removes, `x` applies it first, and a
@@ -1243,30 +1090,7 @@ class RemixerScreen(Screen):
         return rows + ["  " + f"[dim]{foot}[/]"]
 
     def _pane_budget(self, st, probs):
-        """WHAT IS LEFT, standing under the effect you are looking at.
-
-        Every other number in this remixer is read against this one -- "500
-        words" means nothing without "and 313 are free" -- and it used to be
-        something you inferred from a refusal. Four scarce things, and only
-        four: the two donor regions, the FX2 buffer slots per core, the
-        chooser rows, and the ColdFire cave. Everything else is unbounded in
-        practice.
-
-        EVERY ROW IS THE SAME SENTENCE: `N free of TOTAL · what took the
-        rest`. That uniformity is the whole point and it is what this pane
-        kept losing -- the rows line said "17 free of 31 (14 loaded)" while
-        the words line said a bare "0 free" with no total at all, and the
-        buffer line said "5,6,7,8 keep theirs" with neither. Three different
-        answers to one question is what made it unreadable.
-
-        And the TOTAL is stated even when nothing of ours is loaded, so the
-        default selection -- an unmodified unit -- says what a stock core
-        actually spends rather than reporting an alarming bare zero.
-
-        Read from the BUILD's own report wherever possible (state.measure),
-        because the build is the only thing that knows where the cursor
-        actually stopped.
-        """
+        """Render resource totals and remaining capacity for this selection."""
         out = ["[bold]Budget[/]"]
         # TWO GROUPS, because the pane is now a full-width strip: what the
         # WORDS cost (per payload, plus the reverbs holding the rest) and
@@ -1706,19 +1530,7 @@ class RemixerScreen(Screen):
 
     # ---- the emulated panel ---------------------------------------------
     def _panel(self, mode, effect_id=None):
-        """The firmware's own draw of one page, CACHED.
-
-        ⚠️ This is what made a HELD arrow key lag. render_fx2 costs 15-96 ms
-        (mean 32; render_fx1 16, render_menu 8 --), and
-        rerender() ran it on every keystroke, so under key repeat the work
-        per key exceeded the repeat interval and the UI fell behind the key,
-        then kept stepping after release. Single presses always felt fine,
-        which is why it read as "slow when holding" rather than as latency.
-
-        Nothing a keystroke does can change this picture: knob VALUES draw as
-        dial graphics the string-capture hook cannot read (tools/emu/README.md), so
-        the page depends only on WHICH page, WHICH effect, and which boot.
-        """
+        """Return the firmware-rendered page, cached by page, effect, and boot."""
         key = (mode, effect_id, self.synced)
         if key in self._panel_cache:
             return self._panel_cache[key]
@@ -1742,15 +1554,7 @@ class RemixerScreen(Screen):
         return self._panel_cache[key]
 
     def _menu_picture(self, n):
-        """The MAIN MENU as the firmware draws it.
-
-        ⚠️ SHOWN ONLY WHEN THE SELECTION ACTUALLY CHANGES IT, which is the
-        case this view was built for -- a patched-in top-level row
-        -- and which no remix yet hits: a selection can
-        change the top-level menu only by writing the tables at 0x400cbc00,
-        and every one of them changes ZERO bytes of it. As a permanent
-        fixture it was the same picture every time.
-        """
+        """Render the firmware's main menu and identify the patched byte count."""
         import emu_bringup
         head = [f"[{WARN}]main menu — {n} bytes patched[/]"]
         grid = emu_bringup.layout_screen(self._panel("MENU"))
@@ -1848,22 +1652,7 @@ class RemixerScreen(Screen):
         self.rerender_soon()
 
     def describe(self):
-        """Moving the cursor CLEARS the status line.
-
-        ⚠️ IT USED TO REPEAT THE UNIT PANE. Every cursor move wrote the
-        effect's category, id, resource sentence and membership into the
-        status bar -- which is word for word what the UNIT pane already
-        prints under the effect's name, except that the pane WRAPS and this
-        was one row, so the copy that got truncated mid-sentence was the
-        redundant one. Deleted rather than moved: a column of the budget
-        strip is 62 columns against the 138 this already had, so "give it
-        more room" and "put it in the strip" pull opposite ways.
-
-        Clearing is what is left, and it is the right half of the old
-        behaviour: an action message ("added BusVerb · added Send as the
-        fallback") is context for the moment it happened, so it must not
-        still be sitting there describing a row you have since left.
-        """
+        """Clear transient action text when the selection cursor moves."""
         self.app.state.msg = ""
 
     def rerender_soon(self):
@@ -2012,16 +1801,8 @@ class RemixerScreen(Screen):
                 self.rerender()
                 return
             else:
-                # ⚠️ THIS USED TO SWAP: the module took the ▸ row's slot and
-                # that row was dropped. The justification was "an image is a
-                # fixed budget, so putting something in means taking
-                # something out" -- which is the LEDGER's scarcity imported
-                # into the operator's gesture, where it does not apply.
-                # Rows are not the scarce thing: the long-list cave holds 31
-                # of them, and a STOCK row costs zero words (no code placed,
-                # no descriptor cloned). Only WORDS are scarce, and only for
-                # modules of ours. So add, and let the budget speak up if it
-                # is actually breached -- which is what the ⚠ line is for.
+                # Adding a module does not displace another chooser row.
+                # Resource limits are reported in the budget and warning line.
                 st.insert_at(mod.key, chooser_slot(st.order, mod.key))
                 st.msg = f"added {disp(mod)}"
                 st.msg += self.ensure_fallback()
@@ -2042,13 +1823,8 @@ class RemixerScreen(Screen):
             else:
                 st.toggle(mod.key)
                 st.msg = f"removed {disp(mod)} from the FX2 chooser"
-            # ⚠️ AND WHETHER THAT FREED ANYTHING. Giving up a stock effect's
-            # words means taking it off BOTH menus -- the DSP dispatch is one
-            # table shared by them -- so a removal that leaves it on the
-            # other one frees nothing, and said nothing about why. The two
-            # lists have to stay independent: `bus`'s FX2 chooser is
-            # BusVerb/BusDelay/Send, so "off one is off both" would strip
-            # FX1 to zero rows and take every stock effect with it.
+            # Stock DSP words are reclaimable only when the effect is absent
+            # from both lists because the dispatch table is shared.
             st.msg += self._freed(mod, was, set(st.harvest))
             st.loaded_name = ""
             self.cur[LOADED] = max(0, self.cur[LOADED] - 1)

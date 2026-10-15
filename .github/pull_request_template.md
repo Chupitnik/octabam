@@ -20,6 +20,7 @@ Remixes reached: <!-- every remix that carries a changed module -->
 - `make test-acceptance`:
 - `make accept REMIX=<name> …`:
 - `scripts/refhash.sh check` (build changes):
+- `make verify-docs` (manifest, remix selection or docs changes):
 
 ## Hardware
 
@@ -30,3 +31,4 @@ Remixes reached: <!-- every remix that carries a changed module -->
 - [ ] No Elektron bytes in the diff (no image, slice, `.syx`, or firmware dump)
 - [ ] Submodule pin changes name the upstream commit and why
 - [ ] The module README says what was measured and what was inferred
+- [ ] Generated docs are current: `make docs` then `make verify-docs` passes (CI refuses stale READMEs)

@@ -185,7 +185,9 @@ MODULE = Module(
     # defaults: a per-mode default for slot 2 would also reset FDBK on every
     # DOWN <-> UP turn.
     mode_slot=8,
-    mode_views=(ModeView(mode=0, names={2: b"GAIN"}),),
+    mode_views=(ModeView(mode=0, names={2: b"GAIN"}),   # RING
+                ModeView(mode=1),                       # DOWN: FDBK stays
+                ModeView(mode=2)),                      # UP: FDBK stays
 
     dsp=DspSection(
         asm="modules/lofi2/lofi2.asm",

@@ -1,6 +1,7 @@
 # `midi-scenes` — MIDI SCENES alone
 
-One module. The smallest image with a real mod on the DRAM platform.
+One module. This remix builds MIDI SCENES on the DRAM platform without
+other ColdFire or DSP modules.
 
 ## What is in it
 

@@ -19,11 +19,15 @@ COMPRESSOR keeps its id, undisturbed, with no side-chain KEY.
 | MODULATION | ✓ | ✓ | Juno, Dimension, flanger, phaser, comb | [`modulation`](../../modules/modulation/README.md) |
 | TRANSIENT | ✓ | ✓ | transient shaper (Ignorato) | [`transient`](../../modules/transient/README.md) |
 | EUCLID | ✓ | ✓ | Euclidean filter / amp sequencer (repeat98) | [`euclid`](../../modules/euclid/README.md) |
+| LOFI2 | | ✓ | ring mod or stereo frequency shifter into sample-rate and bit reduction on stock LO-FI's curves, plus a high-shelf cut: FREQ, MIX, FDBK/GAIN, SRR, BRR, LPF, RANGE, MODE, AMPH | [`lofi2`](../../modules/lofi2/README.md) |
 | DELAY | | ✓ | stock | |
 | GATE VERB | | ✓ | gated plate reverb (the reverb stage of Mutable Instruments Clouds plus a gate): AMNT, GAIN, TIME, DIFF, TONE, GATE | [`gateverb`](../../modules/gateverb/README.md) |
 
 The three stations are FX1-only in the bus remix; here each has its `SLOTS`
-build setting at `FX1+FX2`, so an FX2 instance runs live. CHARACTER's KEY
+build setting at `FX1+FX2`, so an FX2 instance runs live. LOFI2 is FX2-only
+in this remix: eight instances (FX1+FX2 on all four tracks of a core) would
+cost 3,328 cycles of the 3,120 usable; four (FX2) cost 1,664, and the worst
+core is then 2,984 with four MODULATIONs on FX1. CHARACTER's KEY
 = T1 needs a BusDelay host, so in this remix it keys on the track's own
 input. The FX1 chooser lists NONE and the effects marked FX1; the FX2
 chooser lists the effects marked FX2. A MODE turned on the panel re-defaults
@@ -44,16 +48,17 @@ The same set is in [`octabam-bus`](../octabam-bus/README.md).
 | | [CC MAP](../../modules/cc-map/README.md), [CC FEEDBACK](../../modules/cc-feedback/README.md) | CC onto page 2; knob changes out as CC |
 | | [DIRECT_JUMP_KYOTI](../../modules/direct-jump-kyoti/README.md), [RELOAD_FROM_PROJECT](../../modules/reload-from-project/README.md) | clock-locked direct jump; reload one track from the card |
 | | [SCALE QUANTIZER](../../modules/quantizer/README.md), [TUNER](../../modules/tuner/README.md) | scale quantizing on PTCH; a tuner window (UP + TEMPO) |
-| USB | [USB MIDI](../../modules/usb-midi/README.md), [USB AUDIO OUT](../../modules/usb-audio-out/README.md) | MIDI both ways; tracks, MAIN and CUE to a computer (layout MAIN CUE) |
+| USB | [USB](../../modules/usb/README.md) | MIDI both ways; tracks, MAIN and CUE to a computer (layout MAIN CUE) |
 | recorder and fixes | [RECORDER LOOP FIX](../../modules/recorder-loop-fix/README.md), [RLEN PLEN](../../modules/rlen-plen/README.md) | the loop click; RLEN value PLEN |
 | | [BATCH_BUGFIXES](../../modules/batch-bugfixes/README.md), [ERASE_EMPTY_TRIGLESS_LOCKS](../../modules/erase-empty-trigless-locks/README.md), [QUANTIZE_LIVE_REC_TOGGLE](../../modules/quantize-live-rec-toggle/README.md), [REC_TRIG_MUTE](../../modules/rec-trig-mute/README.md), [MUTE_MODES](../../modules/mute-modes/README.md) | Zac-Kyoti's fixes and mute modes (MUTE_MODES runs from DRAM) |
+| | [ATA WRITE GUARD](../../modules/ata-write-guard/README.md) | keeps the first PIO card write and its bookkeeping atomic against the completion interrupt |
 
 ## What it costs
 
 | | stock | octabam-inserts |
 |---|---|---|
 | sample and recorder memory | 14,602 pages | 12,895 pages (the platform reserve) |
-| DSP words free, payload A / B | | 1,231 / 1,231 |
+| DSP words free, payload A / B | | 363 / 363 |
 
 ## Where it has run
 

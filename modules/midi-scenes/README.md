@@ -5,12 +5,11 @@ unit (`scenes.s`), 21 detours and two pokes in the OS, nothing on the DSP,
 no menu row.
 
 Credit: bkkbrls-del ([midisc](https://github.com/bkkbrls-del/midisc), MIT)
-is the original author of the behaviour. This module rewrites it as
-readable GNU as, checked against his MIDISC2.1 image under the port
-(`tools/verify/verify_scenes.py`), the way `modules/kits` rewrites Em's
-Octakit. None of his code or data is copied or linked. His repository was a
-submodule here (pinned at `4f9a894`, MIDISC 2.0) until 10 Oct 2026; the
-build no longer needs it.
+is the original author. This module reimplements the behavior in GNU as
+and checks it against the MIDISC 2.1 reference image with
+`tools/verify/verify_scenes.py`. It does not copy or link source files from
+the upstream repository. The repository was previously a submodule pinned
+at `4f9a894` (MIDISC 2.0); the build no longer requires it.
 
 Markers as in `CHIP.md`: ✅ measured, 📖 read from the code.
 
@@ -138,5 +137,5 @@ cover.
 - Phase 2: B19–B27 beyond Part Clear.
 - B33: 📖 his 2.1 moved the scene scratch off the native clipboard addresses and restored the recorder and master playback descriptors that earlier caves overwrote. This module has no cave in ROM and no scratch at a stock address; whether any other 2.1 crash fix has a counterpart is not checked beyond that.
 - The oracle image is not in the repository and is not built by `make`: `verify_scenes.py --oracle MAIN21.raw` (or `OT_MSC21_IMAGE`) takes one made from his repository at `52eaab0` (his own build; not re-run here after the submodule left). `make check` runs the scenarios on our image and stock's.
-- Hardware: the 2.0 build ran on his unit as `ok-ms` (14 Sep 2026); the
-  rewrite has not run on a unit.
+- Hardware: MIDISC 2.0 ran on bkkbrls-del's unit in the `ok-ms` image
+  (14 Sep 2026). The MIDISC 2.1 reimplementation has not run on hardware.
