@@ -13,9 +13,11 @@ Writes the generated pages (gitignored, so the deploy builds them fresh):
   _remix-<name>.md     one per non-test remix: its module table
   credits.md           authors grouped, with their module keys
 
-The per-module pages are not in the site nav (there are ~70): the modules
-index and every remix page's module table link to them. Each carries a
-`not_in_nav` line so the build stays quiet about it.
+Every contributed module's page is listed in the nav in mkdocs.yml, under
+its category's section (tools/verify/verify_docs.py refuses a module with
+no entry); stock effects' pages are reached from the modules index and the
+remix tables. Each page carries a `not_in_nav` line so the build stays
+quiet about the stock ones.
 
 The pages are rendered at deploy time (the Pages workflow on main; the site
 job of ci.yml on a PR), so the site and the manifests cannot drift. Stdlib
