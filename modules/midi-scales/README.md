@@ -5,7 +5,7 @@ Extends the existing **KEY** control at the bottom right of MIDI ARP SETUP
 
 ## Controls
 
-F selects OFF or any of the 12 keys in Major, Dorian, Phrygian, Lydian,
+Press F to enable or bypass KEY; turn F to select any of the 12 keys in Major, Dorian, Phrygian, Lydian,
 Mixolydian, natural Minor or Locrian. Encoder order groups modes by key.
 The stock values 1–24 still mean exactly the original Major/Minor pairs;
 25–84 append the other five modes. OFF remains zero. The existing Part
@@ -32,7 +32,9 @@ The installed encoder and output detours are checked, including all eight
 tracks, stock Major/Minor continuation, surrounding bytes and registers.
 Native Part storage is reused; project save/reload and physical UI behavior
 are not established by this linked-code test.
-Hardware testing remains pending.
+Emulator LCD captures and the repeatable panel script are included in the
+manual usage page. They demonstrate OFF, C Major, C Dorian and C Mixolydian
+on ARP SETUP at BUILD=91; physical hardware testing remains pending.
 
 The extended KEY selector uses the stock movement accumulator at four raw
 counts per choice, capped to one choice per report. This keeps nearby scale
@@ -41,13 +43,15 @@ choices selectable without changing their saved IDs. Physical feel is untested.
 ## First playing workflow
 
 Set a track's output channel and program a few notes. Open MIDI ARP SETUP
-with FUNC + AMP, then use F (KEY) to choose C Dorian. The sequencer's scale
+with FUNC + AMP, then press F to enable KEY and turn F to choose C Dorian. The sequencer's scale
 correction uses C, D, Eb, F, G, A and Bb. KEY OFF removes scale correction.
 
 
 ## Pinned author source
 
-The adapter builds [author commit 9d31ce2f](https://github.com/radiohagen/octatrack-modules/commit/9d31ce2ff977205bdd3c17a58e55f86bc11376ac)
+The adapter pins [author commit 4900d32e](https://github.com/radiohagen/octatrack-modules/commit/4900d32e9a9ed1d0e9fcaf0895e043bcdd089361)
+(the original source snapshot is `9d31ce2ff977205bdd3c17a58e55f86bc11376ac`;
+subsequent changes correct the radiohagen credit and source URL)
 from `upstream/`. That review branch contains this module alone. Assembly
 SHA-256 matches the completed native implementation; the source manifest now
 resolves its path relative to itself. Octabam owns the gate and machine harness.

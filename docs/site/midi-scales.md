@@ -9,3 +9,6 @@ an edited Part to stock firmware. Audio-track Scale Quantizer is independent.
 The standalone `midi-scales` test remix selects this module with stock effects.
 The `octabam-bus` user remix is unchanged. Source and linked-code checks are
 documented beside the module; physical hardware acceptance is still pending.
+
+See the [MIDI Scales controls and LCD examples](reference/modules/midi-scales.md)
+for the step-by-step workflow.
