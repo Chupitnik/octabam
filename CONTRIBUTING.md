@@ -243,7 +243,8 @@ and images at reference depth (`../../img/<name>/<screen>.png`,
 includes.
 Screenshots are LCD dumps from the port (`tools/emu/live_shots.py`, the
 scripts in `tools/site/shots/`); a UI change re-captures them in the
-same PR. `mkdocs build --strict --config-file docs/site/mkdocs.yml` is
+same PR, and so does a rebase onto a main that changed a screen they show
+([SCREENSHOTS.md](docs/contributing/SCREENSHOTS.md)). `mkdocs build --strict --config-file docs/site/mkdocs.yml` is
 the local check for the fragments themselves.
 
 A manifest, remix selection or module README change leaves the generated

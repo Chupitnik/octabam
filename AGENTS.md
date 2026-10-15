@@ -73,6 +73,10 @@ costs or proof status — updates the hand-written manual site pages under
 `docs/site/` in the same PR.** The generated reference pages update
 themselves from the manifests (`tools/site/gen_pages.py`).
 
+**Screenshots:** after a rebase, and before the PR, check whether the diff
+changes a screen a shot shows; `docs/contributing/SCREENSHOTS.md` has the
+check, the run and the project layout.
+
 ## Worktrees and the shared checkout
 
 **ALWAYS WORK IN A GIT WORKTREE, never in the main checkout.** Several
