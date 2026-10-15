@@ -791,17 +791,17 @@ all oracle failures.
 hash.** Register discipline in a boot stub is not checkable by anything but
 the port: `verify_dram_boot` watches the loader's entry and its `fatal` hang.
 
-<a name="trap-shard-interrupt"></a>
+<a name="trap-word-fixture"></a>
 
-### Interrupting the shard driver can leave its workers running
+### The memory word-count fixture can race reach and shard snapshots
 
-On 16 Oct 2026, SIGINT interrupted `check_shards.py`'s main-thread join,
-but worker threads continued taking jobs from the queue. A replacement
-reach run began refreshing the same shard directories while those jobs
-were alive. Both runs were stopped and their partial results discarded;
-the replacement needed another clean restart. Stop the old run's entire
-process group and confirm that its workers have exited before reusing
-`out/shards/`. This is an operational check, not an automated gate.
+The DSP memory word counter (`tools/remix/state.py`) writes a temporary
+`remixes/_words.py` while it builds measurement images. On 16 Oct 2026,
+`reach.py` read it as a changed remix and `check_shards.py` copied it into
+a shard just as the shared gate removed it. The planned `_words` check then
+failed with "no remix '_words'". Ignore that generated path: it is a build
+fixture, not a user selection. Its ignore rule keeps it out of both reach's
+untracked-file scan and shard snapshots.
 
 <a name="trap-tmp-race"></a>
 
