@@ -12,14 +12,25 @@
     "MASTER",
     "MAIN CUE",
     "MAIN",
-    "TRACKS POST"
+    "TRACKS POST",
+    "OFF"
    ],
    "name": "LAYOUT",
+   "type": "option"
+  },
+  "2": {
+   "labels": [
+    "AB",
+    "CD",
+    "ABCD",
+    "OFF"
+   ],
+   "name": "INPUTS",
    "type": "option"
   }
  },
  "store": {
-  "id": "octabam.usb-audio-out",
+  "id": "octabam.usb",
   "major": 1
  }
 }

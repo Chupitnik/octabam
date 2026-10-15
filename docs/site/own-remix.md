@@ -43,6 +43,11 @@ new name. The saved selection is written to `remixes/<name>/remix.py`.
 For the full key reference and hand-editing options, see the
 [remixer guide](https://github.com/sambanks/octabam/blob/main/docs/guide/REMIXER.md).
 
+Select **USB** for USB MIDI and optional audio in either direction. Its
+LAYOUT and INPUTS settings replace the four former USB module selections.
+For now they are build settings, so a different USB channel selection needs
+a rebuilt image; they cannot yet be changed on the unit.
+
 ## 3. Check and build it
 
 Add `remixes/<name>/README.md` describing what the remix includes and what

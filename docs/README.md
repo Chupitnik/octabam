@@ -50,10 +50,12 @@ REPITCH in [REPITCH.md](firmware/REPITCH.md)).
 
 [proposals/](proposals/): [BRAIN.md](proposals/BRAIN.md), the design for
 settings, defaults and templates (6 Oct 2026; `modules/brain` builds it and
-measures it under the port, not on a unit), and the two
+measures it under the port, not on a unit), the two
 OTX documents it starts from, nordseele's shared settings store (draft, not
 implemented): [OTX_PROJECT_PROPOSAL.md](proposals/OTX_PROJECT_PROPOSAL.md)
-and [OTX_MODULE_GUIDELINES.md](proposals/OTX_MODULE_GUIDELINES.md).
+and [OTX_MODULE_GUIDELINES.md](proposals/OTX_MODULE_GUIDELINES.md), and
+[USB.md](proposals/USB.md), merging the four USB modules into one with
+run-time settings held by the brain (14 Oct 2026).
 
 [proposals/remixes/](proposals/remixes/README.md): remix proposals, each
 taken on hardware to verified stable before it lands under `remixes/`.
