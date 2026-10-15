@@ -8,6 +8,7 @@ site_dir: ../../out/site
 exclude_docs: reference/_remix-*.md
 extra_css:
   - css/sidebar-spacing.css
+  - css/site-tables.css
 theme:
   name: shadcn
   # The theme follows the system appearance; its header toggle can override it.
