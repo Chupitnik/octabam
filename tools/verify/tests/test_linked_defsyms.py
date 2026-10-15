@@ -27,6 +27,7 @@ entry:
 @unittest.skipUnless(TOOLS, "needs the m68k-elf toolchain (make setup)")
 class DefsymLinkTests(unittest.TestCase):
     def setUp(self):
+        (ROOT / "out").mkdir(parents=True, exist_ok=True)
         self.dir = pathlib.Path(tempfile.mkdtemp(prefix="octabam_defsym_", dir=ROOT / "out"))
         self.src = self.dir / "unit.s"
         self.src.write_text(SRC)
@@ -55,12 +56,14 @@ class DefsymLinkTests(unittest.TestCase):
         self.assertIn("defines VAL", str(e.exception))
 
 
+@unittest.skipUnless(TOOLS, "needs the m68k-elf toolchain (make setup)")
 class UnitTableTests(unittest.TestCase):
     """Per-unit symbol tables: a same-named label in two units of one link
     resolves to each unit's own definition, not by nm table order (the
     octabam-bus storm, 15 Oct 2026)."""
 
     def test_duplicate_names_scope_to_their_unit(self):
+        (ROOT / "out").mkdir(parents=True, exist_ok=True)
         d = pathlib.Path(tempfile.mkdtemp(prefix="octabam_units_", dir=ROOT / "out"))
         try:
             (d / "one.s").write_text("        .text\n        .globl  one\none:    rts\n"
