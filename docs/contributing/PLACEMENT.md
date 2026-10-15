@@ -136,8 +136,10 @@ octamax 2.0 takes its 64. MEMORY (`modules/memory/README.md`) sizes the
 reserve per remix from the claims: the linked runtime, its stage and
 `.bss`, every DramRegion and every fixed-address ArenaReserve (a fixed
 1,707 pages, 10,487,808 B, `0x40a955e0..0x41495de0`, until 11 Oct 2026).
-The base literal moves up by that much at its 24 sites (23 direct plus
-`lea base+6144` at `0x40094a62`), and the four geometry words (page count,
+The base literal moves up by that much at its 23 sites (22 direct plus
+`lea base+6144` at `0x40094a62`; the literal's other use, `cmpal` at
+`0x400254f8`, is the end of PURGE SAMPLES' walk over the banks and stays
+stock: moved, the walk ran off the end of RAM, `tools/remix/arena.py`), and the four geometry words (page count,
 free-list fill limit, arena clear length, recorder page cap) are computed
 from the reservation (`tools/remix/arena.py` stacks any number; until 6
 Oct 2026 Octakit's 528 at the top were the other one, and the `octakit`
