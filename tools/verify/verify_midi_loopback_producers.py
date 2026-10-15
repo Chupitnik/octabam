@@ -49,7 +49,7 @@ def main():
             m.call(0x4009e9a8, (track, 84, 0, 0))
             outputs(m, [(0x90,84,100), (0x90,84,0)], route)
             assert m.get('lb_internal_held') == 0
-    print('  [ok] real live trig-key on/off: eight tracks, EXT/INT/BOTH, DIN/USB')
+    print('  [ok] real live trig-key on/off: eight tracks, EXT/INT/BOTH, DIN (USB when selected)')
 
     for track in range(8):
         for route in range(3):
@@ -96,7 +96,7 @@ def main():
             m.u.mem_write(MSG,bytes(msg))
             m.call(m.get(site+2),(len(msg),MSG),regs={UC_M68K_REG_D7:7},stop=site+6,return_pc=site+6)
             outputs(m,[msg],route)
-    print('  [ok] installed frame bend/pressure operands route before DIN/USB')
+    print('  [ok] installed frame bend/pressure operands route before DIN (USB when selected)')
 
     # Releases remain at their captured destinations after a route edit.
     for before in range(3):
@@ -163,7 +163,7 @@ def feedback():
                 if internal:
                     assert m.get(0x46c7fe4c+channel*4)==0,('receiver held leak',msg)
                     assert m.get(0x460d17ae+4)==0,('MIDI-track echo posted to main task',msg)
-    print('  [ok] internal channel/auto messages cannot forward to DIN/USB or enqueue MIDI-track echoes; external input still forwards')
+    print('  [ok] internal channel/auto messages cannot forward to DIN (USB when selected) or enqueue MIDI-track echoes; external input still forwards')
 
 
 def integration():

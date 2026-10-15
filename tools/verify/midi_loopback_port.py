@@ -85,4 +85,3 @@ def balanced(events):
         else:
             assert key in held,('unmatched off',key);held.remove(key)
     assert not held,('stuck',held)
-
