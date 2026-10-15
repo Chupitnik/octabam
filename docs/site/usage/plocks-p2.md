@@ -10,6 +10,9 @@ each held step gets that slot's page-2 lock. Hold FUNC while turning to
 remove it. The trig plays the lock, and the next trig puts the Part's
 value back — the same as page 1.
 
+Releasing a trig after turning a page-two knob keeps the edited lock. A
+later bare trig tap still clears the step and its locks.
+
 The locks move with the data: trig copy and paste, clear a trig's locks,
 pattern copy and paste, clear a pattern and its undo each carry or clear
 them. SAVE PROJECT writes them and a power cycle loads them back.

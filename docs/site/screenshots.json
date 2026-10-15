@@ -68,7 +68,7 @@
       "caption": "FX2 setup page with trig 1 held for parameter locking.",
       "remix": "octabam-core",
       "source": "emulator panel UART",
-      "firmware_sha256": "f87679c92ddc36c09728279a8940f51f0c6d86cbce5b1c42b3c6dc39da1c0ca0"
+      "firmware_sha256": "4c073a73d318cac1563f408e51f78a7fce1edcf4cc66aa28c6b4d36adffbcf55"
     }
   },
   "direct-jump-kyoti": {
