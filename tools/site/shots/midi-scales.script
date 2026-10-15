@@ -1,3 +1,4 @@
+# Probe walk; publish manual captures with capture_manual.py midi-scales.
 # MIDI Scales: start from a sample-free project in audio mode, KEY OFF.
 # MIDI -> track 1 -> FUNC + AMP (ARP SETUP); encoder F is KEY.
 # Press F to enable KEY from OFF before turning it.

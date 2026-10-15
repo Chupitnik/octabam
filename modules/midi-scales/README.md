@@ -32,7 +32,7 @@ The installed encoder and output detours are checked, including all eight
 tracks, stock Major/Minor continuation, surrounding bytes and registers.
 Native Part storage is reused; project save/reload and physical UI behavior
 are not established by this linked-code test.
-Emulator LCD captures and the repeatable panel script are included in the
+Emulator LCD captures and the repeatable manual capture group are included in the
 manual usage page. They demonstrate OFF, C Major, C Dorian and C Mixolydian
 on ARP SETUP at BUILD=91; physical hardware testing remains pending.
 
