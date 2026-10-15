@@ -27,7 +27,8 @@ nav:
       - About This Manual: index.md
       - Choose a Remix: choosing.md
       - Build and Install: build-flash.md
-  - Using Octabam:
+      - Feature Directory: reference/modules.md
+  - Utilities:
       - Brain: brain.md
       - Kits and Patterns: reference/modules/kits.md
       - Page 2 Scene Locks: reference/modules/scenes-p2.md
@@ -35,31 +36,32 @@ nav:
       - MIDI Scenes: reference/modules/midi-scenes.md
       - Mute Modes: reference/modules/mute-modes.md
       - USB Audio and MIDI: reference/modules/usb.md
-      - Store: reference/modules/store.md
       - CC Map: reference/modules/cc-map.md
       - CC Feedback: reference/modules/cc-feedback.md
-  - Effects:
-      - Feature Directory: reference/modules.md
-      - Spectrum: reference/modules/spectrum.md
-      - Character: reference/modules/character.md
-      - Modulation: reference/modules/modulation.md
-      - Send: reference/modules/send.md
-      - Bus Delay: reference/modules/busdelay.md
-      - Bus Reverb: reference/modules/busverb.md
-      - Tempo Controls: reference/modules/tempo-bus.md
+      - Store: reference/modules/store.md
       - FX2 Lock: reference/modules/fx2-lock.md
       - Mode Defaults: reference/modules/mode-defaults.md
       - Rig Hosts: reference/modules/rig-hosts.md
       - Tempo Sync: reference/modules/tempo-sync.md
+      - Memory: reference/modules/memory.md
+      - Random Naming: reference/modules/rnd-name.md
+      - Remix Switch: reference/modules/remix-switch.md
+  - Effects:
+      - Send: reference/modules/send.md
+      - Bus Delay: reference/modules/busdelay.md
+      - Bus Reverb: reference/modules/busverb.md
+      - Tempo Controls: reference/modules/tempo-bus.md
+      - Spectrum: reference/modules/spectrum.md
+      - Character: reference/modules/character.md
       - Character TXTR: reference/modules/character-txtr.md
+      - Modulation: reference/modules/modulation.md
+      - Transient: reference/modules/transient.md
       - Euclid: reference/modules/euclid.md
       - Gate Verb: reference/modules/gateverb.md
       - LOFI2: reference/modules/lofi2.md
       - Miniverb: reference/modules/miniverb.md
       - Sidechain Compressor: reference/modules/sidechain-compressor.md
       - Tape Echo: reference/modules/tapeecho.md
-      - Testgen: reference/modules/testgen.md
-      - Transient: reference/modules/transient.md
       - Vocoder: reference/modules/vocoder.md
       - Wave: reference/modules/wave.md
   - Machines and Sequencer:
@@ -82,15 +84,12 @@ nav:
       - Erase Empty Trigless Locks: reference/modules/erase-empty-trigless-locks.md
       - Lo-Fi AMF Fix: reference/modules/lofi-amf-fix.md
       - Recorder Loop Fix: reference/modules/recorder-loop-fix.md
-  - Settings:
-      - Memory: reference/modules/memory.md
-      - Random Naming: reference/modules/rnd-name.md
   - Diagnostics:
       - Boot Trace: reference/modules/boot-trace.md
       - CF Meter: reference/modules/cfmeter.md
       - CF Meter Idle: reference/modules/cfmeter-idle.md
       - Load Meter: reference/modules/load-meter.md
-      - Remix Switch: reference/modules/remix-switch.md
+      - Testgen: reference/modules/testgen.md
       - Wave Load: reference/modules/waveload.md
   - Remix Reference:
       - Octabam Core: remix-core.md
