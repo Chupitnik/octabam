@@ -621,10 +621,12 @@ project loads (`verify_set`, `verify_tempobus`, `verify_modedefaults`,
 ## 11. What GitHub Actions checks
 
 `.github/workflows/ci.yml` runs on every PR, on `main` and by hand, on
-Ubuntu and macOS, with no Elektron bytes (`make ci` runs the same checks):
+Ubuntu and macOS, with no Elektron bytes (each job is one `make` target;
+`make ci` runs them all locally, unfiltered):
 
 | job | target | proves |
 |---|---|---|
+| classify | `tools/verify/ci_paths.py` on the diff | each job below runs only when the diff touches its inputs (the map is `JOB_PREFIXES` there); a skipped job is a grey check, not a pass. No usable diff (a manual run) and workflow, Makefile and `scripts/` changes run everything; `make ci` locally still runs everything |
 | gates the PR reaches | `make reach` (dry run) | the diff classifies and the branch is rebased |
 | acceptance runner tests | `make test-acceptance` | the runner refuses skipped, failed, incomplete and over-budget evidence; `reach` routes as documented; the shard runner covers the recipe |
 | dsp56300 + our patch | `make ci-dsp` | the vendored DSP emulator at its pin takes our patch, builds, passes upstream's runner; `dsp_asm` emits the one-word displaced move |
