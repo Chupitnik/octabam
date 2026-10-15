@@ -5,7 +5,7 @@ MIX 0 is an exact passthrough; MIX 127 is the wet outright.
 ## Access
 
 Press FX1 on a track; MODULATION is in the chooser in place of CHORUS. In
-octabam-inserts it is also on FX2; in octabam-bus it is FX1 only.
+Octabam Inserts it is also on FX2; in Octabam Bus it is FX1 only.
 
 ## Operation
 
@@ -41,7 +41,7 @@ octabam-inserts it is also on FX2; in octabam-bus it is FX1 only.
 | 2 | TONE | 0–127 | 80 | lowpass on the line (127 is an exact bypass); BRIT in COMB |
 | 2 | WDTH | 0–127 | 127 | right LFO lag: 0 mono, 64 quadrature, 127 antiphase |
 
-## Old projects
+## Old Projects
 
 MODE's stored bytes 3–5 (FLNG/COMB/PHSR) mean one lower since ENS went.
 Run `stamp-defaults` on the card before play.

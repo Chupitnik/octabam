@@ -11,7 +11,7 @@ pattern holds — trigs, parameter locks, track lengths and scales. Nor
 the tempo, the arrangements, the track recorders or the project
 settings.
 
-## The keys
+## The Keys
 
 | Action | MKII | MKI |
 |---|---|---|
@@ -23,7 +23,7 @@ settings.
 | save the Kit, copy it and the pattern to the next empty ones, play the copy | PTN+FUNC+RIGHT | PTN+FUNC+RIGHT |
 | copy / paste / clear an inactive pattern of the current bank (paste or clear again: undo) | hold PTN and FUNC, press the pattern's TRIG; then REC / STOP / PLAY | the same |
 
-## The lists
+## The Lists
 
 - **LOAD KIT** lists UNDO KIT (the Kit the current pattern had before
   the last load), then the 255 Kits: `NNN name`, `*` on a Kit no pattern

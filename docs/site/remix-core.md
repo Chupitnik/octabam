@@ -1,13 +1,17 @@
-# octabam-core
+# Octabam Core
+
+![BRAIN in the main menu, added by Octabam Core](img/brain/pane.png)
+
+*BRAIN in the main menu, added by Octabam Core*
 
 A remix of Octatrack OS 1.40C, built from your own copy of it, that adds the
 core modules and changes no effect: all 14 stock effects and both effect
 menus stay as stock has them, with stock LO-FI's AMF knob fixed (the LOFI AMF
 FIX module). The other official remixes add effects to this set:
-[octabam-inserts](remix-inserts.md) (effects that run on any track) and
-[octabam-bus](remix-bus.md) (a delay and reverb bus).
+[Octabam Inserts](remix-inserts.md) (effects that run on any track) and
+[Octabam Bus](remix-bus.md) (a delay and reverb bus).
 
-## Included features
+## Included Features
 
 - [BRAIN](brain.md): templates, settings, defaults, and remix switching.
 - [KITS](reference/modules/kits.md): save and recall a Kit for each pattern.
@@ -17,7 +21,7 @@ FIX module). The other official remixes add effects to this set:
 - [USB](reference/modules/usb.md): MIDI input and output, plus MAIN and CUE audio to a computer.
 - Recorder, sequencing, mute, and storage fixes listed below.
 
-## Module list
+## Module List
 
 Every module in the image, credited to its author:
 
@@ -30,19 +34,19 @@ module. In this first merge, LAYOUT and INPUTS are build settings: changing
 them requires rebuilding the image. On-device USB configuration is planned
 but is not implemented in this version.
 
-## Memory use
+## Memory Use
 
-| Resource | Stock OS | octabam-core |
+| Resource | Stock OS | Octabam Core |
 |---|---|---|
 | Sample and recorder memory | 14,602 pages | 12,895 pages (platform reserve) |
 | Free DSP words | — | 0. LOAD METER does not fit, so BRAIN has no LOAD view DSP rows. |
 
-## Where it has run
+## Where It Has Run
 
 Port gates only: `make check REMIX=octabam-core` and the reach round. Not on
 a unit.
 
-## Build and install
+## Build and Install
 
 The [build and flash guide](build-flash.md) has every step, from what to
 install to the way back to stock. For this remix:

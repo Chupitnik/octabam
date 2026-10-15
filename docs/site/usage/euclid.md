@@ -7,7 +7,7 @@ resets its phase.
 ## Access
 
 An effect on a track: select the track, press FX1 or FX2, and pick EUCLID
-from the chooser. In octabam-inserts only.
+from the chooser. In Octabam Inserts only.
 
 ## Operation
 

@@ -1,9 +1,9 @@
-# Safety and recovery
+# Safety and Recovery
 
 Read this page before flashing. Keep the recovery files and equipment
 available whenever you install a modified OS.
 
-## Recovery requirements
+## Recovery Requirements
 
 A failed flash can leave the installed OS unable to boot until stock OS is
 reinstalled. Recovery requires a working Startup Menu, a DIN MIDI interface,
@@ -16,7 +16,7 @@ modified firmware carries a risk of data loss or a unit that cannot boot.
 The recovery procedure depends on a working Startup Menu and MIDI input; it
 cannot repair a unit whose Startup Menu or MIDI input is unavailable.
 
-## Reinstall stock os over MIDI
+## Reinstall Stock OS over MIDI
 
 The Startup Menu is separate from the operating system and provides a way
 to reinstall stock if the modified OS will not boot. Recovery requires a
@@ -37,7 +37,7 @@ stock OS from the CF card. The Octatrack USB port cannot send an OS upgrade.
 
 TRIG 2 → EMPTY RESET clears battery-backed RAM and settings, not the card.
 
-## Resolve a saved-data file warning
+## Resolve a saved-data File Warning
 
 If a project file for FX page 2 parameter locks, Kits or MIDI scenes is
 unreadable or incompatible, a message names the affected data and file.
@@ -57,7 +57,7 @@ These choices do not upgrade or recover the old contents. Keep the file
 if you want to investigate or recover its data later. Pressing **NO** from
 the choices also leaves it protected until the next project load.
 
-## Common questions
+## Common Questions
 
 **Is this official Elektron firmware?**
 No. Nothing here is endorsed by, supported by, or affiliated with

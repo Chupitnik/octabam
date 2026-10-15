@@ -3,12 +3,12 @@ this track's level into the delay (track 1), REV its level into the reverb
 (track 5). Each engine's wet comes out on the track that hosts it. DEL 0
 and REV 0 is indistinguishable from no effect.
 
-## Open send
+## Open Send
 
 On every track except 1, 5 and 8, FX2 is SEND (a new part is born that
 way; the FX2 chooser cannot change it). Page 1 has the two knobs.
 
-## Set the sends
+## Set the Sends
 
 - Raise DEL to hear the track in the delay's repeats; raise REV for the
   reverb tail.

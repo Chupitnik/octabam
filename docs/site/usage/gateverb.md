@@ -5,7 +5,7 @@ Instruments Clouds; the gate is new. Dry stays dry.
 ## Access
 
 An effect on a track: select the track, press FX2, and pick GATE VERB from
-the chooser. In octabam-inserts only.
+the chooser. In Octabam Inserts only.
 
 ## Operation
 

@@ -23,35 +23,35 @@ theme:
     light: shadcn-light
     dark: github-dark
 nav:
-  - Getting started:
-      - About this manual: index.md
-      - Choose a remix: choosing.md
-      - Build and install: build-flash.md
-  - Using octabam:
+  - Getting Started:
+      - About This Manual: index.md
+      - Choose a Remix: choosing.md
+      - Build and Install: build-flash.md
+  - Using Octabam:
       - BRAIN: brain.md
-      - Kits and patterns: reference/modules/kits.md
+      - Kits and Patterns: reference/modules/kits.md
       - Scenes: reference/modules/scenes-p2.md
-      - Parameter locks: reference/modules/plocks-p2.md
-      - MIDI scenes: reference/modules/midi-scenes.md
-      - Mute modes: reference/modules/mute-modes.md
-      - USB audio and MIDI: reference/modules/usb.md
+      - Parameter Locks: reference/modules/plocks-p2.md
+      - MIDI Scenes: reference/modules/midi-scenes.md
+      - Mute Modes: reference/modules/mute-modes.md
+      - USB Audio and MIDI: reference/modules/usb.md
   - Effects:
-      - Feature directory: reference/modules.md
+      - Feature Directory: reference/modules.md
       - Spectrum: reference/modules/spectrum.md
       - Character: reference/modules/character.md
       - Modulation: reference/modules/modulation.md
       - Send: reference/modules/send.md
-      - Bus delay: reference/modules/busdelay.md
-      - Bus reverb: reference/modules/busverb.md
-      - Tempo controls: reference/modules/tempo-bus.md
-  - Remix reference:
-      - octabam-core: remix-core.md
-      - octabam-inserts: remix-inserts.md
-      - octabam-bus: remix-bus.md
-      - Create a remix: own-remix.md
+      - Bus Delay: reference/modules/busdelay.md
+      - Bus Reverb: reference/modules/busverb.md
+      - Tempo Controls: reference/modules/tempo-bus.md
+  - Remix Reference:
+      - Octabam Core: remix-core.md
+      - Octabam Inserts: remix-inserts.md
+      - Octabam Bus: remix-bus.md
+      - Create a Remix: own-remix.md
   - Help:
-      - Safety and recovery: safety.md
-      - Screenshot coverage: reference/screenshots.md
+      - Safety and Recovery: safety.md
+      - Screenshot Coverage: reference/screenshots.md
       - Credits: reference/credits.md
 markdown_extensions:
   - admonition

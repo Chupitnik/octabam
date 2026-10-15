@@ -12,7 +12,7 @@ a bank or pattern: the new values arrive paced at one message per UI
 tick, so a bank change reaches the controller over about three seconds
 instead of one burst.
 
-## The CC numbers
+## The CC Numbers
 
 | Knob | CC |
 |---|---|

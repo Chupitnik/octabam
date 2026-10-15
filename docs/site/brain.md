@@ -1,5 +1,9 @@
 # BRAIN
 
+![BRAIN in the main menu](img/brain/pane.png)
+
+*BRAIN in the main menu*
+
 BRAIN is the on-unit menu for shared settings, defaults, templates,
 performance information, logs, and remix switching. Open it from the MAIN
 MENU: select **PROJ**, then **BRAIN**. Use **UP** and **DOWN** to move
@@ -8,10 +12,6 @@ return to the previous screen.
 
 The list contains **TEMPLATES**, **REMIXES**, **SETTINGS**,
 **PERFORMANCE**, **LOG**, and **ABOUT**.
-
-![BRAIN in the main menu](img/brain/pane.png)
-
-*BRAIN in the main menu*
 
 The current remix-switch persistence path has emulator coverage; its MKII
 hardware retest remains open.
@@ -49,7 +49,7 @@ Use **LEFT / RIGHT** or the encoder to edit values. **NO** returns to the
 previous screen; unsaved edits prompt **SAVE CHANGES?**. A name already in
 use is refused.
 
-### Page shortcut
+### Page Shortcut
 
 A page shortcut saves and loads the page in front of you as a template:
 hold a page key (SRC, AMP, LFO, FX1, FX2) and press FUNC. The list that
@@ -64,7 +64,7 @@ default. **SAVE PROJECT** updates its recovery copy.
 On a MIDI track, **NAME KNOB** gives each of the ten assignable CCs a label
 of up to four characters on CTRL1 and CTRL2. An empty name clears it.
 
-## Switch remixes
+## Switch Remixes
 
 ![BRAIN: Switch remixes](img/brain/remixes.png)
 
@@ -111,7 +111,7 @@ BOOT` under the list.
 defaults. Settings persist to `BRAIN/card.work`. The MIDI and event logging
 switches are described under Logs.
 
-## Performance views
+## Performance Views
 
 ![BRAIN: Performance views](img/brain/performance.png)
 
@@ -150,7 +150,7 @@ debug recording. **WRITE DEBUG LOG** saves the last 256 messages to
 `/BRAIN/debug.txt`, excluding clock and active sensing. Both logging
 switches are on by default.
 
-## About this image
+## About This Image
 
 ![BRAIN: About this image](img/brain/about.png)
 
@@ -165,7 +165,7 @@ Use **LEFT / RIGHT** to change tabs.
 | PROJECT | Whether the project was saved with this image, has changed effects, has no saved record, or has damaged BRAIN files. |
 | MODULES | Module names and their authors. |
 
-## BRAIN files on the card
+## BRAIN Files on the Card
 
 | File or location | Contents |
 |---|---|
@@ -182,7 +182,7 @@ then use valid saved defaults from the card. **SAVE FX DEFAULT** stores the
 current FX page. **SAVE PROJECT** updates the saved recovery copy. BRAIN
 creates its folder and working file when needed.
 
-## Advanced reference
+## Advanced Reference
 
 For editing defaults from a computer and the full card-file format, see the
 [BRAIN module documentation](https://github.com/sambanks/octabam/blob/main/modules/brain/README.md).

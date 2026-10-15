@@ -1,4 +1,4 @@
-# Build and flash
+# Build and Flash
 
 Use this procedure to build a card image from your own copy of Octatrack OS
 1.40C, then install it on the unit. For Linux and WSL2 setup, see the
@@ -12,7 +12,7 @@ Use this procedure to build a card image from your own copy of Octatrack OS
 
     Do not share a built image. A `.bin` or `.syx` contains Elektron's OS.
 
-## 1. prepare the computer
+## 1. Prepare the Computer
 
 You need:
 
@@ -48,7 +48,7 @@ make recon
 `make recon` unpacks it for the image builder. If you cloned without
 `--recurse-submodules`, run `git submodule update --init` before continuing.
 
-## 2. build and check the image
+## 2. Build and Check the Image
 
 Choose one of the [official remixes](choosing.md), then build it. Replace
 `octabam-bus` with your chosen remix name. Pick a new build tag each time you
@@ -77,18 +77,18 @@ emulator. It is the minimum project check; it does not establish that the
 image works on hardware. See the selected remix page for its test status and
 any required track or project setup.
 
-## 3. back up the card
+## 3. Back Up the Card
 
 Use USB DISK MODE to copy the full CF card to your computer. An OS upgrade
 does not format or replace the card. Remixes with KITS write `kits.work`
 into each project they load; stock OS ignores this file and continues to
 use the saved Parts.
 
-## 4. install the image
+## 4. Install the Image
 
 Choose one of the following methods.
 
-### From the CF card
+### From the CF Card
 
 Use this method when the Octatrack boots normally:
 
@@ -101,7 +101,7 @@ Use this method when the Octatrack boots normally:
 5. Wait for the unit to finish and restart. Power-cycle it once more before
    testing; an OS upgrade does not clear DSP RAM.
 
-### Over din MIDI
+### Over DIN MIDI
 
 Use this method if the unit cannot boot far enough to use USB DISK MODE, or
 if you prefer a DIN MIDI transfer:
@@ -118,7 +118,7 @@ if you prefer a DIN MIDI transfer:
    disconnect the cable during either phase.
 6. Let the unit finish booting, then power-cycle once more.
 
-## 5. confirm the installation
+## 5. Confirm the Installation
 
 Open **SYSTEM STATUS → OS VERSION** or check the boot screen. It should
 show the tag you chose, for example `OCTABAM91`. If it shows `1.40C`, the
@@ -129,7 +129,7 @@ For projects created before installation, follow the project preparation
 steps on the relevant [remix page](choosing.md). A project created on the
 unit after installation does not need those steps.
 
-## Restore stock os
+## Restore Stock OS
 
 If the modified OS will not boot, use the recovery procedure in
 [Safety and recovery](safety.md). If the unit boots, you can also install

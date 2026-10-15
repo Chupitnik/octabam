@@ -51,6 +51,38 @@ PROOF_LEGEND = (
 
 GH = "https://github.com/sambanks/octabam"
 
+_SMALL = {"a", "an", "and", "as", "at", "but", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with", "over"}
+_UPPER = {"os", "din", "dj", "eq", "bd", "usb", "midi", "cc", "cpu", "dsp", "cf", "lfo", "ata", "txtr", "amf",
+          "fx1", "fx2", "lofi2", "brain", "ui", "id", "sd"}
+
+
+def title_case(text: str) -> str:
+    """Title Case for headings and nav labels. Tokens that already carry capitals
+    or digits (device labels, acronyms) and links/code are kept as written."""
+    out, started, after_colon = [], False, False
+    for tok in text.replace("octabam-", "octabam ").split(" "):
+        word = tok.strip(":,()")
+        if re.fullmatch(r"[a-z]+(-[a-z]+)+", word):
+            tok = tok.replace(word, "-".join(x.upper() if x in _UPPER else x.capitalize() for x in word.split("-")), 1)
+            out.append(tok)
+            started = True
+            continue
+        if not re.fullmatch(r"[a-z][a-z']*", word):
+            out.append(tok)
+            started = started or bool(re.search(r"[A-Za-z]", tok))
+            after_colon = tok.endswith(":")
+            continue
+        if word in _UPPER:
+            new = word.upper()
+        elif word in _SMALL and started and not after_colon:
+            new = word
+        else:
+            new = word.capitalize()
+        out.append(tok.replace(word, new, 1))
+        started = True
+        after_colon = tok.endswith(":")
+    return " ".join(out)
+
 
 def _label(m) -> str:
     """Readable headings; manifest keys and device labels keep their spelling."""
@@ -59,7 +91,7 @@ def _label(m) -> str:
         "ata-write-guard": "ATA write guard",
         "character-txtr": "Character TXTR",
         "direct-jump-kyoti": "Direct jump (Kyoti)",
-        "lofi-amf-fix": "LO-FI AMF fix",
+        "lofi-amf-fix": "Lo-Fi AMF fix",
         "plocks-p2": "Page 2 parameter locks",
         "rec-trig-mute": "Recorder trig mute",
         "rlen-plen": "RLEN PLEN",
@@ -68,11 +100,10 @@ def _label(m) -> str:
         "stems": "Stem recording",
     }
     if m.name in names:
-        return names[m.name]
+        return title_case(names[m.name])
     acronyms = {"USB", "MIDI", "CC", "FX1", "FX2", "DSP", "CPU", "CF", "LFO", "LOFI2", "BRAIN"}
     words = m.key.replace("_", " ").split()
-    return " ".join(word if word in acronyms else word.capitalize() if i == 0 else word.lower()
-                    for i, word in enumerate(words))
+    return title_case(" ".join(word if word in acronyms else word.lower() for word in words))
 
 
 def _cell(text: str) -> str:
@@ -112,7 +143,7 @@ def _module_rows(ms) -> list[str]:
 
 
 def modules_page(mods) -> str:
-    lines = ["# Feature directory", "",
+    lines = ["# Feature Directory", "",
              "Find operating instructions for the features in your remix. "
              "Each feature page lists which official remixes include it.", "",
              "Availability and hardware testing vary by module. Check the "
@@ -120,42 +151,62 @@ def modules_page(mods) -> str:
     for cat, ms in index.by_category(mods).items():
         if not ms:
             continue
-        lines += [f"## {CATEGORY_TITLE[cat][:1].upper() + CATEGORY_TITLE[cat][1:].lower()}", ""]
+        lines += [f"## {title_case(CATEGORY_TITLE[cat].lower())}", ""]
         for m in ms:
             lines += [f"- [{_label(m)}]({_page(m)})"]
         lines += [""]
     from remix import stock
-    lines += ["## Stock effects", "",
+    lines += ["## Stock Effects", "",
               "The available stock effects depend on your remix. "
-              "octabam-core retains all 14; the insert and bus remixes retain "
+              "Octabam Core retains all 14; the insert and bus remixes retain "
               "the stock DELAY.", ""]
     for m in stock.MODULES:
         lines.append(f"- [{_label(m)}]({_page(m)})")
-    lines += ["", "## Understanding test status", "", PROOF_LEGEND]
+    lines += ["", "## Understanding Test Status", "", PROOF_LEGEND]
     return "\n".join(lines) + "\n"
 
 
+def _records(m) -> dict:
+    path = OUT.parent / "screenshots.json"
+    records = json.loads(path.read_text()) if path.exists() else {}
+    return records.get(m.name, {})
+
+
+def _figure(record: dict) -> list[str]:
+    caption = record["caption"]
+    return [f"![{caption}](../../img/{record['image']})", "", f"*{caption}*", ""]
+
+
+def _hero_key(m) -> str | None:
+    """The screenshot shown under the title: `main` where captured, else the first."""
+    recs = _records(m)
+    return "main" if "main" in recs else next(iter(recs), None)
+
+
+def hero(m) -> list[str]:
+    key = _hero_key(m)
+    return _figure(_records(m)[key]) if key else []
+
+
 def screen_reference(m) -> list[str]:
-    records_path = OUT.parent / "screenshots.json"
     notes_path = OUT.parent / "screen-notes.json"
-    records = json.loads(records_path.read_text()) if records_path.exists() else {}
     notes = json.loads(notes_path.read_text()) if notes_path.exists() else {}
+    hero_key = _hero_key(m)
+    rest = [r for k, r in _records(m).items() if k != hero_key]
     lines = []
-    if m.name in records:
-        lines += ["## Screen reference", ""]
-        for record in records[m.name].values():
-            image_path = record["image"]
-            caption = record["caption"]
-            lines += [f"![{caption}](../../img/{image_path})", "", f"*{caption}*", ""]
+    if rest:
+        lines += ["## Screen Reference", ""]
+        for record in rest:
+            lines += _figure(record)
     if m.name in notes:
-        lines += ["## Display behaviour", "", notes[m.name], ""]
+        lines += ["## Display Behaviour", "", notes[m.name], ""]
     return lines
 
 
 def screenshots_page(mods) -> str:
     records = json.loads((OUT.parent / "screenshots.json").read_text())
     notes = json.loads((OUT.parent / "screen-notes.json").read_text())
-    lines = ["# Screenshot coverage", "",
+    lines = ["# Screenshot Coverage", "",
              "Every contributed module is listed here. Images are captured from "
              "the emulator's panel output, with black pixels on white. "
              "They illustrate controls, not hardware or audio test results.", "",
@@ -185,6 +236,7 @@ def module_page(m, mods, official) -> str:
     fragment = OUT.parent / pathlib.Path("usage") / f"{m.name}.md"
     lines = ["---", "not_in_nav: true", "---", "",
              f"# {_label(m)}", ""]
+    lines += hero(m)
     if fragment.is_file():
         lines += [f'--8<-- "usage/{m.name}.md"', ""]
         lines += screen_reference(m)

@@ -1,4 +1,8 @@
-# octabam-bus
+# Octabam Bus
+
+![Bus Delay, the bus effect on FX1](img/busdelay/main.png)
+
+*Bus Delay, the bus effect on FX1*
 
 A remix of Octatrack OS 1.40C, built from your own copy of it, that adds a
 **delay and reverb bus** with a send from every track, three new FX1
@@ -7,7 +11,7 @@ added; the USB module uses LAYOUT MAIN CUE and INPUTS OFF here. These USB
 settings take effect when the image is built; on-device configuration is
 not implemented in this version.
 
-## The bus
+## The Bus
 
 Every track's FX2 slot takes part in one delay-and-reverb chain. Tracks 1
 and 5 host the two engines; every other track has a SEND with two knobs,
@@ -59,7 +63,7 @@ effect (FX2 LOCK).
 The FX1 chooser lists NONE and these three. The 13 stock effects not listed
 give up their DSP code to the bus.
 
-## The modules
+## The Modules
 
 Every module in the image, credited to its author:
 
@@ -67,20 +71,20 @@ Every module in the image, credited to its author:
 
     --8<-- "reference/_remix-octabam-bus.md"
 
-## Memory use
+## Memory Use
 
-| Resource | Stock OS | octabam-bus |
+| Resource | Stock OS | Octabam Bus |
 |---|---|---|
 | Sample and recorder memory | 14,602 pages | 12,895 pages (platform reserve) |
 | Free DSP words (payload A / B) | — | 44 / 605 |
 
-## Where it has run
+## Where It Has Run
 
 Port gates only: `make check REMIX=octabam-bus` and the reach round. Not on
 a unit. bottleservice, the same bus without the core additions, ran on Sam's
 MKII (images A0–A6; the changelog).
 
-## Prepare an existing project
+## Prepare an Existing Project
 
 For an existing project, assign the bus effects and update its saved effect
 values before playing. Replace `<card>/<set>/<project>` with the project's
@@ -96,7 +100,7 @@ other bus tracks, and stock DELAY to track 8. `stamp-defaults` updates the
 saved effect values for this remix. A project created on the unit after the
 flash needs neither command.
 
-## Build and install
+## Build and Install
 
 Use [Build and flash](build-flash.md) for the full procedure. Build this
 remix with:

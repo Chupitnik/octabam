@@ -1,11 +1,11 @@
 Stock's Echo Freeze delay: a 4-second stereo loop per track, with
 feedback, a band filter on the loop, ping-pong, tape glide, tempo sync
-and a repeater (LOCK). In octabam-bus it is the master track's FX2,
+and a repeater (LOCK). In Octabam Bus it is the master track's FX2,
 there for its beat repeat.
 
 ## Access
 
-FX2 on any track, as on a stock unit. In octabam-bus: T8's FX2, locked;
+FX2 on any track, as on a stock unit. In Octabam Bus: T8's FX2, locked;
 every other track's FX2 is SEND.
 
 ## Operation
@@ -20,7 +20,7 @@ every other track's FX2 is SEND.
 - TAPE on glides between delay times when TIME changes; off jumps.
 - DIR is the dry mix; at minimum only the delay signal is heard.
 
-## The repeater (lock)
+## The Repeater (Lock)
 
 LOCK on makes the delay a repeater: with FB 127 and SEND 0 the buffer
 repeats endlessly; lower FB fades out gradually. TIME sets the repeat
@@ -28,7 +28,7 @@ length. Any SEND above 0 stops the repeats. PASS routes the dry signal
 while LOCK is on: 1 mixes it in, 0 plays only the buffer (and VOL then
 does not affect the buffer signal).
 
-On T8 in octabam-bus this is the beat repeat: send a beat into the
+On T8 in Octabam Bus this is the beat repeat: send a beat into the
 delay, then LOCK on with SEND 0 and PASS 0. The buffer holds whatever
 was sent in before the lock.
 

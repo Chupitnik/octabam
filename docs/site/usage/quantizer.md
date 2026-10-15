@@ -1,12 +1,12 @@
 Set a scale and root for pitch controls and chromatic keys. The settings are
 stored with the project and survive a power cycle.
 
-## Set the scale, root, and glide
+## Set the Scale, Root, and Glide
 
 A SCALE row in PROJECT > CONTROL > SEQUENCER (OFF, then 24 scales), a
 ROOT row under it (C .. B) and a GLIDE row (OFF, 1..127).
 
-## What the settings control
+## What the Settings Control
 
 - The PTCH knob, parameter locks and CHROMATIC trig keys snap to the
   scale built on the root.

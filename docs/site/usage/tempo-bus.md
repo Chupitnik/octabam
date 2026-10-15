@@ -1,4 +1,4 @@
-In octabam-bus, use the TEMPO window to view and edit the shared delay and
+In Octabam Bus, use the TEMPO window to view and edit the shared delay and
 reverb controls.
 
 ## Controls

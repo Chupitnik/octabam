@@ -1,4 +1,4 @@
-# Octabam manual
+# Octabam Manual
 
 octabam adds community features to the Elektron Octatrack: Kits, templates,
 expanded scenes and parameter locks, USB audio, and new effects. You choose
@@ -8,13 +8,13 @@ OS 1.40C.
 This manual explains the additions to stock OS. It assumes you are familiar
 with tracks, Parts, patterns, scenes, and the Octatrack's front panel.
 
-## First installation
+## First Installation
 
 1. [Choose a remix](choosing.md) for the effects and workflow you want.
 2. Read [Safety and recovery](safety.md), then back up your CF card.
 3. Follow [Build and install](build-flash.md) to prepare and install your image.
 
-## Everyday use
+## Everyday Use
 
 | To… | Open… |
 |---|---|
@@ -25,7 +25,7 @@ with tracks, Parts, patterns, scenes, and the Octatrack's front panel.
 | Record MAIN and CUE on a computer | [USB audio and MIDI](reference/modules/usb.md) |
 | Look up an effect or shortcut | [Feature directory](reference/modules.md) |
 
-## Reading the instructions
+## Reading the Instructions
 
 **Bold labels** identify controls and menu items. An arrow indicates a menu
 path: **PROJ → BRAIN → TEMPLATES**. A plus sign indicates a combination:
@@ -35,7 +35,7 @@ in `monospace`.
 Screen illustrations show captured firmware screens. Their values are
 examples; available features and screen labels depend on the image you run.
 
-## About the project
+## About the Project
 
 octabam is unofficial community software and is not supported by Elektron.
 Hardware testing varies by feature and remix; emulator checks do not prove
