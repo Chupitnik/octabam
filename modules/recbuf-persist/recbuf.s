@@ -1,9 +1,11 @@
 | RECBUF PERSIST -- project-folder recorder buffers (REC1.wav..REC8.wav).
 |
-| On pstore_pre: mkdir !BUFFERS/, sync-write each non-empty recorder
-| (wav_write) to !BUFFERS/RECn.wav, PATH it there, then stock slot load +
+| On pstore_pre: mkdir BUFFERS/, sync-write each non-empty recorder
+| (wav_write) to BUFFERS/RECn.wav, PATH it there, then stock slot load +
 | post-load so the control record / UI show the assignment.
 | On load*_post / preload_post: same PATH + slot load when the file exists.
+| Folder name has no '!': SLOT_LOAD treats '!BUFFERS/…' as INVALID FILENAME
+| (PATH landed in project.work on R4/R5; UI stayed unassigned).
 |
 | Empty test: control record length at 0x46c922c4 + slot*44 + 16.
 
@@ -40,7 +42,7 @@ rbp_st_answer:
 rbp_st_pstore_pre:
         lea     %sp@(-40),%sp
         movem.l %d2-%d7/%a2-%a5,%sp@
-        | Ensure <project>/!BUFFERS exists (idempotent if already there).
+        | Ensure <project>/BUFFERS exists (idempotent if already there).
         moveq   #0,%d0
         lea     FMT_DIR,%a0
         lea     PATH,%a1
@@ -188,9 +190,9 @@ slot_ctl:
 
         .data
         .align  4
-FMT_DIR:  .asciz  "%s/!BUFFERS"
-FMT_ABS:  .asciz  "%s/!BUFFERS/REC%d.wav"
-FMT_REL:  .asciz  "!BUFFERS/REC%d.wav"
+FMT_DIR:  .asciz  "%s/BUFFERS"
+FMT_ABS:  .asciz  "%s/BUFFERS/REC%d.wav"
+FMT_REL:  .asciz  "BUFFERS/REC%d.wav"
         .align  4
 
         .section .bss

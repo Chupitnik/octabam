@@ -2,7 +2,7 @@
 copied and cleared, and where a Part is saved or cleared, owned once.
 
 KITS (kits.work), PLOCKS P2 (p2lkNN.work), MIDI SCENES' storage and RECBUF
-PERSIST (!BUFFERS/RECn.wav) each need the same stock events: a load of
+PERSIST (BUFFERS/RECn.wav) each need the same stock events: a load of
 every bank, a masked bank load, a new project, the bank writer, the project
 store and reload, the bank file copy, the bank to and from CS1, and the Part
 Save and Part Clear. The ledger allows one detour on a site, so STORE holds
@@ -46,7 +46,7 @@ def store_inc(modules):
     out = ["ev_ctl:", "        .long   kits_level" if "KITS" in modules else "        .long   0",
            "name_tab:", "        .long   nm_plk, nm_kits, nm_scn, nm_rbp",
            'nm_plk: .asciz "P2LK%02d.WORK"', 'nm_kits: .asciz "KITS.WORK"',
-           'nm_scn: .asciz "SCENES.WORK"', 'nm_rbp: .asciz "!BUFFERS/REC%d.WAV"',
+           'nm_scn: .asciz "SCENES.WORK"', 'nm_rbp: .asciz "BUFFERS/REC%d.WAV"',
            ".balign 2", "ans_tab:"]
     for key, _prefix, _events in sorted(CLIENTS, key=lambda c: CLIENT_IDS[c[0]]):
         pre = {k: p for k, p, _e in CLIENTS}[key]

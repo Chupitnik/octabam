@@ -132,7 +132,7 @@ from the card (section 5).
 |---|---|---|---|
 | [**BRAIN**](modules/brain/README.md) | [Sam Banks](https://github.com/sambanks) | The settings store on the unit: card-wide knob defaults read from BRAIN/card.work at each project load (docs/proposals/BRAIN.md). | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); `verify_brain` under the port (6 Oct 2026) |
 | [**MEMORY**](modules/memory/README.md) | [Sam Banks](https://github.com/sambanks) | Platform: the DRAM reserve in stock's audio page arena, sized from what the remix's modules claim. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); the reserve's size per remix in the build report; `verify_dram_boot` under the port |
-| [**RECBUF PERSIST**](modules/recbuf-persist/README.md) | [iliamurzinov](https://github.com/iliamurzinov) | On project save, dump non-empty recorder buffers to !BUFFERS/REC1.wav..REC8.wav (overwrite); on project load, restore them. | `make check`: verify_recbuf: symbols + port save/load; author's MKII BUILD R2–R4 (16 Oct 2026): SAVE wrote !BUFFERS/RECn.wav and assigned slots |
+| [**RECBUF PERSIST**](modules/recbuf-persist/README.md) | [iliamurzinov](https://github.com/iliamurzinov) | On project save, dump non-empty recorder buffers to BUFFERS/REC1.wav..REC8.wav (overwrite); on project load, restore them. | `make check`: verify_recbuf: symbols + port save/load; author MKII R2–R6 (17 Oct 2026): BUFFERS/RECn.wav; !BUFFERS left UI unassigned |
 
 ### Utilities
 

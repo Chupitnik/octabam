@@ -158,7 +158,7 @@ def port_tests(image: pathlib.Path, out: pathlib.Path, rbp: int) -> int:
     staged = subprocess.run(
         [str(PY), str(STAGE), str(project), "OCTABAM", "RECBUF",
          "--tree", str(out / "load_tree"), "--out", str(load_card),
-         "--audio", f"{wav}:RECBUF/!BUFFERS/REC1.wav"],
+         "--audio", f"{wav}:RECBUF/BUFFERS/REC1.wav"],
         cwd=ROOT, capture_output=True, text=True,
     )
     if staged.returncode:
@@ -183,8 +183,8 @@ def port_tests(image: pathlib.Path, out: pathlib.Path, rbp: int) -> int:
     slot = (out / "slot128.bin").read_bytes() if (out / "slot128.bin").is_file() else b""
     path = slot.split(b"\x00", 1)[0] if slot else b""
     fails += not check(
-        f"slot 128 PATH after load is !BUFFERS/REC1.wav ({path!r})",
-        path == b"!BUFFERS/REC1.wav",
+        f"slot 128 PATH after load is BUFFERS/REC1.wav ({path!r})",
+        path == b"BUFFERS/REC1.wav",
     )
 
     ctl = (out / "ctl128.bin").read_bytes() if (out / "ctl128.bin").is_file() else b""

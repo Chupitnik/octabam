@@ -10,7 +10,7 @@ REMIX = Remix(
     family="mods",
     proof=Proof.CHECK,
     proof_note="verify_recbuf under the port",
-    doc="Recorder buffers !BUFFERS/REC1.wav..REC8.wav under the project on SAVE / LOAD.",
+    doc="Recorder buffers BUFFERS/REC1.wav..REC8.wav under the project on SAVE / LOAD.",
     modules=("STORE", "RECBUF PERSIST",
              "FILTER", "EQUALIZER", "DJ EQ", "PHASER", "FLANGER", "CHORUS",
              "SPATIALIZER", "COMB FILTER", "COMPRESSOR", "LO-FI", "DELAY",
