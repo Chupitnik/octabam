@@ -19,18 +19,21 @@ down. It changes note pitches; it does not generate chords.
 
 ## Storage and Compatibility
 
-KEY is stored in the existing Part setting. Before using an edited Part on
-stock firmware, select OFF or an original Major/Minor choice: stock firmware
-does not understand the additional mode values. Audio-track Scale Quantizer
-is separate.
+KEY is stored in the existing Part setting. Stock 1.40C cold project load
+clamps additional mode values to **B Minor**. Saving the bank on stock writes
+that value and loses its extended mode. Loading alone does not rewrite every
+bank file. Before returning to stock, select OFF or an original Major/Minor
+choice and save, or retain a separate project backup. Audio-track Scale
+Quantizer is separate.
 
-This module works independently; it does not require the PLOCKS or TEMPO SYNC
-contributions. Follow and Harmony combinations belong to later contributions.
+This module works independently. Follow and Harmony combinations require
+their own integration checks.
 
 ## Verification Limits
 
 These are LCD captures from the emulator using the standalone MIDI Scales
 remix (BUILD=91), not photographs of hardware. Linked-code checks cover all
 84 key/mode combinations, all 128 note values, the installed hooks and
-formatter bounds. Physical encoder feel, hardware MIDI timing and full
-project save/reload acceptance remain unverified.
+formatter bounds. Full-firmware emulator checks cover cold project load and
+native save across candidate, stock and candidate again. Physical encoder
+feel, hardware MIDI timing and hardware save/reload remain unverified.

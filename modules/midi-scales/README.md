@@ -17,12 +17,14 @@ It is therefore a **Part setting**, not a new per-pattern project field.
 Select `MIDI SCALES` in the remix. This module works independently. It extends stock sequencer/arp output
 quantization; it does not generate chords. Existing Major/Minor playback
 keeps stock quantization. Added modes use nearest scale notes, ties downward.
-Follow and Harmony integration is reserved for separate contributions. This
-PR does not include or qualify those combinations.
+Follow and Harmony combinations require their own integration checks.
 
-No audio tracks or Scale Quantizer settings are involved. Older firmware does
-not understand values 25–84: set KEY to OFF or an original Major/Minor value
-before using an edited Part on stock firmware.
+No audio tracks or Scale Quantizer settings are involved. On a cold project
+load, stock 1.40C clamps saved KEY values 25–84 to 24 (**B Minor**). Saving
+that bank on stock writes the normalized value, losing the extended mode.
+Other bank files are not rewritten merely by loading the project. Before
+returning to stock, select OFF or an original Major/Minor choice and save,
+or keep a separate backup of the extended-mode project.
 
 ## Verification
 
@@ -30,8 +32,19 @@ Run `make check REMIX=midi-scales`; the linked-code gate executes
 all 84 combinations over all 128 MIDI notes and checks the formatter bounds.
 The installed encoder and output detours are checked, including all eight
 tracks, stock Major/Minor continuation, surrounding bytes and registers.
-Native Part storage is reused; project save/reload and physical UI behavior
-are not established by this linked-code test.
+Native Part storage is reused. A separate full-firmware compatibility test
+boots candidate, stock 1.40C, then candidate again with a disposable virtual
+card and uses native SAVE PROJECT at each stage:
+
+```sh
+.venv/bin/python tools/verify/verify_midi_scales_stock.py --project /path/to/project
+```
+
+It covers all 256 byte inputs across 16 banks, four working Parts and eight
+tracks, comparing loaded RAM, the current bank's saved work/strd fields and
+untouched other-bank fields. The candidate preserves 0–84; stock clamps at
+24. Receipt: `out/midi-scales-stock/receipt.json`. This cold-load/save test
+does not qualify retained-memory startup, physical controls or hardware.
 Emulator LCD captures and the repeatable manual capture group are included in the
 manual usage page. They demonstrate OFF, C Major, C Dorian and C Mixolydian
 on ARP SETUP at BUILD=91; physical hardware testing remains pending.
