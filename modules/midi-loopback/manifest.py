@@ -12,3 +12,6 @@ MODULE = dataclasses.replace(MODULE, gates=(
     Gate('tools/verify/verify_midi_loopback_reference.py', stage='image', venv=True),
     *MODULE.gates,
 ))
+
+# Detailed verification lives in developer notes, outside the README index.
+MODULE = dataclasses.replace(MODULE, proof_note="")

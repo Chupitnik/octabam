@@ -19,3 +19,6 @@ MODULE = dataclasses.replace(MODULE, gates=(
     *MODULE.gates,
     Gate('tools/verify/verify_midi_part_boot.py', stage='image', venv=True),
 ))
+
+# Detailed verification lives in developer notes, outside the README index.
+MODULE = dataclasses.replace(MODULE, proof_note="")
