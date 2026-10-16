@@ -38,7 +38,7 @@ Image A0 (`bottleservice`, `CHANGELOG.md`) carries PLOCKS P2; `p2lk01.work` was 
 
 ## Open
 
-- The CS1 copy holds 4,768 locks (`NV_MAX`; 10,234 until 10 Oct 2026, when 16,400 B of its top went to MIDI SCENES' copy); a current bank with more has no copy
+- The CS1 copy holds 4,768 locks (`NV_MAX`); a current bank with more has no copy
   and a power cut loses its page-2 locks back to the last save.
 - That CS1 keeps its contents over a power-off on the unit is read from
   stock's use of it (the power-up check and restore), not measured here.
@@ -62,9 +62,8 @@ sum, magic) runs under `0x2700` after the same compare. A call that finds a
 newer ticket starts over from `NVBANK`. The mask covers a few instructions;
 the scan of up to 98,304 bytes runs unmasked, because a mask held for the
 scan would delay the frame ISR (about 24,600 long compares on an empty bank:
-inferred from the instruction count, not measured). A spin on a flag was
-not used: the engine task spinning on the UI task's flag cannot make
-progress if the UI task is the one preempting it. The ordering is by reading
+inferred from the instruction count, not measured). The ticket check avoids
+waiting on a flag held by a preempted task. The ordering is by reading
 the code; the port is lock-step and cannot interleave tasks, so it is not
 measured on the port or the unit.
 
@@ -118,8 +117,6 @@ trig. Nothing carries page 2, and every byte of the pattern data is used.
   is rewritten when stock copies a bank into CS1 and after every change
   to that bank; at power-up it is applied after stock's restore, or, with
   no valid copy, that bank's `p2lkNN.work` is read at the first bank load.
-  Before 2 Oct 2026 nothing read the current bank at power-up, so its
-  page-2 locks came back empty even when saved (measured under the port).
 - **Files**: `p2lkNN.work` / `p2lkNN.strd` beside `bankNN.*` in the
   project directory, 16 bytes of header (`P2LK`, version 1, bank, length)
   and the bank's 98,304 B. Written where stock writes `bankNN.work`
@@ -131,10 +128,9 @@ trig. Nothing carries page 2, and every byte of the pattern data is used.
 ## Trig edit and release
 
 The page-2 editor marks a held trig as edited and clears native pending tap
-masks before committing a lock. Otherwise releasing that trig can treat the
-gesture as a bare tap and delete the lock just entered. `verify_plocksp2.py`
+masks before committing a lock. This lets release distinguish an edit from
+a bare tap, preserving the lock just entered. `verify_plocksp2.py`
 checks the held-step edit followed by release and subsequent bare-tap clearing.
-This editor correction leaves the retained layout and capacity unchanged.
 
 ### Stock Address Provenance
 
@@ -164,17 +160,14 @@ The addresses, widths and matching stores are statically observed. The names
 read/write paths, corroborated by the release regression. They are not
 firmware symbols. This is not an exhaustive claim about every reader.
 
-The current regression was repeated on upstream `c3f37e5`, BUILD=P1,
-`octabam-core`, using the same test and project fixture in both builds.
-With only this store/clear sequence removed, the just-recorded page-two
-lock became 255 (absent) on release and the test failed. With the sequence
-present, it remained 3 and the full test passed, including later bare-tap
-clearing, project/card persistence and protected-file refusal. This is
-emulator evidence; physical button timing still needs the exact-build check.
+Under the emulator, a recorded page-two lock survives release; a subsequent
+bare tap clears it. Project/card persistence and protected-file refusal are
+also covered by the passing regression. These are emulator measurements;
+physical button timing is not verified on the unit for this build.
 
 ## KITS
 
-KITS (in bottleservice beside this module since 6 Oct 2026) hooks the
+KITS (in bottleservice beside this module) hooks the
 file routines' own entries (`0x40090504`, `0x400905d4`, `0x400909d8`,
 `0x400917c8`, `0x4008ee74`, `0x4008f180`) where this module hooks their
 call sites, so the two share no site. Its CS1 ranges (`0x100f85a0..e8`,
