@@ -104,7 +104,7 @@ from the card (section 5).
 | [**MIDI PART STATE**](modules/midi-part-state/README.md) | [radiohagen](https://github.com/radiohagen/octatrack-modules) | Shared native Part settings and coherent copy/clear publication; no KITS dependency. | on hardware |
 | [**MIDI SCENES**](modules/midi-scenes/README.md) | [bkkbrls-del/midisc](https://github.com/bkkbrls-del/midisc) | Scene locks for the MIDI tracks (hold-to-lock, readout, unlock, lock LEDs, XF morph, scene clear / copy / paste), kept per Part in scenes.work and CS1. Port of bkkbrls-del's midisc project. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); `verify_scenes` against MIDISC2.1 under the port, phase 1 scenarios (b1, b7, b3, b29copy, b29clear); MIDISC 2.0 ran on the author's unit as `ok-ms` (14 Sep 2026) |
 | [**SCENES P2**](modules/scenes-p2/README.md) | [sambanks](https://github.com/sambanks) | Scene locks and the crossfader on FX1/FX2 page 2 (hold a scene, turn a page-2 knob). | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); 26 Sep 2026 |
-| [**STORE**](modules/store/README.md) | [sambanks](https://github.com/sambanks) | Platform: the stock save, load, copy, CS1 and Part sites KITS and PLOCKS P2 share. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026) |
+| [**STORE**](modules/store/README.md) | [sambanks](https://github.com/sambanks) | Platform: the stock save, load, copy, CS1 and Part sites STORE clients share. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026) |
 
 ### MIDI and USB
 
@@ -132,6 +132,7 @@ from the card (section 5).
 |---|---|---|---|
 | [**BRAIN**](modules/brain/README.md) | [Sam Banks](https://github.com/sambanks) | The settings store on the unit: card-wide knob defaults read from BRAIN/card.work at each project load (docs/proposals/BRAIN.md). | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); `verify_brain` under the port (6 Oct 2026) |
 | [**MEMORY**](modules/memory/README.md) | [Sam Banks](https://github.com/sambanks) | Platform: the DRAM reserve in stock's audio page arena, sized from what the remix's modules claim. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); the reserve's size per remix in the build report; `verify_dram_boot` under the port |
+| [**RECBUF PERSIST**](modules/recbuf-persist/README.md) | iliamurzinov | On project save, dump non-empty recorder buffers to !BUFFERS/REC1.wav..REC8.wav (overwrite); on project load, restore them. | `make check`: verify_recbuf: symbols + port save/load; author's MKII BUILD R2–R4 (16 Oct 2026): SAVE wrote !BUFFERS/RECn.wav and assigned slots |
 
 ### Utilities
 
