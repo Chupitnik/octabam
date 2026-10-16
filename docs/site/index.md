@@ -1,4 +1,4 @@
-# Octabam Manual
+# A love letter to the Octatrack
 
 octabam adds community features to the Elektron Octatrack: Kits, templates,
 expanded scenes and parameter locks, USB audio, and new effects. You choose

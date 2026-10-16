@@ -1,4 +1,4 @@
-site_name: octabam manual
+site_name: Octabam
 site_url: https://sambanks.github.io/octabam/
 repo_url: https://github.com/sambanks/octabam
 repo_name: sambanks/octabam
@@ -11,6 +11,7 @@ exclude_docs: |
   reference/_remix-*.md
   usage/*.md
 extra_css:
+  - css/fonts.css
   - css/sidebar-spacing.css
   - css/site-tables.css
   - css/manual.css
@@ -24,7 +25,7 @@ theme:
     dark: github-dark
 nav:
   - Getting Started:
-      - About This Manual: index.md
+      - A love letter to the Octatrack: index.md
       - Choose a Remix: choosing.md
       - Build and Install: build-flash.md
       - Feature Directory: reference/modules.md
