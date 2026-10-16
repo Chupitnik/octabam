@@ -47,6 +47,7 @@ class Category(Enum):
     MIDI_USB = "midi-usb"       # MIDI and USB
     FIXES = "fixes"             # a fix to stock behaviour
     SETTINGS = "settings"       # the settings store and what it carries
+    UTILITIES = "utilities"     # project, recording and naming conveniences
     REFERENCE = "reference"     # the canaries
     STOCK = "stock"             # a stock effect kept in the chooser
 
@@ -59,6 +60,7 @@ CATEGORY_TITLE = {
     Category.MIDI_USB: "MIDI and USB",
     Category.FIXES: "Fixes",
     Category.SETTINGS: "Settings",
+    Category.UTILITIES: "Utilities",
     Category.REFERENCE: "Reference",
     Category.STOCK: "Stock effects",
 }
