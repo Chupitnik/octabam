@@ -12,3 +12,6 @@ MODULE = dataclasses.replace(
     MODULE, author_url='https://github.com/radiohagen/octatrack-modules',
     linked=tuple(dataclasses.replace(unit, reference=_REFERENCE) for unit in MODULE.linked),
 )
+
+# Detailed verification lives in developer notes, outside the README index.
+MODULE = dataclasses.replace(MODULE, proof_note="")
