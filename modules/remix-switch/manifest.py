@@ -59,7 +59,7 @@ MODULE = Module(
     name="remix-switch",
     key="REMIX SWITCH",
     kind=Kind.HYBRID,
-    category=Category.REFERENCE, author="sanderlegit", author_url="https://github.com/sanderlegit",
+    category=Category.UTILITIES, author="sanderlegit", author_url="https://github.com/sanderlegit",
     proof=Proof.HARDWARE,
     proof_note="an MKII, 29 Sep 2026 (OCTABAM14 with BOOT TRACE): switched to its own "
                "image and to stock 1.40C, audio and play working; and with the park "

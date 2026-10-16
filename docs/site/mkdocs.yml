@@ -60,7 +60,6 @@ nav:
       - Scale Quantizer: reference/modules/quantizer.md
       - Rec Threshold: reference/modules/rec-threshold.md
       - Recorder Trig Mute: reference/modules/rec-trig-mute.md
-      - Reload from Project: reference/modules/reload-from-project.md
       - RLEN PLEN: reference/modules/rlen-plen.md
       - Stem Recording: reference/modules/stems.md
       - Synth Machine: reference/modules/synth.md
@@ -79,8 +78,11 @@ nav:
   - Settings:
       - Brain: brain.md
       - Memory: reference/modules/memory.md
-      - Random Naming: reference/modules/rnd-name.md
       - Store: reference/modules/store.md
+  - Utilities:
+      - Random Naming: reference/modules/rnd-name.md
+      - Reload from Project: reference/modules/reload-from-project.md
+      - Remix Switch: reference/modules/remix-switch.md
   - Fixes:
       - ATA Write Guard: reference/modules/ata-write-guard.md
       - Batch Bugfixes: reference/modules/batch-bugfixes.md
@@ -92,7 +94,6 @@ nav:
       - CF Meter: reference/modules/cfmeter.md
       - CF Meter Idle: reference/modules/cfmeter-idle.md
       - Load Meter: reference/modules/load-meter.md
-      - Remix Switch: reference/modules/remix-switch.md
       - Testgen: reference/modules/testgen.md
       - Wave Load: reference/modules/waveload.md
   - Remix Reference:

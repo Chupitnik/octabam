@@ -75,7 +75,7 @@ Five fields are the README's module table, rendered by `make docs`
 (`tools/remix/index.py --write`) and held current by `verify_docs`:
 
 ```python
-    category=Category.TRACK,            # BUS, TRACK, MACHINES, PARTS, MIDI_USB, FIXES, REFERENCE
+    category=Category.TRACK,            # BUS, TRACK, MACHINES, PARTS, MIDI_USB, FIXES, SETTINGS, UTILITIES, REFERENCE
     author="repeat98", author_url="https://github.com/repeat98",
     proof=Proof.RENDER,                 # CHECK, RENDER, PORT, HARDWARE
     proof_note="its own render gates; not on hardware",   # the unit, image, date; or the gate
