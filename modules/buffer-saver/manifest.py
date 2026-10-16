@@ -2,8 +2,9 @@
 
 `bufsave.s` (one DRAM unit) has the detail. Three detours:
 
-- the recorder's per-track take start (0x400069d6, where LIMIT is
-  written): marks that track's buffer as holding a new take;
+- the recorder's per-track take start (0x400069e4, where its state
+  becomes recording, just after the LIMIT write at 0x400069d6, which stays
+  stock): marks that track's buffer as holding a new take;
 - the engine's LOAD PROJECT case (0x4008534c): clears the marks;
 - the PROJECT menu's SAVE (0x40063890, which FUNC + PROJ also reaches):
   with a marked buffer that has audio and is not recording, a YES/NO
@@ -29,7 +30,7 @@ MODULE = Module(
     doc="SAVE PROJECT offers to save unsaved recorder takes, each back into its own buffer, so they reload with the project.",
     linked=(Linked("bufsave", "modules/buffer-saver/bufsave.s", dram=True),),
     detours=(
-        Detour(0x400069D6, H("21803c007401"), "bufsave", "arm_mark",
+        Detour(0x400069E4, H("7e0215470002"), "bufsave", "arm_mark",
                "recorder take start: mark the track's buffer as holding a new take"),
         Detour(0x4008534C, H("4eb9400909d8"), "bufsave", "load_clear",
                "engine LOAD PROJECT: clear the marks", kind="jsr"),

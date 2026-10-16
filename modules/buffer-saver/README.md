@@ -43,8 +43,9 @@ them with their addresses.
 
 - **The list.** Stock keeps no "unsaved take" flag: under the port a take
   writes only the slot's length and trim (15 Oct 2026). So the recorder's
-  per-track take start (`0x400069d6`, where LIMIT is written) sets bit n of
-  a byte for buffer n, and the engine's LOAD PROJECT case (`0x4008534c`)
+  per-track take start (`0x400069e4`, where its state becomes recording,
+  just after the LIMIT write at `0x400069d6`, which stays stock so REC
+  THRESHOLD's gate still sees it) sets bit n of a byte for buffer n, and the engine's LOAD PROJECT case (`0x4008534c`)
   clears it.
 - **The question.** The PROJECT menu's SAVE (`0x40063890`; FUNC + PROJ
   reaches the same handler through `0x400648fc`) asks through stock's YES/NO

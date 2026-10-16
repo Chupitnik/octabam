@@ -4,8 +4,11 @@
 | project brings the take back.
 |
 | Hooks:
-|   arm_mark   (0x400069d6) the recorder's per-track take start (LIMIT
-|              written, d3 = track 0..7): marks buffer d3 in `pending`.
+|   arm_mark   (0x400069e4) the recorder's per-track take start, where the
+|              recorder's state becomes 2 (recording), just after LIMIT is
+|              written at 0x400069d6 (d3 = track 0..7): marks buffer d3 in
+|              `pending`. The LIMIT write itself stays stock, so a module or
+|              gate that watches it there (REC THRESHOLD) still sees it.
 |              Recorder buffer n belongs to track n (object id 128 + n).
 |   load_clear (0x4008534c, the engine's LOAD PROJECT case) clears
 |              `pending`: what the load brings back is saved already.
@@ -48,12 +51,13 @@
         .equ    SAVE_TO, 0x800000a4     | SAVE SAMPLES TO: non-zero = the project
         .equ    FILE_EXISTS, 0x46c823fa | pointer to the file-exists test
 
-| 0x400069d6 displaced: move.l %d0,(0,%a0,%d3.l*4) / moveq #1,%d2.
+| 0x400069e4 displaced: moveq #2,%d7 / move.b %d7,2(%a2) (the recorder's
+| state := recording). d3 is still the track (loaded at 0x400069d2).
 arm_mark:
-        move.l  %d0,(0,%a0,%d3.l*4)
-        moveq   #1,%d2
+        moveq   #2,%d7
+        move.b  %d7,2(%a2)
         bset    %d3,pending             | bit d3 of the byte: buffer d3 has a new take
-        jmp     (0x400069dc).l
+        jmp     (0x400069ea).l
 
 | 0x4008534c displaced: jsr 0x400909d8 ("jsr" detour: returns to 0x40085352).
 load_clear:

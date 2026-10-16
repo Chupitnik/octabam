@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """BUFFER SAVER under the port: SAVE PROJECT (FUNC + PROJ) after a take,
-in three scenarios, each its own boot.
+in four scenarios, each its own boot.
 
 Each boots the built image (out/mainos_bus.bin) on a private card holding a
 saved, empty project (project.work and project.strd, so SAVE takes stock's
@@ -11,15 +11,17 @@ R1-000000-0000. A YES/NO dialog is told apart by its lines: the module's
 SAVE SAMPLES? passes its own table (in DRAM), stock's CONTINUE? a stack
 copy.
 
-  yes      take, FUNC + PROJ, YES (SAVE SAMPLES?), YES (CONTINUE?), then
-           FUNC + PROJ again, YES (CONTINUE?). Wanted: R1-000000-0000.wav
-           and .ot, the project's SLOT=129 path on it, one mode-2 save by
-           the module, SAVE SAMPLES? once (not on the second save).
-  taken    as yes up to the first CONTINUE?, on a card that already holds
-           R1-000000-0000.wav: the take is saved as R1-000000-0000-2.wav,
-           the project points at it, the old file is unchanged.
-  no       take, FUNC + PROJ, NO (SAVE SAMPLES?), YES (CONTINUE?). Wanted:
-           no WAV, SLOT=129 with no path, the project saved, no mode-2 save.
+  yes      take, FUNC + PROJ, YES (SAVE SAMPLES?), YES (CONTINUE?). Wanted:
+           R1-000000-0000.wav and .ot, the project's SLOT=129 path on it,
+           one mode-2 save by the module.
+  again    take, FUNC + PROJ, YES, NO (CONTINUE?: no project write), then
+           FUNC + PROJ again and NO. Wanted: the take saved once and SAVE
+           SAMPLES? asked once: the saved take is not offered again.
+  taken    as yes, on a card that already holds R1-000000-0000.wav: the
+           take is saved as R1-000000-0000-2.wav, the project points at it,
+           the old file is unchanged.
+  no       take, FUNC + PROJ, NO (SAVE SAMPLES?), YES (CONTINUE?). Wanted: no
+           WAV, SLOT=129 with no path, the project saved, no mode-2 save.
 
 Never flashes or talks to hardware.
 """
@@ -96,7 +98,7 @@ def run(work, card, name, script, quit_ms):
             "--mkii", "--dsp", "--main-level", "64", "--audio-in", "tones",
             "--watch-mem", f"{MODE:#x},4", "--watch-pc", f"{DIALOG_ENTRY:#x}",
             "--live-script", str(path)]
-    r = subprocess.run(args, cwd=ROOT, capture_output=True, text=True, timeout=1800)
+    r = subprocess.run(args, cwd=ROOT, capture_output=True, text=True, timeout=3600)
     files = emu_card.extract_image(out_card.read_bytes()) if out_card.is_file() else {}
     return name, r.returncode, r.stdout + r.stderr, files
 
@@ -157,12 +159,18 @@ def main():
                                 cwd=ROOT, capture_output=True, text=True)
         if staged.returncode:
             return fail("could not stage the card with R1-000000-0000.wav", staged.stdout + staged.stderr)
-        cards = {"yes": card, "taken": card_taken, "no": card}
+        cards = {"yes": card, "again": card, "taken": card_taken, "no": card}
 
         first = SETUP + take(2000) + save(6000) + press(9000, YES) + press(14000, YES)
-        jobs = [("yes", first + save(45000) + press(49000, YES), 56000),   # the first project save writes ~10 MB
-                ("taken", first, 20000),
-                ("no", SETUP + take(2000) + save(6000) + press(9000, NO) + press(12000, YES), 17000)]
+        # One project save at most per boot (it writes ~10 MB) and a late quit:
+        # the port caps each script step by its target time, and a heavier image
+        # (USB in the remix) stretches the save ("live script: ... ended early
+        # -- time"). "again" answers NO to CONTINUE?, so it writes no project.
+        jobs = [("yes", first, 30000),
+                ("again", SETUP + take(2000) + save(6000) + press(9000, YES) + press(14000, NO)
+                 + save(17000) + press(20000, NO), 24000),
+                ("taken", first, 30000),
+                ("no", SETUP + take(2000) + save(6000) + press(9000, NO) + press(12000, YES), 30000)]
         with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
             results = {name: (rc, out, files) for name, rc, out, files in
                        pool.map(lambda j: run(work, cards, *j), jobs)}
@@ -182,8 +190,16 @@ def main():
     mode2 = [w for w in writes(out, MODE) if w[1] == 2]
     if len(mode2) != 1 or not DRAM[0] <= mode2[0][2] < DRAM[1]:
         return fail(f"yes: wanted one mode-2 save by the module, saw {mode2}", out)
+    if dialogs(out) != (1, 1):
+        return fail(f"yes: wanted SAVE SAMPLES? and CONTINUE? once each, saw {dialogs(out)}", out)
+
+    rc, out, files = results["again"]
+    mode2 = [w for w in writes(out, MODE) if w[1] == 2]
+    if len(mode2) != 1:
+        return fail(f"again: wanted the take saved once, saw {len(mode2)} mode-2 saves", out)
     if dialogs(out) != (1, 2):
-        return fail(f"yes: wanted SAVE SAMPLES? once and CONTINUE? twice, saw {dialogs(out)}", out)
+        return fail(f"again: wanted SAVE SAMPLES? once (not on the second FUNC + PROJ) and "
+                    f"CONTINUE? twice, saw {dialogs(out)}", out)
 
     rc, out, files = results["taken"]
     names = sorted(k[len(AUDIO):] for k in files if k.startswith(AUDIO))
