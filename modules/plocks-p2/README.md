@@ -130,7 +130,9 @@ trig. Nothing carries page 2, and every byte of the pattern data is used.
 
 ## Trig edit and release
 
-Releasing a trig after editing keeps its page-two lock.
+While a trig is held, its page-two lock value is shown and the parameter
+name is highlighted. Releasing the trig shows the Part value again and
+keeps the step's lock.
 
 [Developer notes](DEVELOPMENT.md) describe the implementation and verification.
 

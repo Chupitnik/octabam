@@ -10,8 +10,13 @@ each held step gets that slot's page-2 lock. Hold FUNC while turning to
 remove it. The trig plays the lock, and the next trig puts the Part's
 value back — the same as page 1.
 
-Releasing a trig after turning a page-two knob keeps the edited lock. A
-later bare trig tap still clears the step and its locks.
+While a trig is held, its page-two lock value is shown and the parameter
+name is highlighted. Releasing the trig shows the Part value again and
+keeps the step's lock. A later bare trig tap still clears the step and its locks.
+
+![GVOL locked to 50 while trig 1 is held](../../img/plocks-p2/lock.png)
+
+![GVOL returns to the Part value 20 on release](../../img/plocks-p2/released.png)
 
 The locks move with the data: trig copy and paste, clear a trig's locks,
 pattern copy and paste, clear a pattern and its undo each carry or clear

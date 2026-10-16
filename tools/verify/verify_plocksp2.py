@@ -40,8 +40,9 @@ forked (`ot_emu --scenario`):
            with the CS1 copy's magic cleared (read from p2lkNN.work).
 
 SKIPs without a project, without the port, or for a remix without PLOCKS
-P2. What it cannot see: the dial draw (the LCD is not decoded), the
-hardware, a slide trig (page 2 does not slide).
+P2. The display walk decodes the panel UART and compares held-lock dials
+with native unheld-value references on FX1 and FX2. It cannot measure
+physical panel timing or a slide trig (page 2 does not slide).
 """
 import argparse, os, pathlib, shutil, subprocess, sys
 from concurrent.futures import ThreadPoolExecutor
@@ -108,6 +109,156 @@ def record(s):
     s.tap("no", 400)                               # close SETUP
 
 
+def display_walk(image, card, set_name, project, store, out, check):
+    """Native panel inputs only; compare pixels with unheld-value references.
+
+    The disposable card has COMPRESSOR in FX1 and a stock reverb (or
+    COMPRESSOR when the reverb id is replaced by an insert) in FX2,
+    with slot A's normal value zero. No live RAM writes or draw calls.
+    """
+    from stems_panel import MenuPort
+    from panel_server import setup_window_open
+
+    out.mkdir(parents=True, exist_ok=True)
+    run_card = out / "card.img"
+    shutil.copy2(card, run_card)
+    with MenuPort(image, run_card, set_name, project, True,
+                  log_path=out / "port.log", extra=("--load-ms", "90000")) as p:
+        p.settle()
+        p.press("t1")
+        db = p.long(DBPTR)
+        bank = (db - BLOB) // BANK_STRIDE
+        part = p.peek(UI_PART, 1)[0]
+        pattern = p.peek(0x100b14d0, 1)[0]
+        block = store + ((bank * 16 + pattern) * 8) * TRACK_B
+        part_addr = db + part * PART_STRIDE + P2_OFF
+
+        def turn(ticks):
+            p.proc.command(f"knob 48 {ticks}", "ok")
+            p.run(350)
+
+        def held(name, down):
+            p.key(name, down)
+            p.run(350)
+
+        def screen(name):
+            (out / (name + ".png")).write_bytes(p.link.render_png(4, dark=0, light=255))
+            return p.screen()
+
+        def crop(rows, box):
+            x0, y0, x1, y1 = box
+            return tuple(v for row in rows[y0:y1] for v in row[x0:x1])
+
+        dial = (61, 17, 79, 35)
+        label = (62, 11, 77, 16)
+        # Both popup descriptors place slot A at the same LCD coordinates.
+        for slot, offset in (("fx2", 6), ("fx1", 0)):
+            p.press("pg_" + slot, hold=180, settle=180)
+            # A double press opens the native SETUP window.
+            descriptor = 0x400bc48c if slot == "fx2" else 0x400bc262
+            if not setup_window_open(p.rt.uc):
+                p.press("pg_" + slot, hold=30, settle=30)
+                p.press("pg_" + slot, hold=180, settle=180)
+            check(f"display {slot}: expected SETUP window is active",
+                  p.long(0x460d175c) == p.long(0x400bc48c if slot == "fx2" else 0x400bc262)
+                  and setup_window_open(p.rt.uc))
+            refs = {}
+            aged = {}
+            current = 0
+            for value in (20, 21, 50, 51, 52, 53):
+                turn(value - current)
+                current = value
+                refs[value] = screen(f"{slot}-reference-{value}")
+                check(f"display {slot}: native reference value {value} is drawn",
+                      p.peek(part_addr + offset, 1)[0] == value
+                      and sum(crop(refs[value], (63, 29, 77, 34))) > 8)
+                if value == 20:
+                    p.run(2000)
+                    aged[value] = screen(f"{slot}-reference-{value}-settled")
+            turn(20 - current)
+            if slot == "fx2":
+                p.press("rec")
+                p.press("trig1")
+            held("trig1", True)
+            empty = screen(f"{slot}-held-unlocked")
+            check(f"display {slot}: held step without a lock shows the normal label and value",
+                  crop(empty, label) == crop(refs[20], label)
+                  and crop(empty, dial) == crop(refs[20], dial))
+            turn(30)
+            locked = screen(f"{slot}-locked-50")
+            check(f"display {slot}: held lock dial equals native value 50",
+                  crop(locked, dial) == crop(refs[50], dial))
+            check(f"display {slot}: only a locked parameter has an inverted label",
+                  crop(locked, label) == tuple(not v for v in crop(refs[50], label))
+                  and crop(locked, (81, 10, 98, 16)) == crop(refs[50], (81, 10, 98, 16)))
+            held("trig1", False)
+            released = screen(f"{slot}-released-20")
+            check(f"display {slot}: release restores normal label and Part value 20",
+                  crop(released, (61, 10, 79, 35)) == crop(refs[20], (61, 10, 79, 35)))
+            check(f"display {slot}: release preserves lock 50 and Part 20",
+                  p.peek(block + offset, 1) == bytes([50])
+                  and p.peek(part_addr + offset, 1) == bytes([20]))
+            p.run(2000)
+            settled = screen(f"{slot}-released-20-settled")
+            check(f"display {slot}: released dial follows the native value timeout",
+                  crop(settled, (61, 10, 79, 35)) == crop(aged[20], (61, 10, 79, 35)))
+            turn(1)
+            after = screen(f"{slot}-normal-turn-21")
+            check(f"display {slot}: first unheld tick moves Part 20 to 21",
+                  p.peek(part_addr + offset, 1) == bytes([21])
+                  and crop(after, dial) == crop(refs[21], dial))
+            held("trig1", True)
+            reheld = screen(f"{slot}-reheld-50")
+            check(f"display {slot}: reholding displays the saved lock immediately",
+                  crop(reheld, (61, 10, 79, 35)) == crop(locked, (61, 10, 79, 35)))
+            for value in (51, 52, 53):
+                turn(1)
+                changed = screen(f"{slot}-slow-{value}")
+                check(f"display {slot}: slow held tick shows {value} and keeps Part 21",
+                      crop(changed, dial) == crop(refs[value], dial)
+                      and p.peek(block + offset, 1) == bytes([value])
+                      and p.peek(part_addr + offset, 1) == bytes([21]))
+            held("func", True)
+            turn(1)
+            removed = screen(f"{slot}-removed")
+            check(f"display {slot}: FUNC turn removes lock, highlight and lock value",
+                  p.peek(block + offset, 1) == b"\xff"
+                  and crop(removed, (61, 10, 79, 35)) == crop(refs[21], (61, 10, 79, 35)))
+            held("func", False)
+            held("trig1", False)
+            check(f"display {slot}: page-one lock bytes remain untouched",
+                  p.peek(db + 0x59, 32) == b"\xff" * 32)
+            p.press("no")
+
+        # The FX popup object is reused by other native windows. Trig redraws
+        # must not paint FX controls over MIXER, TEMPO or MIDI setup pages.
+        for modal in ("mixer", "tempo"):
+            p.press(modal, settle=300)
+            before = screen(modal + "-before")
+            held("trig1", True)
+            during = screen(modal + "-held")
+            held("trig1", False)
+            after = screen(modal + "-released")
+            check(f"display {modal}: trig press/release preserves the native window",
+                  crop(before, (8, 0, 120, 44)) == crop(during, (8, 0, 120, 44))
+                  == crop(after, (8, 0, 120, 44)))
+            p.press("no")
+        p.press("midi")
+        p.press("pg_fx1", hold=180, settle=180)
+        if not setup_window_open(p.rt.uc):
+            p.press("pg_fx1", hold=30, settle=30)
+            p.press("pg_fx1", hold=180, settle=180)
+        before = screen("midi-setup-before")
+        held("trig1", True)
+        during = screen("midi-setup-held")
+        held("trig1", False)
+        after = screen("midi-setup-released")
+        check("display MIDI: trig press/release preserves the native SETUP title",
+              p.long(0x80000012) != 0 and setup_window_open(p.rt.uc)
+              and crop(before, (40, 0, 110, 8)) == crop(during, (40, 0, 110, 8))
+              == crop(after, (40, 0, 110, 8)))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("remix", nargs="?", default=os.environ.get("REMIX"))
@@ -115,6 +266,7 @@ def main():
     ap.add_argument("--set-name", default="OCTABAM")
     ap.add_argument("--name", default="PLOCKSP2")
     ap.add_argument("--out", default="")
+    ap.add_argument("--display-only", action="store_true", help="run the panel-pixel regression only")
     a = ap.parse_args()
     global OUT
     if a.out:
@@ -221,6 +373,25 @@ def main():
 
     def block(ptn, track):
         return STORE + ((bank * 16 + ptn) * 8 + track) * TRACK_B
+
+    # An independent, deterministic UI fixture. Never alter the user's project
+    # or the card used by the save/playback tests below.
+    display_project = OUT / "display-project"
+    if display_project.exists():
+        shutil.rmtree(display_project)
+    shutil.copytree(copy, display_project)
+    ot_project.set_fx(display_project, "fx1", 1, "COMPRESSOR", page2=[0] * 6, guard=False)
+    # Inserts may reuse a reverb id for a small-range selector. The pixel
+    # oracle needs a numeric slot covering 20..53, not that selector.
+    display_fx2 = fallback if rd32(rd32(DESC2 + 4 * fallback) + 0x9a + 4 * 6) >= 54 else "COMPRESSOR"
+    ot_project.set_fx(display_project, "fx2", 1, display_fx2, page2=[0] * 6, guard=False)
+    display_card = OUT / "display-card.img"
+    run([PY, ROOT / "tools/emu/ot_emu/stage_card.py", display_project, a.set_name, a.name,
+         "--tree", OUT / "display-tree", "--out", display_card], OUT / "display-stage.log")
+    display_walk(image, display_card, a.set_name, a.name, STORE, OUT / "display", check)
+    if a.display_only:
+        print(f"verify_plocksp2 display: {fails} failure(s)")
+        return int(bool(fails))
 
     # ---- the panel scenarios, one load ----------------------------------------
     def panel(tag, extra):

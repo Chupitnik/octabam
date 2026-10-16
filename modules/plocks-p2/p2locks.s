@@ -274,11 +274,84 @@ pe_commit:
         lea     REDRAW,%a0
         moveq   #20,%d0
         movel   %d0,%a0@(0,%d1:l)
+        bsr.w   plk_refresh_setup
 pe_done:
         moveq   #0,%d0
         movem.l %sp@,%d2-%d7/%a2-%a6
         lea     %sp@(44),%sp
         rts
+
+| Refresh FX SETUP after native trig bookkeeping. The down path does not
+| always call the page renderer; the release path draws the page beneath
+| the popup. Keep each native call and its return registers intact.
+        .globl  plk_page_draw, plk_trig_draw, plk_label
+plk_page_draw:
+        movel   %sp@(4),%sp@-
+        jsr     0x4004d948
+        addql   #4,%sp
+        bra.w   plk_refresh_setup
+plk_trig_draw:
+        jsr     0x400418e0
+        bra.w   plk_refresh_setup
+
+plk_refresh_setup:
+        lea     %sp@(-16),%sp
+        movem.l %d0-%d1/%a0-%a1,%sp@
+        tstl    MIDITRK
+        bne.s   prs_done
+        movel   PAGEKIND,%d0
+        subql   #3,%d0
+        cmpil   #1,%d0
+        bhi.s   prs_done
+        lea     0x400bc25a,%a1        | FX1 SETUP descriptor
+        tstl    %d0
+        beq.s   prs_window
+        lea     0x400bc484,%a1        | FX2 SETUP descriptor
+prs_window:
+        movel   %a1@(8),%d0           | native window object
+        beq.s   prs_done
+        cmpl    WINDOW,%d0
+        bne.s   prs_done
+        moveal  %d0,%a0
+        movel   %a0@(32),%d0
+        btst    #5,%d0
+        beq.s   prs_done              | closed popup
+        movel   %a0@(8),%d0
+        cmpil   #7,%d0
+        bne.s   prs_done
+        tstl    %a0@(12)
+        bne.s   prs_done
+        movel   %a0@(24),%d0
+        cmpil   #0xf4,%d0
+        bne.s   prs_done
+        movel   %a0@(40),%d0
+        cmpil   #0x40,%d0
+        bne.s   prs_done              | shared object now belongs to another modal
+        moveal  %a1@(44),%a0          | native SETUP draw callback
+        movel   %a0,%d0
+        beq.s   prs_done
+        jsr     %a0@
+prs_done:
+        movem.l %sp@,%d0-%d1/%a0-%a1
+        lea     %sp@(16),%sp
+        rts
+
+| Native FX SETUP label renderer: the sixth argument is text inversion.
+| Reuse plk_dial with -1 as the sentinel, so only an actual held lock is
+| marked. d4 is the slot; d6 must survive for the native dial loop.
+plk_label:
+        movel   %d6,%sp@-
+        movel   PAGEKIND,%d6
+        subql   #3,%d6
+        moveq   #-1,%d0
+        bsr.w   plk_dial
+        movel   %sp@+,%d6
+        tstl    %d0
+        bmi.s   plabel_stock
+        moveq   #1,%d0
+        movel   %d0,%sp@(24)
+plabel_stock:
+        jmp     0x40013904
 
 | -------------------------------------------------------------- playback ----
 | fill: the record builder 0x4009d1e8's two fill paths. Its frame: sp@(108)
