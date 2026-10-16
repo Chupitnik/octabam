@@ -36,8 +36,10 @@ firmware symbols. This is not an exhaustive claim about every reader.
 Under the emulator, a recorded page-two lock survives release; a subsequent
 bare tap clears it. Project/card persistence and protected-file refusal are
 also covered by the passing regression. These are emulator measurements.
-The owner reported the Core OCTABAMP4 checklist passed on an Octatrack MKII on 17 October 2026, including
-hold/edit/release/rehold and comparison with page-one hold timing. Numeric
+Hardware tested by radiohagen on an Octatrack MKII on 17 October 2026:
+Octabam Core, source `b6a9d17`, local build label `OCTABAMP4`. The checklist
+passed, including hold/edit/release/rehold and comparison with page-one
+hold timing. Numeric
 physical timing was not measured; Bus/Inserts were tested under the emulator.
 
 ## Release regression control
