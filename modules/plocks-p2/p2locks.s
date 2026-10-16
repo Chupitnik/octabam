@@ -284,7 +284,7 @@ pe_done:
 | Refresh FX SETUP after native trig bookkeeping. The down path does not
 | always call the page renderer; the release path draws the page beneath
 | the popup. Keep each native call and its return registers intact.
-        .globl  plk_page_draw, plk_trig_draw, plk_label
+        .globl  plk_page_draw, plk_trig_draw, plk_widget1, plk_widget2
 plk_page_draw:
         movel   %sp@(4),%sp@-
         jsr     0x4004d948
@@ -336,22 +336,38 @@ prs_done:
         lea     %sp@(16),%sp
         rts
 
-| Native FX SETUP label renderer: the sixth argument is text inversion.
-| Reuse plk_dial with -1 as the sentinel, so only an actual held lock is
-| marked. d4 is the slot; d6 must survive for the native dial loop.
-plk_label:
+| Pass stock's held-lock flag to the existing widget renderer. Bit 0
+| both inverts the value area and keeps the formatted number visible,
+| including after its normal animation timer expires. The parameter name
+| stays native. Preserve the descriptor's other widget flags and formatter.
+plk_widget2:
+        bsr.s   plk_widget_flags
+        movel   %d3,%sp@-             | displaced renderer arguments
+        movel   %a3@,%sp@-
+        movel   %a1,%sp@-
+        jmp     0x4003787e
+plk_widget1:
+        bsr.s   plk_widget_flags
+        movel   %d3,%sp@-
+        movel   %a3@,%sp@-
+        movel   %a1,%sp@-
+        jmp     0x40037c1a
+plk_widget_flags:
+        movel   %d0,%sp@-
         movel   %d6,%sp@-
         movel   PAGEKIND,%d6
         subql   #3,%d6
         moveq   #-1,%d0
         bsr.w   plk_dial
-        movel   %sp@+,%d6
         tstl    %d0
-        bmi.s   plabel_stock
-        moveq   #1,%d0
-        movel   %d0,%sp@(24)
-plabel_stock:
-        jmp     0x40013904
+        bmi.s   pwf_done
+        movel   %a1,%d0
+        oril    #1,%d0
+        moveal  %d0,%a1
+pwf_done:
+        movel   %sp@+,%d6
+        movel   %sp@+,%d0
+        rts
 
 | -------------------------------------------------------------- playback ----
 | fill: the record builder 0x4009d1e8's two fill paths. Its frame: sp@(108)

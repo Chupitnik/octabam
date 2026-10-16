@@ -127,7 +127,7 @@ def capture_plocks(p,r):
     enc(p,0,-127);enc(p,0,20)
     press(p,'rec');press(p,'trig1')
     p.key('trig1',True);p.run(180);enc(p,0,30)
-    shot(p,'plocks-p2','lock','Trig 1 held: GVOL is locked to 50 and its label is highlighted.',r)
+    shot(p,'plocks-p2','lock','Trig 1 held: GVOL is locked to 50 with the value area highlighted.',r)
     p.key('trig1',False);p.run(350)
     shot(p,'plocks-p2','released','Trig released: GVOL shows the Part value 20; the step keeps its lock.',r)
 

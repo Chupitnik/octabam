@@ -47,25 +47,35 @@ physical button timing is not verified on the unit for this build.
 - The release call to `0x4004d948(-1)` at `0x40060b38` is wrapped,
   keeping its argument and return registers. It redraws the native page
   then refreshes active FX SETUP. Committing a page-two edit also refreshes
-  SETUP immediately. Native dial animation and value timeout are retained.
+  SETUP immediately. Unheld dials retain their native animation and timeout.
 - FX1/FX2 descriptors at `0x400bc25a` / `0x400bc484` carry the window
   pointer at +8 and native draw callback at +44. The popup object is
   shared with other dialogs. Refresh requires the active pointer, its
   open flag, SETUP geometry `(7, 0, 0xf4, 0x40)`, an audio track and the
   corresponding FX page. A nonzero window pointer alone is insufficient.
-- Label calls at `0x40037c78` / `0x400378dc` use the sixth argument of
-  `0x40013904` for inversion. `plk_dial` supplies the same first-held-step
-  lookup as the value display. An absent lock leaves the native label
-  unchanged; a present lock inverts it.
+- Widget argument hooks at `0x40037c14` / `0x40037878` retain the native
+  renderer and formatter. `plk_dial` checks the first held step; an actual
+  lock sets bit 0 of the widget flags, preserving other bits. In the stock
+  dial renderer (`0x400479b4`), that bit keeps the formatted number visible
+  (`0x40047a8a`) and inverts the value area (`0x40047ba0`). Names use the
+  unchanged native text renderer. No lock leaves all widget flags unchanged.
 
-`verify_plocksp2.py` now drives native panel inputs and decodes the panel
-UART on a disposable card. FX2 PLATE REV and FX1 COMPRESSOR slot A are
-compared with independently rendered normal-value references: unlocked
-hold, lock 50 over Part 20, release, unheld +1, rehold, three slow +1
-turns and FUNC removal. It checks pixels, label inversion, lock and Part
-bytes, untouched page-one locks, and native MIXER/TEMPO/MIDI windows.
-Screens and the port log remain in the gate's output directory. These
-measure emulator behavior, not physical panel latency.
+`verify_plocksp2.py` drives native panel inputs and decodes the panel UART
+on disposable cards. It first boots unmodified stock 1.40C and captures
+COMPRESSOR ATK page-one locks at 50, 51, 52 and 53. The FX2 PLATE REV and
+FX1 COMPRESSOR page-two visible dial/number region must match stock pixel for pixel after
+its seven-row vertical offset. Native SETUP draws the name after the widget;
+its bottom padding clears row 16 (x=62..76). That row is checked with the
+unchanged name; the dial/number comparison covers rows 17..34 versus stock
+10..27. It checks:
+
+- unchanged parameter names, lock values and Part bytes;
+- numeric visibility after a pause and after release/rehold without a turn;
+- release, unheld +1, slow held increments and FUNC removal;
+- untouched page-one locks and native MIXER/TEMPO/MIDI windows.
+
+Screens and port logs remain in the gate output. These measure emulator
+behavior; physical panel timing requires a hardware check.
 
 The pre-PR control restores upstream PLOCKS source at base
 `c3f37e531f6b072b8197d93f173e063b55249363`. Its six initial FX2 screen

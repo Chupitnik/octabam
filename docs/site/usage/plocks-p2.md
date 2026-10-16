@@ -10,9 +10,9 @@ each held step gets that slot's page-2 lock. Hold FUNC while turning to
 remove it. The trig plays the lock, and the next trig puts the Part's
 value back — the same as page 1.
 
-While a trig is held, its page-two lock value is shown and the parameter
-name is highlighted. Releasing the trig shows the Part value again and
-keeps the step's lock. A later bare trig tap still clears the step and its locks.
+While a trig is held, its page-two lock value stays visible with the value
+area highlighted, as on page 1. The parameter name stays unchanged.
+Releasing the trig shows the Part value again and keeps the step's lock. A later bare trig tap still clears the step and its locks.
 
 ![GVOL locked to 50 while trig 1 is held](../../img/plocks-p2/lock.png)
 

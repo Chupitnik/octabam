@@ -41,8 +41,8 @@ forked (`ot_emu --scenario`):
 
 SKIPs without a project, without the port, or for a remix without PLOCKS
 P2. The display walk decodes the panel UART and compares held-lock dials
-with native unheld-value references on FX1 and FX2. It cannot measure
-physical panel timing or a slide trig (page 2 does not slide).
+with actual stock page-one held locks and unheld references on FX1 and FX2.
+It cannot measure physical panel timing or a slide trig (page 2 does not slide).
 """
 import argparse, os, pathlib, shutil, subprocess, sys
 from concurrent.futures import ThreadPoolExecutor
@@ -109,8 +109,64 @@ def record(s):
     s.tap("no", 400)                               # close SETUP
 
 
+def stock_lock_references(card, set_name, project, out, check):
+    """Capture real page-one locks on unmodified stock, using panel inputs.
+
+    COMPRESSOR ATK uses the same numeric dial renderer as the page-two
+    fixture. Only the cell position differs: page one starts seven rows
+    above SETUP. No injected flags, forced redraws or RAM-written locks.
+    """
+    from stems_panel import MenuPort
+
+    out.mkdir(parents=True, exist_ok=True)
+    run_card = out / "card.img"
+    shutil.copy2(card, run_card)
+    refs = {}
+    with MenuPort(ROOT / "out/raw/section_3_MAIN_OS.bin", run_card,
+                  set_name, project, True, log_path=out / "port.log",
+                  extra=("--load-ms", "90000")) as p:
+        p.settle()
+        p.press("t1")
+        p.press("pg_fx1")
+        def turn(ticks):
+            p.proc.command(f"knob 48 {ticks}", "ok")
+            p.run(350)
+        def screen(name):
+            p.png(out / (name + ".png"))
+            return tuple(v for row in p.screen()[10:28] for v in row[61:79])
+        turn(-127)
+        turn(20)
+        p.press("rec")
+        p.press("trig1")
+        p.key("trig1", True)
+        p.run(350)
+        current = 20
+        for value in (50, 51, 52, 53):
+            turn(value - current)
+            current = value
+            refs[value] = screen(f"stock-held-{value}")
+            check(f"stock reference: page-one ATK lock stores {value}",
+                  p.peek(p.long(DBPTR) + 0x59 + 18, 1) == bytes([value]))
+        turn(50 - current)
+        p.run(2500)
+        check("stock reference: held number remains after the normal timeout",
+              screen("stock-held-settled") == refs[50])
+        p.key("trig1", False)
+        p.run(2500)
+        p.key("trig1", True)
+        p.run(350)
+        check("stock reference: rehold shows saved number without a turn",
+              screen("stock-reheld") == refs[50])
+        p.run(2500)
+        check("stock reference: reheld number remains after the normal timeout",
+              screen("stock-reheld-settled") == refs[50])
+        check("stock reference: different lock values produce different pixels",
+              len(set(refs.values())) == len(refs))
+    return refs
+
+
 def display_walk(image, card, set_name, project, store, out, check):
-    """Native panel inputs only; compare pixels with unheld-value references.
+    """Compare native panel pixels with stock held-lock and unheld references.
 
     The disposable card has COMPRESSOR in FX1 and a stock reverb (or
     COMPRESSOR when the reverb id is replaced by an insert) in FX2,
@@ -120,6 +176,7 @@ def display_walk(image, card, set_name, project, store, out, check):
     from panel_server import setup_window_open
 
     out.mkdir(parents=True, exist_ok=True)
+    stock = stock_lock_references(card, set_name, project, out / "stock", check)
     run_card = out / "card.img"
     shutil.copy2(card, run_card)
     with MenuPort(image, run_card, set_name, project, True,
@@ -149,8 +206,11 @@ def display_walk(image, card, set_name, project, store, out, check):
             x0, y0, x1, y1 = box
             return tuple(v for row in rows[y0:y1] for v in row[x0:x1])
 
+        # SETUP draws names after widgets; the native name's bottom padding
+        # clears row 16 (x=62..76). Check that padding with the name, and
+        # compare the visible dial/number rows 17..34 with stock rows 10..27.
         dial = (61, 17, 79, 35)
-        label = (62, 11, 77, 16)
+        label = (62, 11, 77, 17)
         # Both popup descriptors place slot A at the same LCD coordinates.
         for slot, offset in (("fx2", 6), ("fx1", 0)):
             p.press("pg_" + slot, hold=180, settle=180)
@@ -186,15 +246,18 @@ def display_walk(image, card, set_name, project, store, out, check):
                   and crop(empty, dial) == crop(refs[20], dial))
             turn(30)
             locked = screen(f"{slot}-locked-50")
-            check(f"display {slot}: held lock dial equals native value 50",
-                  crop(locked, dial) == crop(refs[50], dial))
-            check(f"display {slot}: only a locked parameter has an inverted label",
-                  crop(locked, label) == tuple(not v for v in crop(refs[50], label))
+            check(f"display {slot}: held dial and number match stock page-one lock 50",
+                  crop(locked, dial) == stock[50])
+            check(f"display {slot}: parameter names stay unchanged while a lock is held",
+                  crop(locked, label) == crop(refs[50], label)
                   and crop(locked, (81, 10, 98, 16)) == crop(refs[50], (81, 10, 98, 16)))
+            p.run(2500)
+            check(f"display {slot}: held value stays visible after the normal timeout",
+                  crop(screen(f"{slot}-held-settled"), dial) == stock[50])
             held("trig1", False)
             released = screen(f"{slot}-released-20")
             check(f"display {slot}: release restores normal label and Part value 20",
-                  crop(released, (61, 10, 79, 35)) == crop(refs[20], (61, 10, 79, 35)))
+                  crop(released, (61, 10, 79, 35)) == crop(aged[20], (61, 10, 79, 35)))
             check(f"display {slot}: release preserves lock 50 and Part 20",
                   p.peek(block + offset, 1) == bytes([50])
                   and p.peek(part_addr + offset, 1) == bytes([20]))
@@ -211,11 +274,14 @@ def display_walk(image, card, set_name, project, store, out, check):
             reheld = screen(f"{slot}-reheld-50")
             check(f"display {slot}: reholding displays the saved lock immediately",
                   crop(reheld, (61, 10, 79, 35)) == crop(locked, (61, 10, 79, 35)))
+            p.run(2500)
+            check(f"display {slot}: reheld number stays visible without turning",
+                  crop(screen(f"{slot}-reheld-settled"), dial) == stock[50])
             for value in (51, 52, 53):
                 turn(1)
                 changed = screen(f"{slot}-slow-{value}")
                 check(f"display {slot}: slow held tick shows {value} and keeps Part 21",
-                      crop(changed, dial) == crop(refs[value], dial)
+                      crop(changed, dial) == stock[value]
                       and p.peek(block + offset, 1) == bytes([value])
                       and p.peek(part_addr + offset, 1) == bytes([21]))
             held("func", True)
