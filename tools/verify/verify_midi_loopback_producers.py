@@ -7,8 +7,8 @@ from verify_midi_loopback import ROOT
 from unicorn.m68k_const import *
 
 
-def prepare(track, route, channel=1):
-    m = Machine()
+def prepare(track, route, channel=1, *, symbol_table=None):
+    m = Machine(symbol_table=symbol_table)
     m.put(0x46c82456, 0x400e21e0)
     for t in range(8):
         m.put(0x40171442 + 36*t, channel, 1)
@@ -110,6 +110,7 @@ def main():
     print('  [ok] held live notes release at original destinations across every route edit')
     contexts()
     feedback()
+    overlapping_sources()
     integration()
 
 
@@ -141,29 +142,96 @@ def contexts():
 
 
 def feedback():
+    # Worst-case shared channel assignment: every MIDI track can echo the
+    # incoming channel. The private internal map must remove all eight bits.
+    # One immutable compiled image per matrix; avoid forking nm per machine.
+    symbol_table = symbols()
+    cases = 0
+    for channel in range(16):
+        for midi_mode in (0, 1):
+            for source in range(8):
+                for route in (1, 2):
+                    m = prepare(source, route, channel + 1, symbol_table=symbol_table)
+                    m.receiver_setup()
+                    m.put(0x46c82456, 0x400e21e0)
+                    m.u.mem_write(0x8000003f, b'\xff' * 8)
+                    m.put(0x80000047, channel, 1)  # auto channel also collides
+                    m.put(0x80000012, midi_mode)
+                    m.put(0x80000000, 0, 1)
+                    m.put(0x100b14cc, source, 1)
+                    for msg in ((0x90,84,100), (0x80,84,0), (0xb0,34,80),
+                                (0xc0,12), (0xd0,80), (0xe0,0,80), (0xa0,84,80)):
+                        packet = bytes((msg[0] | channel, *msg[1:]))
+                        m.u.mem_write(MSG, packet)
+                        m.call('lb_track_send', (len(packet),MSG), regs={UC_M68K_REG_D7:source})
+                        before = m.get(0x400b967c)
+                        m.dispatch(m.next())
+                        assert m.get(0x400b967c) == before, ('internal DIN echo', channel,midi_mode,source,route,msg)
+                        # Audio-mode auto-channel legitimately queues audio commands.
+                        # The map consumed by the native handler must exclude every
+                        # MIDI-track bit in both UI modes. MIDI mode has no audio
+                        # listeners in this fixture and must enqueue nothing.
+                        allowed = 0xff if midi_mode else 0x1ff
+                        assert all(m.get(m.sym['lb_rx_channels']+c*4) & ~allowed == 0 for c in range(16))
+                        if midi_mode:
+                            assert m.get(0x460d17ae+4) == 0, ('MIDI-track echo', channel,source,route,msg)
+                        assert m.get('lb_head') == m.get('lb_tail'), ('recursive internal event', msg)
+                    assert m.get(0x46c7fe4c+channel*4) == 0, ('receiver held leak', channel,midi_mode,source,route)
+                    assert m.get('lb_internal_held') == 0
+                    cases += 1
+                    if cases % 32 == 0:
+                        print(f'  feedback: channel {channel + 1}/16 checked', flush=True)
+    # Positive controls: the normal external input map still forwards.
     for channel in (0,10):
         for msg in ((0x90,84,100),(0xb0,34,80),(0xc0,12),(0xd0,80),(0xe0,0,80),(0xa0,84,80)):
-            packet=bytes((msg[0]|channel,*msg[1:]))
-            for internal in (False,True):
-                m=prepare(0,1)
-                m.receiver_setup()
-                m.put(0x46c82456,0x400e21e0)
-                m.u.mem_write(0x8000003f,b'\xff'*8)
-                m.put(0x80000012,1)
-                m.put(0x80000000,0,1)
-                m.put(0x100b14cc,0,1)
-                if internal:
-                    m.u.mem_write(MSG,packet)
-                    m.call('lb_track_send',(len(packet),MSG),regs={UC_M68K_REG_D7:0})
-                    delivered=m.next()
-                    m.dispatch(delivered)
-                else:m.dispatch(packet)
-                n=m.get(0x400b967c)
-                assert n==0 if internal else n+m.get(0x460d17ae+4)>0,(channel,msg,internal,n)
-                if internal:
-                    assert m.get(0x46c7fe4c+channel*4)==0,('receiver held leak',msg)
-                    assert m.get(0x460d17ae+4)==0,('MIDI-track echo posted to main task',msg)
-    print('  [ok] internal channel/auto messages cannot forward to DIN (USB when selected) or enqueue MIDI-track echoes; external input still forwards')
+            m = prepare(0,1,symbol_table=symbol_table);m.receiver_setup();m.put(0x46c82456,0x400e21e0)
+            m.u.mem_write(0x8000003f,b'\xff'*8);m.put(0x80000012,1)
+            m.put(0x80000000,0,1);m.put(0x100b14cc,0,1)
+            m.dispatch(bytes((msg[0]|channel,*msg[1:])))
+            assert m.get(0x400b967c)+m.get(0x460d17ae+4)>0, (channel,msg)
+    print(f'  [ok] {cases} feedback configurations: 16 channels, both UI modes, all 8 source tracks, INT/BOTH; no internal recursion or MIDI-track echo; external controls forward')
+
+
+def overlapping_sources():
+    # Stock identifies incoming notes by channel/pitch, not sender. Pin the
+    # actual limitation: duplicate note-ons coalesce and first release wins.
+    # This test deliberately does not claim independent sustained voices.
+    orders = (('E+','I+','E-','I-'), ('E+','I+','I-','E-'),
+              ('I+','E+','E-','I-'), ('I+','E+','I-','E-'))
+    # One immutable compiled image per matrix; avoid forking nm per machine.
+    symbol_table = symbols()
+    cases = 0
+    for channel in range(16):
+        for route in (1,2):
+            for off_status in (0x80,0x90):
+                for order in orders:
+                    m = Machine(symbol_table=symbol_table);m.receiver_setup();m.put('lb_routes',route,1)
+                    m.u.mem_write(0x8000003f,bytes((channel,))+b'\xff'*7)
+                    m.put(0x80000047,255,1)  # no auto-channel overlap in this case
+                    for index,event in enumerate(order):
+                        on = event[1] == '+'
+                        msg = (channel | (0x90 if on else off_status),84,100 if on else 0)
+                        if event[0] == 'I':
+                            m.capture(msg,0x4009fbb2 if on else 0x4009f8c2)
+                            m.dispatch(m.next())
+                        else:
+                            # Native-queue selection clears this marker in lb_next.
+                            m.put('lb_rx_internal',0,1);m.dispatch(msg)
+                        assert m.get(0x46c7fe4c+channel*4) == (1 if index<2 else 0), (channel,route,order,event)
+                        assert m.get(0x400d64c2,1) == (84 if index<2 else 255), (channel,route,order,event)
+                    assert m.get('lb_internal_held') == 0
+                    # Both sources can play/release a fresh note after the overlap.
+                    for internal in (False,True):
+                        for on in (True,False):
+                            msg = (channel | (0x90 if on else off_status),84,100 if on else 0)
+                            if internal:
+                                m.capture(msg,0x4009fbb2 if on else 0x4009f8c2);m.dispatch(m.next())
+                            else:m.put('lb_rx_internal',0,1);m.dispatch(msg)
+                            assert m.get(0x46c7fe4c+channel*4) == int(on)
+                            assert m.get(0x400d64c2,1) == (84 if on else 255)
+                    assert m.get('lb_internal_held') == 0
+                    cases += 1
+    print(f'  [ok] {cases} external/internal overlap cases: first release ends shared note; no held count remains; fresh notes recover; both release encodings')
 
 
 def integration():

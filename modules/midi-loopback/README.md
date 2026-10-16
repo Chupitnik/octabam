@@ -66,6 +66,21 @@ through another MIDI track. Normal DIN/USB input retains the native channel map.
 Use dedicated channels/pitches without overlapping external held notes.
 Stock's incoming-note bookkeeping is shared by channel and pitch; receiver
 ownership across independent external and internal senders is not separated.
+Two overlapping external/internal note-ons for the same channel/pitch coalesce:
+**the first note-off ends the shared note**, even if the other sender still
+holds it. Compiled-code/native-receiver tests cover both arrival/release orders,
+16 channels, INT/BOTH and both note-off encodings (256 cases). They leave no
+held count and both sources can play a fresh note afterwards. This pins an
+early-release limitation, not independent voice ownership or a hardware result.
+
+The feedback regression tests 512 configurations: all 16 channels, both UI
+modes, all eight source tracks and INT/BOTH, with all MIDI tracks sharing the
+source channel and auto-channel collision. Seven channel-message kinds cannot
+re-enter the internal queue or echo through MIDI-track forwarding. External
+positive controls still forward. Audio-mode auto-channel events remain valid.
+A separate external/internal ownership layer is not added: it would change
+native receiver semantics beyond this routing change. Dense traffic and
+physical receiver behavior still require hardware checks.
 Changing audio receive assignments while notes are held and cross-project
 transitions during playback remain unproved. Audio locks/scenes and dense
 simultaneous external traffic still need separate integration tests.
@@ -134,6 +149,7 @@ make check REMIX=midi-loopback
 .venv/bin/python tools/verify/verify_midi_loopback.py --routing --project /path/to/project
 .venv/bin/python tools/verify/verify_midi_loopback.py --controls --project /path/to/project
 .venv/bin/python tools/verify/verify_midi_part_port.py --project /path/to/project
+.venv/bin/python tools/verify/verify_midi_part_stock.py --project /path/to/project
 .venv/bin/python tools/verify/verify_midi_loopback_ui_port.py --project /path/to/project
 .venv/bin/python tools/verify/verify_midi_loopback_producers_port.py midi-loopback --project /path/to/project
 ```

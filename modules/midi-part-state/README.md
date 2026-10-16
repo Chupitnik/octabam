@@ -11,8 +11,19 @@ Save/Reload and project storage carry those bytes without a companion file.
 SETUP offset 12 is a shared flags byte. Loopback owns bits 2–3 for DEST
 (EXT/INT/BOTH); value 3 and invalid flags read as EXT. Bits 0–1 are preserved
 for future consumers. The native range is 0..15, declared by this module,
-and fresh Parts initialize it to zero. Firmware without Loopback does not
-interpret DEST; use EXT before returning to stock behavior.
+and fresh Parts initialize it to zero. Stock 1.40C cold project load clamps
+this flags byte to zero, so INT/BOTH become EXT on return to Loopback. Native
+SAVE PROJECT writes the current bank's normalized flags; other bank files
+are not rewritten merely by loading. Use EXT and save before returning to
+stock, or retain a separate backup to preserve routing choices.
+
+`verify_midi_part_stock.py --project DIR` boots candidate, stock 1.40C and
+candidate again on a disposable virtual card. It checks all 256 input bytes,
+16 banks, four working Parts and eight tracks against loaded RAM and saved
+work/strd fields, including unchanged other-bank fields. The candidate clamps
+at 15; stock clamps at zero. The receipt is
+`out/midi-loopback-stock/receipt.json`. This is a cold disk-load/native-save
+check, not retained-memory or hardware acceptance.
 
 Cold ROM entry gates retain native copy/initialization before the platform
 runtime loads. A native post-loader call then activates the DRAM targets.

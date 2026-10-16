@@ -33,8 +33,8 @@ def symbols():
 
 
 class Machine:
-    def __init__(self):
-        self.sym = symbols()
+    def __init__(self, *, symbol_table=None):
+        self.sym = symbols() if symbol_table is None else dict(symbol_table)
         u = self.u = Uc(UC_ARCH_M68K, UC_MODE_BIG_ENDIAN)
         u.ctl_set_cpu_model(UC_CPU_M68K_CFV4E)
         layout = json.loads((ROOT / "out/platform/layout.json").read_text())

@@ -21,8 +21,16 @@ needs a later bridge and is currently refused with Loopback.
 
 Held notes are released at their original destination when routes change.
 Avoid overlapping internal and external held notes on the same channel/pitch:
-the stock receiver does not provide independent ownership for those sources.
+the stock receiver merges their held-note state, and the first release ends
+the shared note. Emulator checks found no remaining held count and subsequent
+notes recovered in both arrival/release orders. Independent sustain from each
+source is not supported. Internal delivery filters out MIDI-track receivers,
+so it cannot retrigger a MIDI track through the internal path.
 Clock, transport, SysEx and project-wide program-change sync stay global.
+
+Stock 1.40C cold project load resets the destination flags to zero (EXT).
+Saving that bank on stock loses its INT/BOTH settings. Other bank files stay
+unchanged until saved; keep a separate backup before returning to stock.
 
 Verified under the emulator only; hardware timing and interrupt latency remain
 unmeasured. The platform reserve reduces available sample memory by about 10 MB
