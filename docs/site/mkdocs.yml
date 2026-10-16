@@ -25,7 +25,7 @@ theme:
     dark: github-dark
 nav:
   - Getting Started:
-      - What is Octabam?: index.md
+      - A love letter to the Octatrack: index.md
       - Choose a Remix: choosing.md
       - Build and Install: build-flash.md
       - Feature Directory: reference/modules.md
