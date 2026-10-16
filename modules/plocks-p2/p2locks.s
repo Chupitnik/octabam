@@ -281,19 +281,15 @@ pe_done:
         lea     %sp@(44),%sp
         rts
 
-| Refresh FX SETUP after native trig bookkeeping. The down path does not
-| always call the page renderer; the release path draws the page beneath
-| the popup. Keep each native call and its return registers intact.
-        .globl  plk_page_draw, plk_trig_draw, plk_widget1, plk_widget2
+| Refresh FX SETUP after stock's hold-event and release page redraws.
+| Use the native hold event, not key-down, to match page-one timing.
+| Keep each native call and its return registers intact.
+        .globl  plk_page_draw, plk_widget1, plk_widget2
 plk_page_draw:
         movel   %sp@(4),%sp@-
         jsr     0x4004d948
         addql   #4,%sp
         bra.w   plk_refresh_setup
-plk_trig_draw:
-        jsr     0x400418e0
-        bra.w   plk_refresh_setup
-
 plk_refresh_setup:
         lea     %sp@(-16),%sp
         movem.l %d0-%d1/%a0-%a1,%sp@

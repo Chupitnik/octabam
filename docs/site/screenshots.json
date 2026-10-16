@@ -68,14 +68,14 @@
       "caption": "Trig 1 held: GVOL is locked to 50 with the value area highlighted.",
       "remix": "octabam-core",
       "source": "emulator panel UART",
-      "firmware_sha256": "c58396562ffc2ffbc7ca11c2be059a08503276f33ad2d697f6d287bddeae0095"
+      "firmware_sha256": "2e797bc5a1d85480ea6243361e4be01f7fb3f83e67e94a64067f3d47afab97a9"
     },
     "released": {
       "image": "plocks-p2/released.png",
       "caption": "Trig released: GVOL shows the Part value 20; the step keeps its lock.",
       "remix": "octabam-core",
       "source": "emulator panel UART",
-      "firmware_sha256": "c58396562ffc2ffbc7ca11c2be059a08503276f33ad2d697f6d287bddeae0095"
+      "firmware_sha256": "2e797bc5a1d85480ea6243361e4be01f7fb3f83e67e94a64067f3d47afab97a9"
     }
   },
   "direct-jump-kyoti": {

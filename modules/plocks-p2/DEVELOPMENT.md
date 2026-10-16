@@ -40,10 +40,12 @@ physical button timing is not verified on the unit for this build.
 
 ## SETUP display lifecycle
 
-- The native trig-down path calls `0x400418e0` at `0x40051ec4`. Its
-  page redraw at `0x40051e96` is conditional and can be skipped while a
-  SETUP window is open. The PLOCKS hook keeps the bookkeeping call and
-  then refreshes the active FX SETUP window.
+- Stock dispatches trig press (event 1) to `0x40050f20`, hold (event 2)
+  to `0x400587d4`, and release to `0x4005fb44`. The event-2 branch at
+  `0x40060c80` reaches the hold handler via `0x40060c96`. Its page redraw
+  at `0x40058958` calls `0x4004d948(-1)`. PLOCKS wraps this call and then
+  refreshes active FX SETUP, following stock's hold timing without adding
+  a timer. The press path and its bookkeeping call remain untouched.
 - The release call to `0x4004d948(-1)` at `0x40060b38` is wrapped,
   keeping its argument and return registers. It redraws the native page
   then refreshes active FX SETUP. Committing a page-two edit also refreshes
@@ -71,6 +73,9 @@ unchanged name; the dial/number comparison covers rows 17..34 versus stock
 
 - unchanged parameter names, lock values and Part bytes;
 - numeric visibility after a pause and after release/rehold without a turn;
+- initial lock display timing against stock's page-one reference (10 ms
+  samples, 30 ms allowance for input-scan and decoded-frame phase);
+- short taps, two held trigs, and editing/releasing before the hold event;
 - release, unheld +1, slow held increments and FUNC removal;
 - untouched page-one locks and native MIXER/TEMPO/MIDI windows.
 

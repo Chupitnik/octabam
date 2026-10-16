@@ -31,8 +31,8 @@ MODULE = Module(
     detours=(
         Detour(0x40060B38, H("4eb94004d948"), "p2locks", "plk_page_draw",
                "trig release: refresh the native page and active FX SETUP popup", kind="jsr"),
-        Detour(0x40051EC4, H("4eb9400418e0"), "p2locks", "plk_trig_draw",
-               "trig press: refresh FX SETUP after native held-step bookkeeping", kind="jsr"),
+        Detour(0x40058958, H("4eb94004d948"), "p2locks", "plk_page_draw",
+               "trig hold: refresh FX SETUP with the native held-step page redraw", kind="jsr"),
         Detour(0x40037878, H("2f032f132f09"), "p2locks", "plk_widget2",
                "FX2 SETUP widget: native held-lock highlight and persistent value", kind="jmp"),
         Detour(0x40037C14, H("2f032f132f09"), "p2locks", "plk_widget1",

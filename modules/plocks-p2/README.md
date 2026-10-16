@@ -10,6 +10,10 @@ each held step gets that slot's page-2 lock. FUNC held while turning
 removes it. The trig plays the lock and the next trig puts the Part's
 value back, as page 1 does.
 
+Holding a trig shows its lock after the same short delay as page 1, with
+the value area highlighted. Knob edits update immediately. Releasing the
+trig restores the Part display.
+
 ## Measured
 
 Under the port, 2 Oct 2026, `tools/verify/verify_plocksp2.py` on

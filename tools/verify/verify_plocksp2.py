@@ -109,6 +109,28 @@ def record(s):
     s.tap("no", 400)                               # close SETUP
 
 
+def hold_display_timing(p, box, target):
+    """Observe native key-down to decoded lock pixels, at 10 ms resolution.
+
+    Run through the hold event even if the image displays the lock early.
+    No injected events, forced redraws, sleeps or writes to firmware state.
+    """
+    x0, y0, x1, y1 = box
+    def cell():
+        return tuple(v for row in p.screen()[y0:y1] for v in row[x0:x1])
+    before = cell()
+    first_change = first_lock = None
+    p.key("trig1", True)
+    for ms in range(10, 401, 10):
+        p.run(10)
+        pixels = cell()
+        if first_change is None and pixels != before:
+            first_change = ms
+        if first_lock is None and pixels == target:
+            first_lock = ms
+    return first_change, first_lock
+
+
 def stock_lock_references(card, set_name, project, out, check):
     """Capture real page-one locks on unmodified stock, using panel inputs.
 
@@ -153,8 +175,10 @@ def stock_lock_references(card, set_name, project, out, check):
               screen("stock-held-settled") == refs[50])
         p.key("trig1", False)
         p.run(2500)
-        p.key("trig1", True)
-        p.run(350)
+        timing = hold_display_timing(p, (61, 10, 79, 28), refs[50])
+        check("stock reference: lock display waits for the native hold event",
+              all(t is not None and 200 <= t <= 350 for t in timing))
+        print(f"  stock held-lock display: change/complete={timing} ms")
         check("stock reference: rehold shows saved number without a turn",
               screen("stock-reheld") == refs[50])
         p.run(2500)
@@ -162,7 +186,7 @@ def stock_lock_references(card, set_name, project, out, check):
               screen("stock-reheld-settled") == refs[50])
         check("stock reference: different lock values produce different pixels",
               len(set(refs.values())) == len(refs))
-    return refs
+    return refs, timing
 
 
 def display_walk(image, card, set_name, project, store, out, check):
@@ -176,7 +200,7 @@ def display_walk(image, card, set_name, project, store, out, check):
     from panel_server import setup_window_open
 
     out.mkdir(parents=True, exist_ok=True)
-    stock = stock_lock_references(card, set_name, project, out / "stock", check)
+    stock, stock_timing = stock_lock_references(card, set_name, project, out / "stock", check)
     run_card = out / "card.img"
     shutil.copy2(card, run_card)
     with MenuPort(image, run_card, set_name, project, True,
@@ -270,9 +294,16 @@ def display_walk(image, card, set_name, project, store, out, check):
             check(f"display {slot}: first unheld tick moves Part 20 to 21",
                   p.peek(part_addr + offset, 1) == bytes([21])
                   and crop(after, dial) == crop(refs[21], dial))
-            held("trig1", True)
+            p.run(2000)
+            timing = hold_display_timing(p, dial, stock[50])
+            # The input scan and decoded LCD frame can land on adjacent
+            # samples. Compare both first change and complete cell to stock.
+            check(f"display {slot}: held-lock timing follows stock page one",
+                  all(t is not None and s is not None and abs(t - s) <= 30
+                      for t, s in zip(timing, stock_timing)))
+            print(f"  {slot} held-lock display: change/complete={timing} ms")
             reheld = screen(f"{slot}-reheld-50")
-            check(f"display {slot}: reholding displays the saved lock immediately",
+            check(f"display {slot}: native hold event displays the saved lock",
                   crop(reheld, (61, 10, 79, 35)) == crop(locked, (61, 10, 79, 35)))
             p.run(2500)
             check(f"display {slot}: reheld number stays visible without turning",
@@ -284,6 +315,39 @@ def display_walk(image, card, set_name, project, store, out, check):
                       crop(changed, dial) == stock[value]
                       and p.peek(block + offset, 1) == bytes([value])
                       and p.peek(part_addr + offset, 1) == bytes([21]))
+            held("trig2", True)
+            check(f"display {slot}: two held trigs keep the first step's lock visible",
+                  crop(screen(f"{slot}-two-held"), dial) == stock[53])
+            held("trig2", False)
+            check(f"display {slot}: releasing the second trig keeps the first lock visible",
+                  crop(screen(f"{slot}-second-released"), dial) == stock[53])
+            held("trig1", False)
+            p.run(2000)
+            normal = crop(p.screen(), dial)
+            p.press("trig2", hold=40, settle=400)
+            check(f"display {slot}: short tap leaves no delayed lock display",
+                  crop(screen(f"{slot}-short-tap"), dial) == normal)
+            p.key("trig1", True)
+            p.run(50)
+            p.proc.command("knob 48 -1", "ok")
+            p.run(50)
+            check(f"display {slot}: encoder edit before hold event displays lock 52 promptly",
+                  crop(screen(f"{slot}-early-edit"), dial) == stock[52]
+                  and p.peek(block + offset, 1) == bytes([52]))
+            p.key("trig1", False)
+            p.run(50)
+            released_early = screen(f"{slot}-early-release")
+            p.run(400)
+            check(f"display {slot}: early release restores Part without a late lock redraw",
+                  crop(released_early, dial) == crop(p.screen(), dial) == crop(refs[21], dial)
+                  and p.peek(part_addr + offset, 1) == bytes([21])
+                  and p.peek(block + offset, 1) == bytes([52]))
+            # A quick encoder turn also starts stock's normal numeric-value
+            # timeout. Release shows Part 21 before that number disappears.
+            p.run(2500)
+            check(f"display {slot}: early-release Part number follows its normal timeout",
+                  crop(screen(f"{slot}-early-release-settled"), dial) == normal)
+            held("trig1", True)
             held("func", True)
             turn(1)
             removed = screen(f"{slot}-removed")
