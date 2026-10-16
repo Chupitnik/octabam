@@ -47,7 +47,11 @@ untouched other-bank fields. The candidate preserves 0–84; stock clamps at
 does not qualify retained-memory startup, physical controls or hardware.
 Emulator LCD captures and the repeatable manual capture group are included in the
 manual usage page. They demonstrate OFF, C Major, C Dorian and C Mixolydian
-on ARP SETUP at BUILD=91; physical hardware testing remains pending.
+on ARP SETUP at BUILD=91. Separate Octatrack MKII testing of OCTABAMS1
+(source `9c30ec46`) passed scale playback, Part Reload, project save/load,
+power cycles and a stock 1.40C round trip. See the
+[remix hardware evidence](../../remixes/test/midi-scales/DEVELOPMENT.md#hardware-evidence)
+for the tested modes, saved-file checks and remaining limits.
 
 The extended KEY selector uses the stock movement accumulator at four raw
 counts per choice, capped to one choice per report. This keeps nearby scale

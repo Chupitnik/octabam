@@ -35,5 +35,12 @@ These are LCD captures from the emulator using the standalone MIDI Scales
 remix (BUILD=91), not photographs of hardware. Linked-code checks cover all
 84 key/mode combinations, all 128 note values, the installed hooks and
 formatter bounds. Full-firmware emulator checks cover cold project load and
-native save across candidate, stock and candidate again. Physical encoder
-feel, hardware MIDI timing and hardware save/reload remain unverified.
+native save across candidate, stock and candidate again.
+
+Octatrack MKII hardware testing on 16 October 2026 used OCTABAMS1
+(source `9c30ec46`). Scale playback, Part Reload, project save/load and
+power-cycle checks passed. A stock 1.40C round trip confirmed C Dorian and
+D Mixolydian become B Minor when saved on stock and remain B Minor after
+returning to S1; C Major and an untouched reference project retained their
+settings. Physical encoder-feel stress tests, MIDI timing, exhaustive
+key/mode coverage and MKI operation remain unverified.
