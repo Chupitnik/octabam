@@ -34,11 +34,6 @@ module. In this first merge, LAYOUT and INPUTS are build settings: changing
 them requires rebuilding the image. On-device USB configuration is planned
 but is not implemented in this version.
 
-Page-two parameter locks stay in place when you release a trig after turning
-a knob. A later bare trig tap still clears the step and its locks. The same
-editing behavior applies in Octabam Inserts and Octabam Bus. This correction
-has emulator coverage; physical button behavior has not been retested.
-
 ## Memory Use
 
 | Resource | Stock OS | Octabam Core |
