@@ -138,7 +138,9 @@ While a trig is held, its page-two lock value stays visible with the value
 area highlighted, as on page 1. The parameter name stays unchanged.
 Releasing the trig shows the Part value again and keeps the step's lock.
 
-[Developer notes](DEVELOPMENT.md) describe the implementation and verification.
+[Stock address provenance](DEVELOPMENT.md#stock-address-provenance) lists the
+native readers and writers mirrored by the editor, with observed addresses
+and inferred roles distinguished.
 
 ## KITS
 

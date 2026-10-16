@@ -35,8 +35,32 @@ firmware symbols. This is not an exhaustive claim about every reader.
 
 Under the emulator, a recorded page-two lock survives release; a subsequent
 bare tap clears it. Project/card persistence and protected-file refusal are
-also covered by the passing regression. These are emulator measurements;
-physical button timing is not verified on the unit for this build.
+also covered by the passing regression. These are emulator measurements.
+The owner reported the Core OCTABAMP4 checklist passed on an Octatrack MKII on 17 October 2026, including
+hold/edit/release/rehold and comparison with page-one hold timing. Numeric
+physical timing was not measured; Bus/Inserts were tested under the emulator.
+
+## Release regression control
+
+On 17 October 2026, the full `verify_plocksp2.py` (including `tap_clear`)
+was run twice on Core, BUILD=P4, from runtime/test source
+`b6a9d17fff215cd3daf32b7b5e5f73d7ee0748b0`, based on upstream
+`c3f37e531f6b072b8197d93f173e063b55249363`. Both runs used the same
+verifier and disposable project. The control removed only the edited-word
+store and six pending-tap clears from `pe_commit`; all display hooks and
+the verifier stayed unchanged.
+
+- Fix present: lock value **3** survives release; **zero failures**, exit 0.
+- Fix removed: the recorded lock is **255**, the empty-lock sentinel;
+  **three failures**, exit 1. The other two failures are the FX1/FX2
+  early-release Part-display assertions.
+- A subsequent bare trig tap clears the page-two locks in both runs.
+- The positive payload is byte-identical to the Core P4 payload tested on
+  hardware: SHA-256
+  `11389f83570ed0988bcb6d97a751ab1ea2a9744f8395e7c99601266386b73ab8`.
+
+This release control is separate from the P3 immediate-redraw timing
+control. These results measure emulator behavior.
 
 ## SETUP display lifecycle
 
@@ -80,7 +104,8 @@ unchanged name; the dial/number comparison covers rows 17..34 versus stock
 - untouched page-one locks and native MIXER/TEMPO/MIDI windows.
 
 Screens and port logs remain in the gate output. These measure emulator
-behavior; physical panel timing requires a hardware check.
+behavior; they do not measure physical panel timing. The manual hardware
+check above covers perceived hold timing, not instrumented latency.
 
 The pre-PR control restores upstream PLOCKS source at base
 `c3f37e531f6b072b8197d93f173e063b55249363`. Its six initial FX2 screen
