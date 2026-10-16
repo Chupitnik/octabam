@@ -15,6 +15,7 @@ MODULE = Module(
     kind=Kind.CF_PATCH,
     category=Category.SETTINGS,
     author="iliamurzinov",
+    author_url="https://github.com/iliamurzinov",
     proof=Proof.CHECK,
     proof_note="verify_recbuf: symbols + port save/load; author's MKII BUILD R2–R4 "
                "(16 Oct 2026): SAVE wrote !BUFFERS/RECn.wav and assigned slots",
