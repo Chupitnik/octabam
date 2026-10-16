@@ -12,9 +12,9 @@ SETUP offset 12 is a shared flags byte. Loopback owns bits 2–3 for DEST
 (EXT/INT/BOTH); value 3 and invalid flags read as EXT. Bits 0–1 are preserved
 for future consumers. The native range is 0..15, declared by this module,
 and fresh Parts initialize it to zero. Stock 1.40C cold project load clamps
-this flags byte to zero, so INT/BOTH become EXT on return to Loopback. Native
-SAVE PROJECT writes the current bank's normalized flags; other bank files
-are not rewritten merely by loading. Use EXT and save before returning to
+this flags byte to zero in RAM. Native SAVE PROJECT writes the current
+bank's normalized flags, so that saved bank returns to Loopback with EXT.
+Other bank files are not rewritten merely by loading. Use EXT and save before returning to
 stock, or retain a separate backup to preserve routing choices.
 
 `verify_midi_part_stock.py --project DIR` boots candidate, stock 1.40C and
