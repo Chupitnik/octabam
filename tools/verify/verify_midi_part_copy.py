@@ -79,8 +79,6 @@ def main():
     # Cold entries must use stock before the platform runtime is available.
     # Poisoning its first instruction makes any premature DRAM dispatch fail.
     first=bytes(u.mem_read(m.base,2));u.mem_write(m.base,b'\x4a\xfc')
-    u.mem_write(source,b'cold');run(COPY,(source+32,source,4))
-    assert bytes(u.mem_read(source+32,4))==b'cold'
     # RIG HOSTS and BRAIN customize Part defaults in DRAM after boot.
     # Isolate the cold dispatch contract from those independent downstream
     # hooks, then restore them for all warm copy/clear comparisons below.
@@ -89,12 +87,58 @@ def main():
     for a,data in init_hooks.items():
         u.mem_write(a,stock[a-0x40000400:a-0x40000400+len(data)])
         u.ctl_remove_cache(a,a+len(data))
-    run(INIT,(source,))
+    # Before activation, compare against stock, including CCR, every general
+    # register, stack contents and write addresses/order. Dirty stack bytes and
+    # all incoming CCR values exercise more than a zero-filled happy path.
+    # No physical cache, bus timing or power-off state is modeled here.
+    def compare_cold(entry, length, sr, fill):
+        dest=0x47004000
+        u.mem_write(source,bytes((i*7+11)&255 for i in range(length)))
+        results=[]
+        for patched in (False,True):
+            install(patched)
+            u.mem_write(dest-4,bytes((fill,))*(length+8))
+            u.mem_write(m.stack-256,bytes((fill,))*288)
+            m.writes=[]
+            regs=run(entry,(dest,source,length) if entry==COPY else (dest,),sr=sr)
+            results.append((regs,u.reg_read(UC_M68K_REG_SR),
+                            bytes(u.mem_read(dest-4,length+8)),
+                            bytes(u.mem_read(m.stack-256,288)),tuple(m.writes)))
+        assert results[0]==results[1],('cold ABI',hex(entry),length,hex(sr),fill)
+        if entry==COPY:
+            assert results[1][2]==bytes((fill,))*4+bytes(u.mem_read(source,length))+bytes((fill,))*4
+    cold_cases=0
+    for ccr in range(32):
+        for length in (0,1,3,4,15,16,17,150,174):
+            compare_cold(COPY,length,0x2700|ccr,0xa5 if ccr&1 else 0x5a)
+            cold_cases+=1
+        compare_cold(INIT,PS,0x2700|ccr,0xa5 if ccr&1 else 0x5a)
+        cold_cases+=1
+    # Prove the comparison detects an ABI violation while the native copy
+    # still completes: save D7 where the stock fallback saves/restores D2.
+    # Corrupting the gate's initial MOVEA instead would jump via an unset A0
+    # and test an unmapped fetch rather than the register comparison.
+    entry=int.from_bytes(patched_entries[COPY][2:6],'big')
+    gate=entry+bytes(u.mem_read(entry,32)).index(bytes.fromhex('2f02226f0008'))
+    saved=bytes(u.mem_read(gate,2))
+    u.mem_write(gate,bytes.fromhex('2f07'));u.ctl_remove_cache(gate,gate+2)
+    try:
+        compare_cold(COPY,17,0x271f,0xa5)
+    except AssertionError as error:
+        assert error.args[0][0]=='cold ABI',error
+    else:
+        raise AssertionError('cold register corruption accepted')
+    finally:
+        u.mem_write(gate,saved);u.ctl_remove_cache(gate,gate+2)
+    install(True)
     for a,data in init_hooks.items():
         u.mem_write(a,data);u.ctl_remove_cache(a,a+len(data))
     u.mem_write(m.base,first)
     cold=False
-    m.call('mp_activate',stop=0x4000f938)
+    # Exercise the installed boot call, including resident activation builds.
+    boot=bytes(u.mem_read(0x40000512,6));assert boot[:2]==bytes.fromhex('4eb9')
+    m.sym['mp_boot_activate']=int.from_bytes(boot[2:],'big')
+    m.call('mp_boot_activate',stop=0x4000f938)
     for target,entry in (('mp_copy_target','mp_native_copy'),('mp_init_target','mp_native_init')):
         assert int.from_bytes(u.mem_read(m.sym[target],4),'big')==m.sym[entry]
     # Copy ABI/canaries at working, saved and unrelated destinations, including
@@ -140,7 +184,9 @@ def main():
                     native=u.mem_read(dest+0x4e2+t*36+field,1)[0]
                     got=m.call('mp_read_key',t,bank*4+part) if field==17 else m.call('mp_read',t,bank*4+part,regs={UC_M68K_REG_D2:field})
                     assert got==native,(entry,bank,part,t,field)
-    print(json.dumps({'stock_vs_wrapped_operations':cases,'interrupted_copy_clear_publications':9,
+    print(json.dumps({'cold_stock_vs_wrapped_operations':cold_cases,
+                      'cold_register_corruption_rejected':True,
+                      'stock_vs_wrapped_operations':cases,'interrupted_copy_clear_publications':9,
                       'outgoing_reads_per_interruption':4*8*len(FIELDS),'interrupts_remain_enabled':True,
                       'production_hooks_installed':True,'hardware_tested':False}))
 

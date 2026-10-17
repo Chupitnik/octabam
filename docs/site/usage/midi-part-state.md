@@ -19,3 +19,9 @@ Checked with linked-code tests and native Part operations in the emulator,
 including a candidate-to-stock-to-candidate cold-load/save round trip.
 Hardware acceptance remains outstanding. Later MIDI consumers and their
 combinations need their own verification.
+
+Startup activation now lives beside the existing OS entry gates and resolves
+its callbacks from the selected runtime at build time. Native DSP startup and
+the memory reservation are unchanged. This addresses an observed sensitivity
+to early activation placement; the physical cause and repeated acceptance of
+the final source-built image remain open.

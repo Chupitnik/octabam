@@ -11,13 +11,14 @@ MODULE = runpy.run_path(str(SOURCE), run_name='remix_manifest_midi_part_state')[
 # on every build. The mutually linked DRAM units use the combined oracle.
 MODULE = dataclasses.replace(MODULE, linked=tuple(
     dataclasses.replace(unit, reference=(0x400d6b80,
-        '4de11692e14103dde57ed86c303a7332998c912fb8156fcf90b21a6f0ce32ca2'))
+        'c7a3725b8e7b3ba4f830795b198e6800b2fbf9490bbd52e26e70c88252ec9b88'))
     if unit.label == 'midipartentry' else unit for unit in MODULE.linked
 ))
 
 MODULE = dataclasses.replace(MODULE, gates=(
     *MODULE.gates,
     Gate('tools/verify/verify_midi_part_boot.py', stage='image', venv=True),
+    Gate('tools/verify/verify_midi_part_activation.py', stage='image', venv=True),
 ))
 
 # Detailed verification lives in developer notes, outside the README index.
