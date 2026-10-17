@@ -39,6 +39,7 @@ def machine(seed=20261008, rounds=48):
             m.capture((0x90|t,n,100),track=t)
             assert consume()==bytes((0x90|t,n,100))
         assert m.get('lb_internal_held')==128
+        assert lb.owned_counts(m)==[16]*8
         # Stalled consumer: admit 127 CCs; shed all further non-release work.
         expected=[]
         drops=m.get('lb_dropped')
@@ -67,6 +68,7 @@ def machine(seed=20261008, rounds=48):
                 msg=bytes((0x80|t,n,0))
                 m.capture(msg,0x4009f8c2,track=t);expected.append(msg)
         assert m.get('lb_internal_held')==0
+        assert lb.owned_counts(m)==[0]*8
         assert (m.get('lb_head')-m.get('lb_tail'))%256==255
         assert m.get('lb_highwater')==255
         assert [consume() for _ in expected]==expected,(seed,cycle)

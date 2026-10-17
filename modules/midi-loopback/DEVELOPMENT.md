@@ -124,9 +124,15 @@ pending messages; at most 128 internally held pitches reserve 128 release
 slots across all channels. An INT admission failure leaves a tombstone so
 its later release does not leak externally; BOTH still sends the event
 externally. Counters expose accepted/delivered messages, drops and high water.
-Cleanup scans a bounded ownership table with interrupts masked and uses the
-stock sender for external releases. Its worst-case hardware cost and UART
-backpressure are not yet measured.
+Eight 16-bit volatile counters track live ownership per source track, including
+EXT notes. They are updated together with ownership under the same interrupt
+mask. Duplicate notes and release/drop tombstones add no count; releases debit
+the recorded owner, independently of the releasing producer. An empty track
+skips the ownership scan without clearing its late-release tombstones. A track
+with live notes still scans the bounded ownership table with interrupts masked
+and uses the stock sender for external releases. The counters use 16 bytes
+inside the existing platform reserve, with no allocation or storage-format change.
+Worst-case hardware cost and UART backpressure are not yet measured.
 
 The platform reserve takes approximately 10 MB of sample memory when added
 to an otherwise stock image. The module's linked code/state uses only a
@@ -141,6 +147,24 @@ lengths, live/sequence producers, route changes, ownership, queue fairness,
 saturation, release reservation and overload recovery. Part tests compare
 native copy/clear bytes and registers before and after installing the hooks,
 including interrupted replacement with readers observing the outgoing snapshot.
+
+`tools/verify/measure_midi_loopback_cost.py` counts executed ColdFire instructions
+on the built image and checks instrumented state against an unmetered run.
+The isolated cases measure 16 instructions for an empty-track cleanup, 314 for
+eight changed channels with empty tracks, 131 for queuing an internal note-on,
+76 for its release and 110 for an internal CC. With 128 held internal notes,
+cleanup takes 27,823 instructions: this shortcut benefits empty tracks, not
+the active-note scan. These are instruction counts, not cycles, milliseconds,
+RTOS scheduling measurements or note-to-audio latency.
+
+```sh
+.venv/bin/python tools/verify/measure_midi_loopback_cost.py
+```
+
+The JSON receipt in `out/loopback-cost.json` includes image/runtime hashes,
+total instructions and the longest interrupt-masked span per case.
+Use `--build-root /path/to/baseline --out /path/to/receipt.json` to measure a
+separate baseline build with the same probe.
 
 Full-firmware tests use a disposable copy of a local project and a virtual card:
 
@@ -172,7 +196,7 @@ latency has been measured for this contribution.
 
 ## Author source
 
-Pinned source: [`c9915c12d8e1628a096a3df20f3c0d0b71842f33`](https://github.com/radiohagen/octatrack-modules/commit/c9915c12d8e1628a096a3df20f3c0d0b71842f33).
+Pinned source: [`4ec5f41644ee6fb55ecd1731b18e631dfa609c77`](https://github.com/radiohagen/octatrack-modules/commit/4ec5f41644ee6fb55ecd1731b18e631dfa609c77).
 Review both modules in that narrow author history alongside these adapters.
 The cold-entry reference is enforced at build time; the combined cross-unit
 runtime reference is enforced by `verify_midi_loopback_reference.py`. A native
