@@ -30,7 +30,6 @@ saved state only.
 
 🟡 Menu grow and row placement match PROJECT's stock table
 (`0x400cbcac` / `0x400cc308`); same recipe as PROJ SETUP on SYSTEM.
-Not driven on hardware.
 
 🟡 Dir-scan borrow/restore follows REMIX SWITCH
 (`docs/contributing/FAILURE_MODES.md`). Copy uses stock `DIRSCAN`
@@ -39,7 +38,9 @@ an engine job (type 21), posted like REMIX SWITCH's deferred load.
 
 ## On the unit
 
-Not flashed.
+Flashed with CF card update and tested on the author's MKII (17 Oct 2026):
+project list + LEVEL scroll, stock default name / FUNC+CUE with RND NAME,
+copy, and OPEN IT? → load.
 
 ## Open
 

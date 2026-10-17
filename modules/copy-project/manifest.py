@@ -21,8 +21,8 @@ MODULE = Module(
     category=Category.UTILITIES,
     author="iliamurzinov",
     author_url="https://github.com/iliamurzinov",
-    proof=Proof.CHECK,
-    proof_note="builds and boots under the port; copy job not driven on hardware",
+    proof=Proof.HARDWARE,
+    proof_note="flashed with CF card update and tested on author's MKII (17 Oct 2026)",
     doc="PROJECT > COPY PROJECT: duplicate a project folder on the card without loading it.",
     requires=("STORE",),  # STORE's encoder hook: LEVEL scrolls the project LISTPOP
     linked=(Linked("cp", "modules/copy-project/copyproj.s", cpu="5475", dram=True),),
