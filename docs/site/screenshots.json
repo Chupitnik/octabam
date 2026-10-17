@@ -725,6 +725,13 @@
       "remix": "copy-project",
       "source": "emulator panel UART",
       "firmware_sha256": "ed0816a7dead84eb11a3428e3a006bc30a2677b43b5c08051f7260b97cb8ed9e"
+    },
+    "open": {
+      "image": "copy-project/open.png",
+      "caption": "After copy: PROJECT COPIED / OPEN IT?",
+      "remix": "copy-project",
+      "source": "emulator panel UART",
+      "firmware_sha256": "ed0816a7dead84eb11a3428e3a006bc30a2677b43b5c08051f7260b97cb8ed9e"
     }
   }
 }

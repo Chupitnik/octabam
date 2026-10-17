@@ -107,8 +107,10 @@ def main():
         shot(p, "name", "NAME THE NEW PROJECT (stock PROJECT+date; FUNC+CUE with RND NAME).")
         press(p, "yes")
         shot(p, "confirm", "Confirm COPY source -> destination.")
-        # Don't run the copy job here: card I/O under the port is slow and
-        # OPEN IT? needs a finished copy. Menu + list + name + confirm cover the UI.
+        press(p, "yes")  # start the copy (engine/UI job type 21)
+        # Template project is tiny; give the dir copy + OPEN IT? popup time.
+        p.run(20000)
+        shot(p, "open", "After copy: PROJECT COPIED / OPEN IT?")
 
 
 if __name__ == "__main__":
