@@ -198,8 +198,9 @@ Both UI verifiers accept that same immutable directory:
 
 The pixel verifier exercises M1–M8 and EXT/INT/BOTH, including OFF, channel 1
 and channel 16 on M1. It compares UART LCD pixels with the composed RAM
-planes, checks that both horizontal dividers reach the native inner frame,
-and measures text/widget centring, padding and equal row heights. It saves
+planes, checks that both horizontal dividers meet the native inner frame
+without crossing its left edge into the underlying track icons, and measures
+text/widget centring, padding and equal row heights. It saves
 60 captures and a hash-labelled receipt. A new output directory is required
 so failed evidence survives a rerun. Native encoder steps retain fractional
 state across pages; the capture driver observes committed values while

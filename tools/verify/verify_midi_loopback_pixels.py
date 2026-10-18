@@ -41,6 +41,7 @@ def measure(data, popup):
     for y in (oy+24,oy+47):
         gaps=[x for x in range(left,right+1) if not rows[y][x]]
         assert not gaps,('divider does not meet frame',y,gaps)
+        assert not rows[y][left-1],('divider crosses the left frame',y,left-1)
     cells={name:ink(rows,left,ox+38,oy+1+a,oy+1+b)
            for name,a,b in [('label',2,6),('widget',7,13),('value',17,21)]}
     y0=min(v['bounds'][1] for v in cells.values());y1=max(v['bounds'][3] for v in cells.values())
