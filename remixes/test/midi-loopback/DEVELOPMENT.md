@@ -1,13 +1,11 @@
 # MIDI Loopback test remix
 
-Stock effects plus the experimental [MIDI Loopback module](../../../modules/midi-loopback/README.md).
-Every track defaults to EXT; the emulator gate sets Part-scoped INT/BOTH routes. This is a
-development fixture with CHAN-press routing; no hardware acceptance.
+MIDI Loopback and MIDI Part State with stock audio effects. Every track defaults
+to EXT; the emulator scenarios select Part-scoped INT/BOTH routes.
 
-Build and verify with `make check REMIX=midi-loopback`. To exercise the
-sequencer and receiver on a disposable project copy, use
-`.venv/bin/python tools/verify/verify_midi_loopback.py --project /path/to/source-project`.
-Add `--controls` for the filter CC-lock, MIDI LFO and live CC-knob scenarios.
-See the module page for exact coverage and open limitations.
-
-Add `--routing` for eight simultaneous tracks with mixed destinations.
+- Build and check: `make check REMIX=test/midi-loopback`.
+- Project-backed routing: `.venv/bin/python tools/verify/verify_midi_loopback.py --project /path/to/project`.
+- Add `--controls` for filter CC locks, MIDI LFO and live CC knobs.
+- Add `--routing` for eight simultaneous tracks with mixed destinations.
+- [Module developer notes](../../../modules/midi-loopback/DEVELOPMENT.md)
+  define emulator coverage, scoped MKII results, measured latency and limitations.

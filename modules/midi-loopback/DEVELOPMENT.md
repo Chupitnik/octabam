@@ -223,8 +223,8 @@ radiohagen/octabam. They are not current qualification for this branch.
 The Scenes bridge, Follow and Harmony are separate contributions. MIDI Scenes
 is explicitly incompatible until its producers are routed through the bridge.
 Stock DIN behavior is covered; USB-host and combined-module acceptance remain
-separate qualification. No hardware flash, MIDI timing or worst-case interrupt
-latency has been measured for this contribution.
+separate qualification. Worst-case interrupt latency and physical receiver
+backpressure have not been measured.
 
 ## Author source
 
@@ -253,12 +253,35 @@ are unchanged. `verify_midi_part_activation.py` checks the installed call and
 negative control. An unused runtime activation copy remains to preserve the
 qualified runtime layout; removing it requires fresh image qualification.
 
-On 18 October 2026, a guided MKII walkthrough of package `OCTABAMNG` passed
-EXT/INT/BOTH, the audio-trig regression during playback and after stopping,
-two independently routed MIDI tracks, Part independence, Part save/reload and
-project save/reload. The second MIDI track used channel 2 for the user's synth.
-Package SHA-256: `b9a78b14c58f0a0d063f71555fb503212503e55f0a4f79f0e60cf1d16328abd8`.
-MAIN SHA-256: `d03dd7c6887b93f0fcfce6afe3182afba7ce07b62a53df0db96b697c25b464f1`.
-These are user-reported functional observations, not physical timing measures.
-Cold-start acceptance of this package is pending. The original early-RAM-entry
-stall mechanism remains unresolved; no cache or electrical cause is claimed.
+## Hardware validation and measured latency
+
+Tested by radiohagen on an Octatrack MKII on 18 October 2026.
+MAIN SHA-256: `3dd6d81365bca25e2346e057a6481410c1f413f788b1ea272218ae6f14d08592`.
+
+- User-reported passes: EXT/INT/BOTH delivery, independent MIDI tracks,
+  stopped and playing pattern transitions with retained audio Part state,
+  routing controls and divider geometry, Part save/reload, project save/reload,
+  and normal playback STOP/panic.
+- These listening checks do not qualify every external receiver, a sustained-note
+  overlap stress test, USB-host operation or combinations with other MIDI modules.
+- The stock-firmware round trip, feedback matrix and overlapping-note matrix
+  described above are emulator checks, not physical stock-firmware acceptance.
+
+On-device stereo recordings at 44.1 kHz measured added delay relative to native
+sequencing. The audio measurements use the internal MAIN recording point, before
+analog outputs; recorder measurements use an internal audio source.
+
+| Measurement | Internal routing | DIN cable loopback |
+| --- | --- | --- |
+| Audio-start median | 0.544 ms | 0.952 ms |
+| Audio-start observed maximum | 0.680 ms | 1.406 ms |
+| Recorder-start offset | 16 samples / 0.363 ms | 48 samples / 1.088 ms |
+
+- Audio: one 16-second take per route; 28 click pairs analyzed after excluding
+  the first four. No missing or unmatched events.
+- Recorder: one two-second take per route; matching probe at both ends and no
+  alignment drift. This does not establish recorder-start jitter.
+- These are observed delays, not worst-case bounds. Separate MIDI stop latency,
+  external-synth response and analog input/output latency were not measured.
+- Raw recordings, SHA-256 hashes and filename mapping are retained locally;
+  no device projects, sample data or proprietary firmware are committed.

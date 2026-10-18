@@ -46,7 +46,8 @@ mirrors. `verify_midi_part_copy.py` compares native copy/initialization bytes,
 registers and interrupt state, cold entry, guards and interrupted publication.
 `verify_midi_part_port.py --project DIR` executes native Save/Reload/Clear/Paste
 under the firmware emulator on a disposable virtual card. Loopback's UI test
-covers project save/load and retained resume. No hardware acceptance is claimed.
+covers project save/load and retained resume. These are emulator checks;
+physical Loopback integration results are scoped in its developer notes.
 
 The source is extracted from integration `8f8e00d061d17a890a3b01d5f340492f912712e2`.
 Future Harmony/SRAM conditionals remain dormant source; the Follow/Harmony
@@ -54,7 +55,7 @@ NOTE SETUP staging hook is omitted from this standalone contribution.
 
 ## Author source
 
-Pinned source: [`c9915c12d8e1628a096a3df20f3c0d0b71842f33`](https://github.com/radiohagen/octatrack-modules/commit/c9915c12d8e1628a096a3df20f3c0d0b71842f33).
+Pinned source: the `modules/midi-loopback/upstream` submodule gitlink.
 Review both modules in that narrow author history alongside these adapters.
 The cold-entry reference is enforced at build time; the combined cross-unit
 runtime reference is enforced by `verify_midi_loopback_reference.py`. A native

@@ -38,29 +38,19 @@ FILTER BASE when that track receives channel 1 and audio CC reception is enabled
 
 ### Feedback and held notes
 
-No selectable channel, auto-channel or audio/MIDI-mode combination lets an
-internally delivered event retrigger a MIDI track, including its own source.
-The internal receiver uses a private channel map that removes every MIDI-track
-listener and the MIDI-mode auto-channel. Audio listeners and the audio-mode
-auto-channel remain available; external DIN/USB input keeps its native map.
-A MIDI cable or external echo device can return BOTH's external copy as fresh
-external input: the internal guard cannot identify that physical round trip.
-Use INT for internal-only control and avoid external echo loops.
-
-Internal note-ons with no eligible audio listener are rejected before native
-held-note bookkeeping. This prevents a held count for a note with no recipient. A negative-control
-test confirms that disabling this guard creates such a count until the matching
-release; it does not demonstrate a permanently stuck audible note. Route/Part changes also release
-owned notes through their original destinations.
-
-**Avoid overlapping internal and external notes on the same channel and pitch.**
-The native receiver merges them: the first note-off ends the shared note even
-if the other source still holds it. Tests of both arrival/release orders and
-both note-off encodings find no residual held count after either release;
-fresh notes work from both sources. This is an early-release limitation, not
-a note stuck until the next message. Separate receive channels/pitches avoid
-it. Independent sustain would require a separate receiver-ownership design;
-this module does not change native voice ownership.
+- Internal delivery excludes MIDI-track listeners and the MIDI-mode auto-channel.
+  No selectable channel or mode can retrigger a MIDI track through this internal
+  path. Audio listeners and the audio-mode auto-channel remain available.
+- Internal note-ons without an eligible audio listener are discarded before
+  allocating held-note state. Route and Part changes release owned notes
+  through their original destinations.
+- External DIN/USB input keeps its native routing. A cable or echo device can
+  return BOTH's external copy as fresh input; the internal guard cannot identify
+  that round trip. Use INT for internal-only control and avoid external echo loops.
+- **Avoid overlapping internal and external notes on the same channel and pitch.**
+  The native receiver merges them: the first note-off ends the shared note even
+  if the other source still holds it. Separate receive channels or pitches when
+  independent sustain is needed. The module does not add separate voice ownership.
 
 ## Storage and composition
 
@@ -88,11 +78,6 @@ files. Returning to Loopback cannot recover those saved routes. Loading alone
 does not rewrite the other bank files; this is not a promise that later edits
 or saves will preserve their flags.
 
-Keep a separate project backup before returning to stock. The regression
-executes candidate → stock → candidate native project loads and saves on a
-virtual card: all 16 banks, four working plus four saved Parts, eight MIDI
-tracks, all 256 input flag values, and explicit INT/BOTH in the saved bank.
-This proves the cold disk-load/save behavior in the emulator, not retained-RAM
-startup or a physical stock-firmware round trip.
+Keep a separate project backup before returning to stock.
 
 [Implementation, provenance and verification](DEVELOPMENT.md).
