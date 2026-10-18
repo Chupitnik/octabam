@@ -69,7 +69,7 @@ def main():
             assert data[start:start+6322]==state[part*6322:(part+1)*6322],name
     for name,extra in [('reload',()),('warm',('--no-post','--cs1-in',w/'save-cs1.bin'))]:
         assert run(name,'1500 quit\n',w/'save-card.img',extra)==saved,name
-    # Closing keys act like Harmony/Follow and leave applied settings intact.
+    # Closing keys leave applied routing settings intact.
     for name,k in [('yes',0x32),('no',0x31),('track',0x11),('page',0x23)]:
         closed=run(name,edit+key(4500,k)+'4900 quit\n')
         assert closed==state,name

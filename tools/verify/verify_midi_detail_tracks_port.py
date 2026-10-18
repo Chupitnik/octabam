@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Physical panel reports test MIDI detail-window ownership across track changes."""
+"""Physical panel reports test Loopback routing-window ownership across track changes."""
 import argparse, hashlib, json, re, subprocess, sys
 from pathlib import Path
 import midi_loopback_port as p
@@ -15,16 +15,12 @@ def main():
     ap.add_argument('--out', type=Path, required=True)
     ap.add_argument('--image', type=Path)
     ap.add_argument('--symbols', type=Path)
-    ap.add_argument('--module', choices=['loopback','follow','harmony'], required=True)
     a=ap.parse_args(); root=a.build_root; p.OUT=a.out
     w=p.fixture(a.project,'panel')
     for path in (w/'project').glob('project.*'):
         data=re.sub(rb'MIDI_MODE=\d+',b'MIDI_MODE=0',path.read_bytes())
-        if a.module=='loopback':
-            # Internal note commands can select tracks through the native
-            # receiver. Isolate physical track navigation from that separate
-            # input source while changing DEST during sequencer playback.
-            data=re.sub(rb'MIDI_AUDIO_TRK_NOTE_IN=\d+',b'MIDI_AUDIO_TRK_NOTE_IN=0',data)
+        # Isolate physical track navigation from received-note track commands.
+        data=re.sub(rb'MIDI_AUDIO_TRK_NOTE_IN=\d+',b'MIDI_AUDIO_TRK_NOTE_IN=0',data)
         path.write_bytes(data)
     card,_=p.emu_card.stage_project(w/'project','OCTABAM','BASS',tree=w/'seed-tree')
     (w/'card.img').write_bytes(card)
@@ -37,12 +33,9 @@ def main():
         raw=subprocess.check_output(['m68k-elf-nm',str(elf)],text=True)
         sym={n:int(h,16) for h,n in re.findall(r'^([0-9a-f]+) [A-Za-z] (\w+)$',raw,re.M)}
     (w/'symbols.json').write_text(json.dumps(sym,indent=2)+'\n')
-    prefix,opener,knob,field,mask,shift={
-        'loopback':('lb',0x38,0,12,12,2),
-        'follow':('bf',0x3b,3,12,2,1),
-        'harmony':('mh',0x3d,1,16,7,0)}[a.module]
-    handle=sym[prefix+'_page_win']; owner=sym[prefix+'_page_track']; layer=sym[prefix+'_page_layer']
-    windows=[sym[x+'_page_win'] for x in ('lb','bf','mh') if x+'_page_win' in sym]
+    opener,knob,field,mask,shift=0x38,0,12,12,2
+    handle=sym['lb_page_win']; owner=sym['lb_page_track']; layer=sym['lb_page_layer']
+    windows=[handle]
     receipt=a.out/'receipt.json'; receipt.unlink(missing_ok=True)
     proc=PortProc([root/'out/emu/ot_emu','--image',image,'--card',w/'card.img',
         '--mount','--load-ms','90000','--set','OCTABAM','--project','BASS',
@@ -81,14 +74,12 @@ def main():
         nonlocal edits
         opened(track); before=settings(); index=track*36+field
         old=(before[index]&mask)>>shift
-        # Harmony's visible ROOT -> 1ST step is stored as 0 -> 2;
-        # saved enum 1 is AUTO, which appears last in the UI.
-        new=0 if old else (2 if a.module=='harmony' else 1)
+        new=0 if old else 1
         cmd(f'knob {0x30+knob} {4 if new else -4}');cmd('run 160')
         expected=bytearray(before);expected[index]=(expected[index]&~mask)|(new<<shift)
         actual=settings()
         diff=[(i,expected[i],actual[i]) for i in range(len(actual)) if actual[i]!=expected[i]]
-        assert actual==expected,('wrong track/field edit',a.module,track,old,new,diff)
+        assert actual==expected,('wrong track/field edit','loopback',track,old,new,diff)
         edits+=1
     def transition(source,target,phase,fast=False,held=False):
         key(0x10+source);assert selected()==source
@@ -125,7 +116,7 @@ def main():
         initial=settings(); baseline_layers=layers(); initial_commands=list(commands)
         for source in range(8):
             for target in range(8):transition(source,target,'stopped')
-            print(f'{a.module}: source T{source+1}, all 8 destinations passed',flush=True)
+            print(f'loopback: source T{source+1}, all 8 destinations passed',flush=True)
         playback_start=len(commands)
         key(0x28);cmd('run 1000')
         for source in range(8):transition(source,(source+1)%8,'playing',fast=True,held=True)
@@ -159,14 +150,14 @@ def main():
                '--live-script',str(live),'--midi-out',str(w/'output.midi')]
         with (w/'playback.log').open('w') as output:subprocess.run(batch,stdout=output,stderr=subprocess.STDOUT,check=True)
         assert 'ended on quit' in (w/'playback.log').read_text()
-        events=p.follow.notes((w/'output.midi').read_bytes())
+        events=p.midi_fixture.notes((w/'output.midi').read_bytes())
         assert any(e[0]=='on' for e in events),'playback positive control produced no MIDI notes'
         p.balanced(events)
-        result=dict(status='pass',module=a.module,build_root=str(root),
+        result=dict(status='pass',module='loopback',build_root=str(root),
           image_sha256=hashlib.sha256(image.read_bytes()).hexdigest(),
           runtime_elf_sha256=elf_hash,
           test_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-          audio_note_receive_disabled=(a.module=='loopback'),
+          audio_note_receive_disabled=True,
           transitions=results,exact_field_edits=edits,settings_checked_per_edit=1152,
           note_events=len(events),midi_balanced=True,other_parts_unchanged=True,
           final_layers=[hex(x) for x in baseline_layers],

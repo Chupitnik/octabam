@@ -368,7 +368,7 @@ def fixture(source, dest, length=6, control=None, all_tracks=False):
                     data[at+2] = length
                     setup = base + 0x4e2 + 36 * t
                     data[setup] = t + 1 if all_tracks else (1 if t == 0 else 0)
-                    data[setup + 12] = 0  # EXT, Follow flags off
+                    data[setup + 12] = 0  # EXT, unrelated flags clear
                     data[setup + 2] = 128  # PROG OFF
                     data[setup + 20] = 46  # CTRL1 CC1 setup, runtime +0x34
                     if control:
@@ -568,12 +568,10 @@ def routing_port_gate(source, remix):
     assert result.returncode == 0 and "run ended REACHED" in text
     assert "load run ended: LOAD PROJECT handled" in text
     midi = transport_midi(out / "wire.midi", text)
-    has_scenes = b'scn_ccnote' in subprocess.check_output(['m68k-elf-nm', str(ROOT/'out/platform/runtime/runtime.elf')])
     for track, route in enumerate(routes):
         events = [msg for msg in midi if msg[0] & 15 == track]
         note_on, cc, note_off = [0x90 | track, 84, 100], [0xb0 | track, 46, 70], [0x90 | track, 84, 0]
-        # MIDI Scenes deliberately sends the CC loop before note-on.
-        expected = [cc, note_on, note_off] if has_scenes else [note_on, cc, note_off]
+        expected = [note_on, cc, note_off]
         assert events == ([] if route == 1 else expected), (track, route, events)
         assert dumps["level"].read_bytes()[track * 2] == (70 if route else 127), (track, route)
     assert dumps["note"].read_bytes() == bytes([255] * 8)

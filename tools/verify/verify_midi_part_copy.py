@@ -8,7 +8,7 @@ B, BS, PS = 0x400e21e0, 0x9b340, 0x18b2
 
 def symbols():
     raw = subprocess.check_output(['m68k-elf-nm', str(ROOT/'out/platform/runtime/runtime.elf')], text=True)
-    return {n:int(a,16) for a,n in re.findall(r'^([0-9a-f]+) [TtBbAa] ((?:mh|bf|ch|mp|ms)_\w+)$',raw,re.M)}
+    return {n:int(a,16) for a,n in re.findall(r'^([0-9a-f]+) [TtBbAa] (mp_\w+)$',raw,re.M)}
 from unicorn import UC_HOOK_CODE
 from unicorn.m68k_const import *
 

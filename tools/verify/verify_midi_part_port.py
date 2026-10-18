@@ -3,7 +3,6 @@
 import argparse
 import hashlib
 import json
-import subprocess
 from pathlib import Path
 import midi_loopback_port as p
 
@@ -21,28 +20,16 @@ def main():
     a=ap.parse_args()
     p.OUT=p.ROOT/'out/native-part-lifecycle'
     p.freeze_candidate(p.OUT)
-    sym=p.symbols()
+    assert 'lb_dest_get' in p.symbols(), 'requires the Loopback test image'
     w=p.fixture(a.project,'native',{})
-    follow='bf_source_get' in sym
-    harmony='mh_get' in sym
-    runtime=subprocess.check_output(['m68k-elf-nm',str(p.ROOT/'out/platform/runtime/runtime.elf')],text=True)
-    loopback='lb_dest_get' in runtime
-    scenes=any(line.split()[-1:] == ['msc21_ram'] for line in runtime.splitlines())
     for path in (w/'project').glob('bank*.work'):
         def seed(data):
             for part in range(8):
-                if scenes:
-                    # Start with a valid empty sparse Scene header. Otherwise
-                    # native paste normalizes two absent magic bytes to MS.
-                    at=p.otp.PART_BASE+part*p.otp.PART_STRIDE+9+0x17a2
-                    data[at:at+3]=b'MS\0'
                 for t in range(8):
                     at=p.otp.PART_BASE+part*p.otp.PART_STRIDE+9+0x4e2+36*t
-                    values={3:int(follow and t!=0),5:(part+t)%3 if harmony else 0,
-                            12:((part+t)%4)|((((part+t)%3)<<2) if loopback else 0),13:(part+t)%11 if follow else 0,
-                            15:(part+t)%5 if follow else 0,
-                            16:((t%5)|((part%3)<<3)|((t%4)<<5)) if harmony else 0,
-                            18:(t%8)|(((part+t)%4)<<3) if harmony else 0,19:0}
+                    # DEST plus all four values of the unrelated low bits.
+                    values={field:0 for field in FIELDS}
+                    values[12]=((part+t)%4)|(((part+t)%3)<<2)
                     for field,value in values.items():data[at+field]=value
         p.otp._bank_write(w/'project',int(path.stem[4:]),seed,guard=False)
     card,_=p.emu_card.stage_project(w/'project','OCTABAM','BASS',tree=w/'seed-tree')
@@ -72,8 +59,7 @@ def main():
     assert clear[PS:]==before[PS:]
     for t in range(8):
         for field in FIELDS:
-            expected=(35 if harmony and field==19 else 3 if follow and field==13
-                      else 2 if follow and field==15 else 0)
+            expected=0
             assert clear[0x4e2+36*t+field]==expected,(t,field,clear[0x4e2+36*t+field],expected)
     # Stock Clear initializes both working and saved Part and leaves the
     # current CS1 working mirror to the caller's later refresh.
@@ -82,14 +68,10 @@ def main():
     assert read('pasted')[PS:]==before[PS:]
     assert read('pasted-cs1')==read('pasted')
     assert read('cleared-saved')[:PS]==clear[:PS], 'Clear must reset the saved Part too'
-    # MIDISC2.1's pack copies the complete working Part to its SAVE shadow
-    # on paste/apply. Its separate Part-Save freeze is not this shadow.
-    # Pinned upstream parts.py build_pack, also reproduced on the DS image.
-    expected_saved=read('pasted') if scenes else clear
-    assert read('saved-after')[:PS]==expected_saved[:PS]
+    assert read('saved-after')[:PS]==clear[:PS]
     assert read('saved-after')[PS:]==read('saved')[PS:]
     receipt=dict(native_save=True,reload=True,clear=True,paste=True,reload_paste_cs1_mirrors=True,clear_matches_native_saved_part_semantics=True,
-                 unrelated_parts_unchanged=True,follow=follow,harmony=harmony,scenes=scenes,
+                 unrelated_parts_unchanged=True,
                  image_sha256=hashlib.sha256(p.CANDIDATE_IMAGE.read_bytes()).hexdigest(),hardware_tested=False)
     (p.OUT/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
     print('[ok] native Part Save/Reload/Clear/Paste, native CS1 behavior and unrelated Part guards',flush=True)

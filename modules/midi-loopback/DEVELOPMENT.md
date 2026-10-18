@@ -187,6 +187,7 @@ make check REMIX=midi-loopback
 .venv/bin/python tools/verify/verify_midi_part_port.py --project /path/to/project
 .venv/bin/python tools/verify/verify_midi_part_stock.py --project /path/to/project
 .venv/bin/python tools/verify/verify_midi_loopback_ui_port.py --project /path/to/project
+.venv/bin/python tools/verify/verify_midi_detail_tracks_port.py --project /path/to/project --build-root . --out out/loopback-track-navigation
 .venv/bin/python tools/verify/verify_midi_loopback_producers_port.py midi-loopback --project /path/to/project
 ```
 

@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Execute stock track producers through the installed routing adapters."""
 from verify_midi_loopback import Machine, MSG, REGS, STACK, DONE, decode, symbols, Q
-import re
-import subprocess
-from verify_midi_loopback import ROOT
 from unicorn.m68k_const import *
 
 
@@ -112,7 +109,6 @@ def main():
     feedback()
     overlapping_sources()
     feedback_guard_controls()
-    integration()
 
 
 def contexts():
@@ -278,42 +274,6 @@ def feedback_guard_controls():
             # defect is allocation with no listener, not a permanent stuck note.
             assert m.get(0x46c7fe4c) == m.get('lb_internal_held') == 0
     print('  [ok] feedback guard negative controls: removing the MIDI mask echoes; removing no-listener rejection allocates held state without a listener; intact guards do neither; matching release clears the control')
-
-
-def integration():
-    raw=subprocess.check_output(['m68k-elf-nm',str(ROOT/'out/platform/runtime/runtime.elf')],text=True)
-    syms={n:int(a,16) for a,n in re.findall(r'^([0-9a-f]+) [Tt] (\w+)$',raw,re.M)}
-    if 'bf_response_tick' in syms:
-        from verify_midi_follow_response import fixture
-        for track in range(8):
-            for route in range(3):
-                m=fixture(receiver=track,source=(track+1)%8)
-                m.sym.update(syms)
-                u=m.uc
-                u.mem_write(Q,bytes(32))
-                u.mem_write(Q+16,(255).to_bytes(4,'big'))
-                u.mem_write(Q+20,(0x47002000).to_bytes(4,'big'))
-                u.mem_write(syms['lb_routes']+track,bytes((route,)))
-                u.mem_write(m.scratch,bytes((0x90+track,36,91)))
-                m.call('lb_capture',regs={UC_M68K_REG_D0:0x4009fbb2,UC_M68K_REG_D1:track,
-                    UC_M68K_REG_D2:3,UC_M68K_REG_A0:m.scratch})
-                if route:m.call('lb_next')
-                expected=[(0x90+track,36,0),(0x90+track,41,91)]
-                assert m.change()==(expected if route!=1 else []),(track,route,m.events)
-                if route:
-                    for msg in expected:
-                        ptr=m.call('lb_next')
-                        assert tuple(u.mem_read(ptr,3))==msg
-        print('  [ok] Follow LIVE real retriggers: all eight followers, internal packets and external suppression')
-    if 'mh_owned_key' in syms:
-        for route in range(3):
-            m=prepare(2,route)
-            m.sym.update(syms)
-            for pitch in (60,64,67):m.call('mh_owned_key',(2,pitch,100,0))
-            for pitch in (60,64,67):m.call('mh_owned_key',(2,pitch,0,0))
-            outputs(m,[(0x90,p,100) for p in (60,64,67)]+[(0x90,p,0) for p in (60,64,67)],route)
-            assert m.get('lb_internal_held')==0
-        print('  [ok] Harmony generated live chord ownership reaches both routes with balanced releases')
 
 
 if __name__ == '__main__':
