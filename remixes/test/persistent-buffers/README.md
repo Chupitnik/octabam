@@ -1,7 +1,7 @@
-# `recbuf-persist`
+# `persistent-buffers`
 
-STORE and [RECBUF PERSIST](../../../modules/recbuf-persist/README.md) on
-the stock effects. `verify_recbuf` covers symbols and a port save/load
+STORE and [PERSISTENT BUFFERS](../../../modules/persistent-buffers/README.md) on
+the stock effects. `verify_persistent_buffers` covers symbols and a port save/load
 round-trip.
 
 Hardware (author's MKII, personal remix, BUILD R2–R6): PROJECT SAVE wrote

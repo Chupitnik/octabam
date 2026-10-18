@@ -1,17 +1,17 @@
-"""recbuf-persist -- recorder buffers saved with the project.
+"""persistent-buffers -- recorder buffers saved with the project.
 
-STORE + RECBUF PERSIST on the stock effects. Not flashed.
+STORE + PERSISTENT BUFFERS on the stock effects. Not flashed.
 """
 
 from remix.schema import Proof, Remix
 
 REMIX = Remix(
-    name="recbuf-persist",
+    name="persistent-buffers",
     family="mods",
     proof=Proof.CHECK,
-    proof_note="verify_recbuf under the port",
+    proof_note="verify_persistent_buffers under the port",
     doc="Recorder buffers BUFFERS/REC1.wav..REC8.wav under the project on SAVE / LOAD.",
-    modules=("STORE", "RECBUF PERSIST",
+    modules=("STORE", "PERSISTENT BUFFERS",
              "FILTER", "EQUALIZER", "DJ EQ", "PHASER", "FLANGER", "CHORUS",
              "SPATIALIZER", "COMB FILTER", "COMPRESSOR", "LO-FI", "DELAY",
              "PLATE REV", "SPRING REV", "DARK REV"),

@@ -1,4 +1,4 @@
-# RECBUF PERSIST
+# PERSISTENT BUFFERS
 
 On **PROJECT SAVE**, each non-empty recorder buffer (slots 128–135) is
 written with the stock synchronous WAV writer (`0x40020f04`) to
@@ -14,8 +14,8 @@ Empty buffers (control-record length ≤ 64) are skipped.
 
 ## Status
 
-`Proof.CHECK`. `verify_recbuf` covers symbols and a port save/load
-round-trip.
+`Proof.CHECK`. `verify_persistent_buffers` covers symbols and a port
+save/load round-trip.
 
 Hardware (author's MKII, personal remix, 16–17 Oct 2026):
 
@@ -30,4 +30,4 @@ Hardware (author's MKII, personal remix, 16–17 Oct 2026):
 ## Remix
 
 Listed next to STORE (required). Carrier:
-`remixes/test/recbuf-persist`.
+`remixes/test/persistent-buffers`.

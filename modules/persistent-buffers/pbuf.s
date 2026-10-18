@@ -1,4 +1,4 @@
-| RECBUF PERSIST -- project-folder recorder buffers (REC1.wav..REC8.wav).
+| PERSISTENT BUFFERS -- project-folder recorder buffers (REC1.wav..REC8.wav).
 |
 | On pstore_pre: mkdir BUFFERS/, sync-write each non-empty recorder
 | (wav_write) to BUFFERS/RECn.wav, PATH it there, then stock slot load +
@@ -10,8 +10,8 @@
 | Empty test: control record length at 0x46c922c4 + slot*44 + 16.
 
         .text
-        .globl  rbp_st_pstore_pre, rbp_st_loadall_post, rbp_st_loadmask_post
-        .globl  rbp_st_preload_post, rbp_st_answer
+        .globl  pbf_st_pstore_pre, pbf_st_loadall_post, pbf_st_loadmask_post
+        .globl  pbf_st_preload_post, pbf_st_answer
         .extern store_path
 
         .set    F_OPEN,     0x40016864
@@ -35,11 +35,11 @@
         .set    MAX_FRAMES, 5292000
         .set    IOB_LEN,    0x10000
 
-rbp_st_answer:
+pbf_st_answer:
         rts
 
 | ------------------------------------------------------------------ save
-rbp_st_pstore_pre:
+pbf_st_pstore_pre:
         lea     %sp@(-40),%sp
         movem.l %d2-%d7/%a2-%a5,%sp@
         | Ensure <project>/BUFFERS exists (idempotent if already there).
@@ -106,9 +106,9 @@ sv_next:
         rts
 
 | ------------------------------------------------------------------ load
-rbp_st_loadall_post:
-rbp_st_loadmask_post:
-rbp_st_preload_post:
+pbf_st_loadall_post:
+pbf_st_loadmask_post:
+pbf_st_preload_post:
         lea     %sp@(-40),%sp
         movem.l %d2-%d7/%a2-%a5,%sp@
         clrl    IDX
