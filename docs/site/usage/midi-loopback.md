@@ -35,8 +35,9 @@ unchanged until saved; keep a separate backup before returning to stock.
 Guided MKII checks passed EXT/INT/BOTH routing, independent Parts, Part and
 project save/reload, and stopped/playing pattern changes with an audio trig
 retaining the previous Part. These functional checks do not measure physical
-interrupt latency or establish cold-start acceptance of another build. The platform reserve reduces available sample memory by about 10 MB
-when added to an otherwise stock selection.
+interrupt latency or establish cold-start acceptance of another build. The standalone Loopback selection reserves three 6,144-byte sample-arena
+pages (18,432 bytes) for runtime code, state and loading. Combined remixes
+compute their own reservation from all selected modules.
 
 Sequenced routing follows each MIDI track's applied Part, independently of
 an audio voice retaining another Part or a Part selected for editing. Matching

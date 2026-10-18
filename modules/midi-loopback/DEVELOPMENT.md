@@ -134,9 +134,11 @@ and uses the stock sender for external releases. The counters use 16 bytes
 inside the existing platform reserve, with no allocation or storage-format change.
 Worst-case hardware cost and UART backpressure are not yet measured.
 
-The platform reserve takes approximately 10 MB of sample memory when added
-to an otherwise stock image. The module's linked code/state uses only a
-small portion of that existing reserve; consult the build layout for size.
+The standalone selection reserves three 6,144-byte sample-arena pages
+(18,432 bytes). Its linked runtime is 9,444 bytes; the reservation also holds
+loading and runtime state. The old fixed 10 MiB reserve predates per-remix
+sizing. Combined selections compute their own reservation; consult
+`out/platform/layout.json` and the build report for the selected image.
 
 ## Verification and limits
 
