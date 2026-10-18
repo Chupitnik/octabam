@@ -187,6 +187,26 @@ project save, disk reload, retained-memory resume and fresh-project EXT.
 This is not physical hardware testing. Control fixtures also use direct
 native encoder calls and identify that narrower boundary in their receipts.
 
+For a pixel review, freeze `out/mainos_bus.bin` as `candidate.bin` together
+with `candidate-symbols.json` (the linked runtime's symbol/address mapping).
+Both UI verifiers accept that same immutable directory:
+
+```sh
+.venv/bin/python tools/verify/verify_midi_loopback_pixels.py --project /path/to/project --candidate /path/to/candidate --out out/loopback-pixels
+.venv/bin/python tools/verify/verify_midi_loopback_ui_port.py --project /path/to/project --candidate /path/to/candidate --out out/loopback-controls
+```
+
+The pixel verifier exercises M1–M8 and EXT/INT/BOTH, including OFF, channel 1
+and channel 16 on M1. It compares UART LCD pixels with the composed RAM
+planes, checks that both horizontal dividers reach the native inner frame,
+and measures text/widget centring, padding and equal row heights. It saves
+60 captures and a hash-labelled receipt. A new output directory is required
+so failed evidence survives a rerun. Native encoder steps retain fractional
+state across pages; the capture driver observes committed values while
+turning physical controls instead of assuming a report always advances one
+choice. Control semantics and exact-field edits have separate UI and track
+navigation regressions.
+
 Original implementation and historical combination evidence are retained at
 integration commit `8f8e00d061d17a890a3b01d5f340492f912712e2` in
 radiohagen/octabam. They are not current qualification for this branch.
@@ -198,7 +218,7 @@ latency has been measured for this contribution.
 
 ## Author source
 
-Pinned source: [`4ec5f41644ee6fb55ecd1731b18e631dfa609c77`](https://github.com/radiohagen/octatrack-modules/commit/4ec5f41644ee6fb55ecd1731b18e631dfa609c77).
+Pinned source: the `upstream` submodule gitlink beside this document.
 Review both modules in that narrow author history alongside these adapters.
 The cold-entry reference is enforced at build time; the combined cross-unit
 runtime reference is enforced by `verify_midi_loopback_reference.py`. A native

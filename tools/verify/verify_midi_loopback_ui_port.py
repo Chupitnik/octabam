@@ -17,11 +17,18 @@ def main():
     ap=argparse.ArgumentParser(description=__doc__)
     ap.add_argument('remix',nargs='?',default='midi-loopback')
     ap.add_argument('--project',type=Path,required=True)
+    ap.add_argument('--candidate',type=Path,help='immutable candidate.bin and candidate-symbols.json directory')
+    ap.add_argument('--out',type=Path,help='isolated output directory')
     a=ap.parse_args()
     assert a.remix.replace('-', '').isalnum()
-    p.OUT=p.ROOT/'out'/f'{a.remix}-ui-port'
+    p.OUT=a.out or p.ROOT/'out'/f'{a.remix}-ui-port'
     (p.OUT/'result.json').unlink(missing_ok=True)
-    image=p.freeze_candidate(p.OUT);sym=lb.symbols()
+    if a.candidate:
+        image=a.candidate/'candidate.bin'
+        p.CANDIDATE_IMAGE=image
+        sym=json.loads((a.candidate/'candidate-symbols.json').read_text())
+    else:
+        image=p.freeze_candidate(p.OUT);sym=lb.symbols()
     w=p.fixture(a.project,'routing',{})
     # Force an audio-track start so the scripted MIDI toggle is deterministic.
     import re
