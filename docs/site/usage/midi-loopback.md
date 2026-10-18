@@ -25,10 +25,16 @@ the stock receiver merges their held-note state, and the first release ends
 the shared note. Emulator checks found no remaining held count and subsequent
 notes recovered in both arrival/release orders. Independent sustain from each
 source is not supported. Internal delivery filters out MIDI-track receivers,
-so it cannot retrigger a MIDI track through the internal path.
+so it cannot retrigger a MIDI track through the internal path, even with
+matching MIDI/auto-channel assignments. A no-listener internal note-on is
+rejected before it can allocate held state without an audio recipient. External echo loops remain
+possible when BOTH output returns through a cable or another device; use INT
+for internal-only control.
 Clock, transport, SysEx and project-wide program-change sync stay global.
 
-Stock 1.40C cold project load resets the destination flags to zero (EXT).
+Stock 1.40C cold project load resets the destination flags to zero (EXT) in
+both working and saved Parts. The native flags field accepts only zero on stock,
+whereas MIDI PART STATE allows 0–15; INT/BOTH occupy bits 2–3.
 Saving that bank on stock loses its INT/BOTH settings. Other bank files stay
 unchanged until saved; keep a separate backup before returning to stock.
 

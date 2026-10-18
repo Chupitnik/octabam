@@ -19,8 +19,9 @@ stock, or retain a separate backup to preserve routing choices.
 
 `verify_midi_part_stock.py --project DIR` boots candidate, stock 1.40C and
 candidate again on a disposable virtual card. It checks all 256 input bytes,
-16 banks, four working Parts and eight tracks against loaded RAM and saved
-work/strd fields, including unchanged other-bank fields. The candidate clamps
+16 banks, four working plus four saved Parts and eight tracks against loaded RAM and saved
+work/strd fields, including unchanged other-bank fields and explicit INT/BOTH
+flags in the bank written by SAVE PROJECT. The candidate clamps
 at 15; stock clamps at zero. The receipt is
 `out/midi-loopback-stock/receipt.json`. This is a cold disk-load/native-save
 check, not retained-memory or hardware acceptance.

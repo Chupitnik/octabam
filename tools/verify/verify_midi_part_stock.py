@@ -26,13 +26,17 @@ NAME = 'midi-loopback'
 BANK = 0x400e21e0
 STRIDE = 0x9b340
 PART = 0x18b2
+WORKING_PARTS = 0x8ed80
+SAVED_PARTS = 0x9504a  # Native bank header separates saved Parts by two bytes.
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--project', type=Path, required=True)
+    ap.add_argument('--candidate', type=Path, help='immutable MAIN image; defaults to current build')
+    ap.add_argument('--out', type=Path, help='isolated result directory')
     args = ap.parse_args()
-    out = ROOT / 'out' / (NAME + '-stock')
+    out = args.out or ROOT / 'out' / (NAME + '-stock')
     out.mkdir(parents=True, exist_ok=True)
     (out / 'receipt.json').unlink(missing_ok=True)
     project = out / 'project'
@@ -44,7 +48,7 @@ def main():
     assert banks == list(range(1, 17)), 'a complete 16-bank fixture is required'
     def value(bank, part, track):
         if bank == 1:
-            return (0, 1, 24, 25, 26, 35, 84, 255)[track]
+            return (0, 1, 4, 5, 8, 9, 15, 255)[track]
         return ((bank - 2) * 32 + (part % 4) * 8 + track) % 256
     for bank in banks:
         def seed(data):
@@ -63,7 +67,7 @@ def main():
     script += '40000 quit\n'
     (out / 'save.txt').write_text(script)
     candidate = out / 'candidate.bin'
-    candidate.write_bytes((ROOT / 'out/mainos_bus.bin').read_bytes())
+    candidate.write_bytes((args.candidate or ROOT / 'out/mainos_bus.bin').read_bytes())
     stock = ROOT / 'out/raw/section_3_MAIN_OS.bin'
     runs = []
     for label, image, source, limit in [
@@ -86,12 +90,13 @@ def main():
         files = emu_card.extract_image((out / (label + '-card.img')).read_bytes())
         checks = 0
         for bank in banks:
-            for part in range(4):
+            for part in range(8):
                 for track in range(8):
                     pos = otp.PART_BASE + part * otp.PART_STRIDE + 9 + 0x4e2 + track * 36 + FIELD
                     previous = input_files[f'OCTABAM/CHECK/bank{bank:02d}.work'][pos]
                     expected = min(previous, limit)
-                    at = (bank - 1) * STRIDE + 0x8ed80 + part * PART + 0x4e2 + track * 36 + FIELD
+                    base = WORKING_PARTS if part < 4 else SAVED_PARTS
+                    at = (bank - 1) * STRIDE + base + (part % 4) * PART + 0x4e2 + track * 36 + FIELD
                     assert memory[at] == expected, (label, 'RAM', bank, part, track, memory[at], expected)
                     for suffix in ('work', 'strd'):
                         data = files[f'OCTABAM/CHECK/bank{bank:02d}.{suffix}']
@@ -102,10 +107,12 @@ def main():
                         assert data[pos] == disk_expected, (label, suffix, bank, part, track, data[pos], disk_expected)
                     checks += 1
         runs.append({'stage': label, 'image_sha256': hashlib.sha256(image.read_bytes()).hexdigest(),
-                     'working_part_fields_checked': checks, 'load_clamp_maximum': limit, 'saved_bank': 1})
-        print(f'[ok] {label}: 16 banks x 4 Parts x 8 tracks, RAM, current-bank work/strd save and unchanged other bank files', flush=True)
+                     'working_and_saved_part_fields_checked': checks, 'load_clamp_maximum': limit, 'saved_bank': 1})
+        print(f'[ok] {label}: 16 banks x 8 working/saved Parts x 8 tracks, RAM, current-bank work/strd save and unchanged other bank files', flush=True)
     receipt = {'status': 'pass', 'field': FIELD, 'input_values': 'all bytes 0..255',
                'candidate_max': LIMIT, 'stock_max': STOCK_LIMIT, 'runs': runs,
+               'current_bank_inputs': [0, 1, 4, 5, 8, 9, 15, 255],
+               'explicit_routes': {'INT': 4, 'BOTH': 8},
                'hardware_tested': False,
                'scope': 'SAVE PROJECT writes the current bank; unvisited bank files are unchanged. Cold disk load and native save; retained-memory startup and physical hardware not qualified.'}
     (out / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')

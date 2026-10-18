@@ -79,6 +79,15 @@ modes, all eight source tracks and INT/BOTH, with all MIDI tracks sharing the
 source channel and auto-channel collision. Seven channel-message kinds cannot
 re-enter the internal queue or echo through MIDI-track forwarding. External
 positive controls still forward. Audio-mode auto-channel events remain valid.
+Two negative controls modify only a disposable emulator instance before its
+first dispatch: removing the MIDI-listener mask causes external echo, and
+removing the no-listener early return allocates native held state without an
+audio listener. The matching release clears this control count; it is not a
+permanent held-note leak.
+The intact build rejects a no-listener internal note-on before it can allocate
+that state. These controls establish that the checks detect the guarded faults.
+External cable/software echoes re-enter as native input, outside the internal
+origin guard; BOTH is not an external MIDI feedback suppressor.
 A separate external/internal ownership layer is not added: it would change
 native receiver semantics beyond this routing change. Dense traffic and
 physical receiver behavior still require hardware checks.

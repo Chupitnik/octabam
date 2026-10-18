@@ -111,6 +111,7 @@ def main():
     contexts()
     feedback()
     overlapping_sources()
+    feedback_guard_controls()
     integration()
 
 
@@ -232,6 +233,51 @@ def overlapping_sources():
                     assert m.get('lb_internal_held') == 0
                     cases += 1
     print(f'  [ok] {cases} external/internal overlap cases: first release ends shared note; no held count remains; fresh notes recover; both release encodings')
+
+
+def feedback_guard_controls():
+    """Prove both compiled receive guards matter, including no-listener bookkeeping.
+
+    Mutations exist only in a fresh Unicorn machine before first dispatch;
+    neither the firmware artifact nor code already translated is rewritten.
+    """
+    symbol_table = symbols()
+    for fault in ('none', 'midi-forwarding', 'no-listener'):
+        m = prepare(0, 1, symbol_table=symbol_table)
+        m.receiver_setup()
+        m.put(0x46c82456, 0x400e21e0)
+        m.u.mem_write(0x8000003f, b'\xff' * 8)
+        m.put(0x80000047, 0, 1)  # auto channel collides with all MIDI tracks
+        m.put(0x80000012, 1)     # MIDI mode: no permitted internal listener
+        m.put(0x80000000, 0, 1)
+        m.put(0x100b14cc, 0, 1)
+        start, end = m.sym['lb_rx_map'], m.sym['lb_rx_channels']
+        code = bytes(m.u.mem_read(start, end-start))
+        if fault == 'midi-forwarding':
+            for mask in (0x1ff, 0xff):
+                needle = bytes.fromhex('223c') + mask.to_bytes(4, 'big')
+                assert code.count(needle) == 1, ('map mask moved', mask)
+                m.u.mem_write(start+code.index(needle)+2, b'\xff'*4)
+        elif fault == 'no-listener':
+            needle = bytes.fromhex('203c4000e792')
+            assert code.count(needle) == 1, 'no-listener guard moved'
+            # Continue the stock note-on handler instead of its early return.
+            m.u.mem_write(start+code.index(needle)+2, bytes.fromhex('4000e05e'))
+        m.capture((0x90,84,100));m.dispatch(m.next())
+        held = m.get(0x46c7fe4c)
+        echo = m.get(0x400b967c) + m.get(0x460d17ae+4)
+        if fault == 'none':
+            assert held == echo == 0, ('listenerless internal note allocated state',held,echo)
+        elif fault == 'midi-forwarding':
+            assert echo > 0, 'removing the forwarding mask was not detected'
+        else:
+            assert held > 0, 'removing the no-listener guard was not detected'
+        m.capture((0x80,84,0),0x4009f8c2);m.dispatch(m.next())
+        if fault in ('none', 'no-listener'):
+            # Even the unguarded count clears on the matching release. The
+            # defect is allocation with no listener, not a permanent stuck note.
+            assert m.get(0x46c7fe4c) == m.get('lb_internal_held') == 0
+    print('  [ok] feedback guard negative controls: removing the MIDI mask echoes; removing no-listener rejection allocates held state without a listener; intact guards do neither; matching release clears the control')
 
 
 def integration():
