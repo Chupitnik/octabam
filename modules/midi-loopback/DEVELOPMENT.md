@@ -201,3 +201,32 @@ Review both modules in that narrow author history alongside these adapters.
 The cold-entry reference is enforced at build time; the combined cross-unit
 runtime reference is enforced by `verify_midi_loopback_reference.py`. A native
 source build and the adapter build are compared at the same upstream base.
+
+
+## Current routing and startup qualification
+
+Sequenced routing uses native MIDI-track bank/Part latches at `0x8000666e`
+and `0x80006676`, with the native applied-engine fallback before the first
+trig. The audio-track latches can retain the outgoing Part and are not MIDI
+context. `verify_midi_loopback_context.py` checks conflicting audio/UI states,
+each MIDI track independently, invalid contexts and original-note cleanup.
+`verify_midi_loopback_transitions.py --help` describes the native first-note
+and stopped/playing transition regression, with and without the audio trig.
+
+The Part activation helper is resident beside its early entry gates; the
+build resolves its callback pointers after linking the selected runtime and
+refuses size or export movement. The shared loader and stock continuation
+are unchanged. `verify_midi_part_activation.py` checks the installed call and
+96 register/status/stack/publication comparisons, plus a corrupted callback
+negative control. An unused runtime activation copy remains to preserve the
+qualified runtime layout; removing it requires fresh image qualification.
+
+On 18 October 2026, a guided MKII walkthrough of package `OCTABAMNG` passed
+EXT/INT/BOTH, the audio-trig regression during playback and after stopping,
+two independently routed MIDI tracks, Part independence, Part save/reload and
+project save/reload. The second MIDI track used channel 2 for the user's synth.
+Package SHA-256: `b9a78b14c58f0a0d063f71555fb503212503e55f0a4f79f0e60cf1d16328abd8`.
+MAIN SHA-256: `d03dd7c6887b93f0fcfce6afe3182afba7ce07b62a53df0db96b697c25b464f1`.
+These are user-reported functional observations, not physical timing measures.
+Cold-start acceptance of this package is pending. The original early-RAM-entry
+stall mechanism remains unresolved; no cache or electrical cause is claimed.

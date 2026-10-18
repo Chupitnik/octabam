@@ -3,6 +3,48 @@
 Symptom → cause (measured, inferred or open) → fix. Add an entry the moment
 a mode is seen on hardware.
 
+## MIDI destination retains the previous Part after a pattern change
+
+- **Symptom:** a pattern displays INT but its MIDI notes still leave MIDI OUT
+  after switching from an EXT Part. A clean MIDI-only pattern sequence can pass.
+- **Cause, reproduced under the native firmware emulator:** Loopback used
+  per-audio-track Part latches (`0x8000182a` / `0x80001832`) as MIDI playback
+  context. An audio trig can leave its voice associated with the previous Part
+  after the MIDI sequencer and UI have changed. Audio T1 and MIDI T1 are
+  independent tracks; their matching index does not establish shared state.
+- **Correction:** sequenced routing uses each MIDI track's applied bank/Part
+  (`0x8000666e + track` / `0x80006676 + track`), with the native applied-engine
+  fallback before its first trig. The global setup-message Part can lag the
+  first notes after PLAY and is not a replacement for the track context. UI/live keys and native setup messages retain
+  their own producer-specific contexts. No storage-format change is needed.
+- **Regression:** run `verify_midi_loopback_context.py` for conflicting audio,
+  MIDI and UI state, track independence, boundary banks and note cleanup; run
+  `verify_midi_loopback_transitions.py --help` for the native panel regression.
+  Removing only one audio-trig bit (plus the bank checksum) distinguishes
+  failing and passing old-image behavior, stopped and during playback.
+- **Scope:** software reproduction establishes this routing defect. The corrected
+  stopped and playing transitions passed a guided MKII hardware check.
+  This runtime defect does not explain the separate cold-start stall.
+
+## Early RAM activation can stall at the startup logo — mechanism unresolved
+
+- **Seen:** MKII startup stalls after several minutes powered off; a quick
+  restart often recovers. Multiple projects show the symptom. The issue
+  predates the empty-note cleanup optimization.
+- **Isolation:** direct entry into the module's freshly loaded activation
+  code can stall even when its callback stores are removed. An equivalent
+  resident activation entry has passed repeated cold starts. This establishes
+  execution-path sensitivity, not a demonstrated cache or electrical cause.
+- **Current design:** keep the small Part activation helper beside its resident
+  entry gates, resolve callback addresses from the linked runtime, and retain
+  the stock continuation and shared loader. No startup delay, extra memory
+  reservation or disabled module hook is required.
+- **Checks and limits:** verify the installed call, published pointers, register
+  and status preservation before native initialization can hide side effects.
+  Emulation does not model physical cache, reset settling or RAM retention;
+  a CPU handoff alone cannot establish cold-start acceptance. Qualify the
+  exact final package on hardware. The original failure mechanism remains open.
+
 ## MIDI TRACK → CHROMATIC halts at the LCD surface descriptor (#741)
 
 - **Seen:** BUKKAKEBOREALIS's MKII, octabam-core, reported 15 Oct 2026:

@@ -54,14 +54,14 @@ def main():
                     assert m.get(field(0,0,0),1)==route*4+mode+response*2
         print('[ok] Follow MODE/UPDT edits preserve DEST; DEST preserves both Follow flags')
     # Sounding Part is independent of the UI. Changes release the old route.
-    m.put(0x80001832,1,1)
+    m.put(0x80006676,1,1)
     m.put(field(0,1,0),4,1)
     m.call('lb_part_sync')
     assert m.get('lb_routes',1)==1
     m.capture((0x90,84,100));assert m.next()==bytes((0x90,84,100))
     call('lb_dest_set',0,0)
     assert m.get('lb_internal_held')==1, 'editing another Part released the playing Part'
-    m.put(0x80001832,0,1);m.call('lb_part_sync')
+    m.put(0x80006676,0,1);m.call('lb_part_sync')
     assert m.next()==bytes((0x80,84,0))
     assert m.get('lb_internal_held')==0 and m.get('lb_routes',1)==0
     assert m.capture((0x80,84,0),0x4009f8c2)==0

@@ -90,7 +90,7 @@ def main():
     regs.update({UC_M68K_REG_D2: 3, UC_M68K_REG_D3: 1})
     m.call('mp_write',0,0,regs=regs)
     assert all(u.reg_read(r) == v for r,v in regs.items())
-    assert u.reg_read(UC_M68K_REG_SR) & 0x2700 == 0x2700
+    assert m.read_sr() & 0x2700 == 0x2700
     print(f'  [ok] {writes} field writes: bounded working storage, current-bank CS1, native dirty bits, register preservation')
 
 

@@ -32,6 +32,12 @@ Stock 1.40C cold project load resets the destination flags to zero (EXT).
 Saving that bank on stock loses its INT/BOTH settings. Other bank files stay
 unchanged until saved; keep a separate backup before returning to stock.
 
-Verified under the emulator only; hardware timing and interrupt latency remain
-unmeasured. The platform reserve reduces available sample memory by about 10 MB
+Guided MKII checks passed EXT/INT/BOTH routing, independent Parts, Part and
+project save/reload, and stopped/playing pattern changes with an audio trig
+retaining the previous Part. These functional checks do not measure physical
+interrupt latency or establish cold-start acceptance of another build. The platform reserve reduces available sample memory by about 10 MB
 when added to an otherwise stock selection.
+
+Sequenced routing follows each MIDI track's applied Part, independently of
+an audio voice retaining another Part or a Part selected for editing. Matching
+audio and MIDI track numbers do not imply shared playback state.

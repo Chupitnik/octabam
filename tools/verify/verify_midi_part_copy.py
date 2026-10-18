@@ -52,7 +52,7 @@ def main():
         u.emu_start(entry,0,count=1000000)
         if pause:
             assert interrupted and m.arrival is None
-            assert u.reg_read(UC_M68K_REG_SR)&0xff00==sr, 'native operation masked interrupts'
+            assert m.read_sr()&0xff00==sr, 'native operation masked interrupts'
             saved=u.context_save();oldstack=m.stack;m.stack-=0x1000
             bank=(target-B)//BS
             part=(target-B-bank*BS-0x8ed80)//PS
@@ -75,7 +75,7 @@ def main():
         assert bytes(u.mem_read(m.stack+4,4*len(args)))==b''.join(x.to_bytes(4,'big') for x in args)
         assert bytes(u.mem_read(m.sym['mp_snapshot_bank'],4))==bytes(4)
         assert bytes(u.mem_read(m.sym['mp_snapshot_parts'],4))==bytes(4)
-        return tuple(u.reg_read(r) for r in REGS),u.reg_read(UC_M68K_REG_SR)&0xff00
+        return tuple(u.reg_read(r) for r in REGS),m.read_sr()&0xff00
     # Cold entries must use stock before the platform runtime is available.
     # Poisoning its first instruction makes any premature DRAM dispatch fail.
     first=bytes(u.mem_read(m.base,2));u.mem_write(m.base,b'\x4a\xfc')
@@ -101,7 +101,7 @@ def main():
             u.mem_write(m.stack-256,bytes((fill,))*288)
             m.writes=[]
             regs=run(entry,(dest,source,length) if entry==COPY else (dest,),sr=sr)
-            results.append((regs,u.reg_read(UC_M68K_REG_SR),
+            results.append((regs,m.read_sr(),
                             bytes(u.mem_read(dest-4,length+8)),
                             bytes(u.mem_read(m.stack-256,288)),tuple(m.writes)))
         assert results[0]==results[1],('cold ABI',hex(entry),length,hex(sr),fill)

@@ -44,7 +44,8 @@ even if the other source still holds it.
 
 DEST is stored per MIDI track in each native Part. Part save/reload/clear,
 copy/paste and project save/load carry it; fresh Parts use EXT. Playback uses
-the playing Part, independently of the Part selected for editing.
+each MIDI track's applied Part, independently of retained audio voices and
+the Part selected for editing.
 
 Requires **MIDI Part State**. With MIDI Scenes, select the **MIDI Loopback /
 MIDI Scenes bridge** to route its additional producers. KITS is not required.

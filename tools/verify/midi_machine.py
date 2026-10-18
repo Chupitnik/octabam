@@ -14,6 +14,26 @@ from unicorn.m68k_const import *
 
 
 
+def read_sr(uc, probe):
+    """Read supervisor SR at a stopped boundary without changing CPU state.
+
+    The caller reserves a MOVE.W SR,D7 instruction at probe and allows its code
+    hooks to execute it. Unicorn 2.1.4's host SR read overwrites cc_op before
+    evaluating pending flags; even reading only the interrupt mask can change
+    a resumed branch. Guest capture followed by context restore avoids that.
+    """
+    if bytes(uc.mem_read(probe, 2)) != bytes.fromhex('40c7'):
+        raise ValueError('SR probe must contain MOVE.W SR,D7')
+    saved = uc.context_save()
+    try:
+        uc.emu_start(probe, probe + 2, count=1)
+        if uc.reg_read(UC_M68K_REG_PC) != probe + 2:
+            raise RuntimeError('SR capture did not complete')
+        return uc.reg_read(UC_M68K_REG_D7) & 0xffff
+    finally:
+        uc.context_restore(saved)
+
+
 def dram_map_size(layout):
     """Cover stock RAM and the selected runtime, staging and retained state."""
     end = max(0x41000000, layout['top'], layout['stage_end'], layout['ceiling'])
@@ -41,6 +61,8 @@ class Machine:
         self.base=layout['base']
         u.mem_write(self.base,(out/'platform/runtime/runtime.bin').read_bytes())
         self.stack=0x47008000;self.done=0x4700fff0;self.scratch=0x47001000
+        self.sr_probe=self.done-16
+        u.mem_write(self.sr_probe,bytes.fromhex('40c7'))  # MOVE.W SR,D7
         self.stops={self.done}; self.arrival=None;self.writes=[]
         u.hook_add(UC_HOOK_CODE,self.stop)
         u.hook_add(UC_HOOK_MEM_WRITE,lambda u,a,p,n,v,x:self.writes.append((p,n)))
@@ -57,6 +79,8 @@ class Machine:
         return bank+0x8ed80+part*0x18b2+0x4e2+track*36+field
     def stop(self,u,p,n,x):
         if p in self.stops:self.arrival=p;u.emu_stop()
+    def read_sr(self):
+        return read_sr(self.uc,self.sr_probe)
     def call(self,name,d0=0,d1=0,a0=None,stop=None,regs=None):
         u=self.uc;self.stops={stop or self.done};self.arrival=None;self.writes=[]
         u.reg_write(UC_M68K_REG_SR,self.initial_sr);u.reg_write(UC_M68K_REG_A7,self.stack)
