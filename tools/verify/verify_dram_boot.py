@@ -28,6 +28,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1])); import toolpath  # noqa: E402,F401  (every tools/ dir on sys.path)
 from remix import platform_build, registry  # noqa: E402
+from boot_mutable import resolve_ranges, compare_runtime  # noqa: E402
 
 EMU = ROOT / "out/emu/ot_emu"
 IMAGE = ROOT / "out/mainos_bus.bin"
@@ -78,17 +79,12 @@ fatal_hits = sum(1 for l in hits if f"at 0x{fatal:x}" in l)
 ok = handoff and entry_hits == 1 and fatal_hits == 0
 print(f"  [{'PASS' if ok else 'FAIL'}] verify_dram_boot: {remix.name} boots to the handoff; "
       f"loader ran {entry_hits}x, its fatal hang {fatal_hits}x")
-# Part initialization runs after the loader, before handoff. Its outgoing
-# snapshot and replacement epochs are mutable data, not loader corruption.
-# Name only those two arrays; retain the existing 64-byte budget elsewhere.
-part_state_ranges = []
-if any(m.key == "MIDI PART STATE" for m in mods):
-    runtime_nm = subprocess.check_output([
-        "m68k-elf-nm", str(ROOT / "out/platform/runtime/runtime.elf")], text=True)
-    runtime_symbols = {f[2]: int(f[0], 16) for line in runtime_nm.splitlines()
-                       if len(f := line.split()) == 3}
-    part_state_ranges = [(runtime_symbols[name], size) for name, size in
-                         (("mp_snapshot", 4 * 8 * 36), ("mp_part_epochs", 64 * 4))]
+# Modules own their mutable-state declarations; this gate only verifies
+# their linked extent/initial contents and accounts for changes at handoff.
+try:
+    mutable_ranges = resolve_ranges(mods, layout, ROOT / "out/platform/runtime", raw)
+except ValueError as error:
+    sys.exit(f"[FAIL] verify_dram_boot: {error}")
 
 for (a, n, p), (label, raw) in zip(dumps, expects):
     got = p.read_bytes() if p.exists() else b""
@@ -98,18 +94,10 @@ for (a, n, p), (label, raw) in zip(dumps, expects):
     # 41-42 (brain_ts/brain_ts_last plus PLOCKS P2's INITED stamp, see the
     # module docstring above); 64 keeps headroom without going blind to a
     # new undeclared writer.
-    # Verify the named arrays belong to the payload and start zeroed. Do not
-    # accept a symbol accidentally pointing outside the runtime or into code.
-    ranges_ok = all(a <= start and start + size <= a + len(raw)
-                    and raw[start-a:start-a+size] == bytes(size)
-                    for start, size in part_state_ranges)
-    transient = [i for i in diff if any(start <= a+i < start+size
-                                       for start, size in part_state_ranges)]
-    remaining = len(diff) - len(transient)
-    fine = len(got) == len(raw) and ranges_ok and remaining <= 64
+    fine, transient, remaining = compare_runtime(a, raw, got, mutable_ranges)
     ok &= fine
-    changes = (f"{len(transient)} named Part-state byte(s) and {remaining} other byte(s)"
-               if part_state_ranges else f"{len(diff)} byte(s)")
+    changes = (f"{transient} declared mutable byte(s) and {remaining} other byte(s)"
+               if mutable_ranges else f"{len(diff)} byte(s)")
     print(f"  [{'PASS' if fine else 'FAIL'}] verify_dram_boot: {label} at 0x{a:08x} == linked "
           f"runtime ({n:,} B) except {changes} the runtime wrote itself"
           + (f" at +{diff[0]:#x}.." if diff else ""))

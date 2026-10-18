@@ -12,7 +12,10 @@ MODULE = runpy.run_path(str(SOURCE), run_name='remix_manifest_midi_part_state')[
 MODULE = dataclasses.replace(MODULE, linked=tuple(
     dataclasses.replace(unit, reference=(0x400d6b80,
         'c7a3725b8e7b3ba4f830795b198e6800b2fbf9490bbd52e26e70c88252ec9b88'))
-    if unit.label == 'midipartentry' else unit for unit in MODULE.linked
+    if unit.label == 'midipartentry' else
+    dataclasses.replace(unit, boot_mutable=(('mp_snapshot', 4 * 8 * 36),
+                                          ('mp_part_epochs', 64 * 4)))
+    if unit.label == 'midipartcopy' else unit for unit in MODULE.linked
 ))
 
 MODULE = dataclasses.replace(MODULE, gates=(

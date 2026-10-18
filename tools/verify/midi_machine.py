@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Shared machine-code harness for MIDI module verification. No firmware is bundled."""
+"""Native MIDI Part fixture and CPU harness; callers supply their module symbols.
+
+No firmware is bundled. The memory fixture seeds native Part defaults; it is
+not a generic CPU-only fixture.
+"""
 import json
 import pathlib
-import re
-import subprocess
 import sys
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'tools'))
@@ -41,12 +43,8 @@ def dram_map_size(layout):
 
 
 
-def symbols():
-    raw = subprocess.check_output(['m68k-elf-nm', str(ROOT/'out/platform/runtime/runtime.elf')], text=True)
-    return {n:int(a,16) for a,n in re.findall(r'^([0-9a-f]+) [Tt] ((?:mp|lb)_\w+)$',raw,re.M)}
-
 class Machine:
-    def __init__(self, symbol_loader=symbols, artifact_root=None):
+    def __init__(self, symbol_loader, artifact_root=None):
         self.sym=symbol_loader(); self.uc=Uc(UC_ARCH_M68K,UC_MODE_BIG_ENDIAN)
         out = artifact_root or ROOT/'out'
         layout = json.loads((out/'platform/layout.json').read_text())

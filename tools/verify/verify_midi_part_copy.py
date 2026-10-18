@@ -25,6 +25,7 @@ def main():
         assert patched_entries[entry][:2]==bytes.fromhex('4ef9'), 'native boundary not installed'
         assert 0x40000400<=int.from_bytes(patched_entries[entry][2:6],'big')<0x400e0000, 'entry must be available before DRAM loading'
     source=0x47002000
+    wrapped=True
     active=False
     cold=True
     runtime_end=m.base+len((ROOT/'out/platform/runtime/runtime.bin').read_bytes())
@@ -39,12 +40,33 @@ def main():
                 interrupted=True;u.emu_stop()
     u.hook_add(UC_HOOK_CODE,observe)
     def install(on):
+        nonlocal wrapped
+        wrapped=on
         for entry,name in ((COPY,'mp_native_copy'),(INIT,'mp_native_init')):
             data=patched_entries[entry] if on else originals[entry]
             u.mem_write(entry,data);u.ctl_remove_cache(entry,entry+len(data))
     def run(entry,args,sr=0x2000,pause=False):
         nonlocal active,interrupted,target
         active=pause;interrupted=False;target=args[0]
+        # Derive expected state from the operation's input memory, independent
+        # of the wrapper's snapshot/epoch implementation.
+        epochs = bytes(u.mem_read(m.sym['mp_part_epochs'], 64*4))
+        expected_epochs = bytearray(epochs)
+        expected_snapshot = bytes(u.mem_read(m.sym['mp_snapshot'], 4*288))
+        length = args[2] if entry == COPY else PS
+        bank = (target-B)//BS
+        if wrapped and not cold and length > 0 and 0 <= bank < 16:
+            bank_base = B + bank*BS
+            affected = [p for p in range(4)
+                        if target < bank_base+0x8ed80+(p+1)*PS
+                        and target+length > bank_base+0x8ed80+p*PS]
+            if target+length <= bank_base+BS and affected:
+                expected_snapshot = b''.join(bytes(u.mem_read(
+                    bank_base+0x8ed80+p*PS+0x4e2, 288)) for p in range(4))
+                for part in affected:
+                    at = (bank*4+part)*4
+                    value = (int.from_bytes(epochs[at:at+4], 'big')+1) & 0xffffffff
+                    expected_epochs[at:at+4] = value.to_bytes(4, 'big')
         m.arrival=None;m.stops={m.done}
         for i,reg in enumerate(REGS):u.reg_write(reg,0x12340000+i)
         u.reg_write(UC_M68K_REG_SR,sr);u.reg_write(UC_M68K_REG_A7,m.stack)
@@ -53,6 +75,8 @@ def main():
         if pause:
             assert interrupted and m.arrival is None
             assert m.read_sr()&0xff00==sr, 'native operation masked interrupts'
+            assert bytes(u.mem_read(m.sym['mp_snapshot'], 4*288)) == expected_snapshot, 'outgoing snapshot mismatch'
+            assert bytes(u.mem_read(m.sym['mp_part_epochs'], 64*4)) == epochs
             saved=u.context_save();oldstack=m.stack;m.stack-=0x1000
             bank=(target-B)//BS
             part=(target-B-bank*BS-0x8ed80)//PS
@@ -73,6 +97,8 @@ def main():
         assert m.arrival==m.done,(hex(entry),hex(u.reg_read(UC_M68K_REG_PC)))
         assert u.reg_read(UC_M68K_REG_A7)==m.stack+4
         assert bytes(u.mem_read(m.stack+4,4*len(args)))==b''.join(x.to_bytes(4,'big') for x in args)
+        assert bytes(u.mem_read(m.sym['mp_snapshot'], 4*288)) == expected_snapshot, 'outgoing snapshot mismatch'
+        assert bytes(u.mem_read(m.sym['mp_part_epochs'], 64*4)) == bytes(expected_epochs), 'Part epoch publication mismatch'
         assert bytes(u.mem_read(m.sym['mp_snapshot_bank'],4))==bytes(4)
         assert bytes(u.mem_read(m.sym['mp_snapshot_parts'],4))==bytes(4)
         return tuple(u.reg_read(r) for r in REGS),m.read_sr()&0xff00
@@ -184,10 +210,30 @@ def main():
                     native=u.mem_read(dest+0x4e2+t*36+field,1)[0]
                     got=m.call('mp_read_key',t,bank*4+part) if field==17 else m.call('mp_read',t,bank*4+part,regs={UC_M68K_REG_D2:field})
                     assert got==native,(entry,bank,part,t,field)
+    # Negative control: execute the real wrapper with its epoch increment
+    # disabled. The state assertions must reject it even though copy succeeds.
+    start, end = m.sym['mp_native_init'], m.sym['mp_snapshot_bank']
+    code = bytes(u.mem_read(start, end-start))
+    needle = bytes.fromhex('5290')  # ADDQ.L #1,(A0)
+    sites = [i for i in range(0, len(code)-1, 2) if code[i:i+2] == needle]
+    assert len(sites) == 1
+    address = start + sites[0]
+    u.mem_write(address, bytes.fromhex('4e71'))
+    u.ctl_remove_cache(address, address+2)
+    try:
+        try:
+            run(COPY, (B+0x8ed80, source, PS))
+        except AssertionError as error:
+            assert str(error) == 'Part epoch publication mismatch', error
+        else:
+            raise AssertionError('missing epoch publication was accepted')
+    finally:
+        u.mem_write(address, needle)
+        u.ctl_remove_cache(address, address+2)
     print(json.dumps({'cold_stock_vs_wrapped_operations':cold_cases,
                       'cold_register_corruption_rejected':True,
                       'stock_vs_wrapped_operations':cases,'interrupted_copy_clear_publications':9,
                       'outgoing_reads_per_interruption':4*8*len(FIELDS),'interrupts_remain_enabled':True,
-                      'production_hooks_installed':True,'hardware_tested':False}))
+                      'missing_epoch_publication_rejected':True,'full_snapshot_and_all_epochs_checked':True,'production_hooks_installed':True,'hardware_tested':False}))
 
 if __name__=='__main__':main()

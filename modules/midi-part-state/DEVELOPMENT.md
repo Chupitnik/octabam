@@ -41,6 +41,13 @@ ordinary setting edits do not. Runtime note ownership remains the consumer's
 responsibility. Bulk operations crossing bank boundaries and live cross-project
 transitions require separate qualification.
 
+The adapter declares `mp_snapshot` and `mp_part_epochs` as zero-initialized
+`Linked.boot_mutable` data. The shared boot gate validates their owning linked
+unit, bounds and initial bytes; it has no Part-specific exceptions.
+`verify_midi_part_copy.py` checks the entire outgoing snapshot and all 64 epochs
+against each operation's inputs, including unchanged epochs while copying is
+interrupted, and rejects a wrapper with epoch publication disabled.
+
 `verify_midi_part.py` checks distinct UI/playback contexts, bounded writes and
 mirrors. `verify_midi_part_copy.py` compares native copy/initialization bytes,
 registers and interrupt state, cold entry, guards and interrupted publication.

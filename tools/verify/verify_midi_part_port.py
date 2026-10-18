@@ -21,7 +21,7 @@ def main():
     a=ap.parse_args()
     p.OUT=p.ROOT/'out/native-part-lifecycle'
     p.freeze_candidate(p.OUT)
-    sym=p.midi_machine.symbols()
+    sym=p.symbols()
     w=p.fixture(a.project,'native',{})
     follow='bf_source_get' in sym
     harmony='mh_get' in sym
