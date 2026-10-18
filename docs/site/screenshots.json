@@ -446,14 +446,14 @@
       "caption": "Vocoder: main parameter page.",
       "remix": "vocoder",
       "source": "emulator panel UART",
-      "firmware_sha256": "b986795e0719c94680cfdcc3f8f4371bf844fd9fe6719863a10fb1b74f8778b5"
+      "firmware_sha256": "ef7031498307f77c34f0eaa48d1fd88a87a70c61790eb4e191f342c615431aaf"
     },
     "setup": {
       "image": "vocoder/setup.png",
       "caption": "Vocoder: effect selection and setup parameters.",
       "remix": "vocoder",
       "source": "emulator panel UART",
-      "firmware_sha256": "b986795e0719c94680cfdcc3f8f4371bf844fd9fe6719863a10fb1b74f8778b5"
+      "firmware_sha256": "ef7031498307f77c34f0eaa48d1fd88a87a70c61790eb4e191f342c615431aaf"
     }
   },
   "wave": {
