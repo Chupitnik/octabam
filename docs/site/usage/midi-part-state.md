@@ -3,8 +3,9 @@ STATE when selecting MIDI LOOPBACK in a custom remix. It adds no screen or
 control of its own.
 
 Routing settings belong to the native Part: Save, Reload, Clear and Paste use
-the existing Part operations. Playback reads the Part playing on each MIDI
-track, independently of the Part selected for editing.
+the existing Part operations. Consumers choose the context for their producer:
+Loopback reads each MIDI track's applied Part, independently of the Part selected
+for editing or retained by an audio voice.
 
 ## Stock Compatibility
 
