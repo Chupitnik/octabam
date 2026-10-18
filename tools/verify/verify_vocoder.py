@@ -23,6 +23,14 @@ Gates:
                    call, and scene jumps of GEND, WHSP, DRY and CONS up and down each match the
                    reference (its pitch, GEND, noise and de-zipper arithmetic bit-exact), each
                    jump's first 20 ms too (down: a negative multiplier, the mpysu trap); BEND -64 and +63 land on C2 and +11.8 semitones
+  SCAL KEY RANG -> page 2's selectors: for every scale and key, NOTE swept up and down its
+                   range gives the reference's phase increment on every call, bit for bit
+                   (the reference's pitches are checked against a table of notes in
+                   vocoder_ref.py's self-check); RANG 0, 1 and 2 at BEND -64, 0 and +63 on C1,
+                   C3 and C6 settle on the right pitch (C0 the floor); measured pitches by FFT
+                   for a few; KEY does nothing with SCAL CHRO; value 0 of all three renders the
+                   build before the selectors bit for bit (nine renders' SHA-256 recorded from it;
+                   with VC_BASE_MEM, a .mem of that build, compared directly as well)
   guard         -> dsp_host -guard: no write over a loaded module
   two per core  -> runs at r7 0x6500 and 0x6b00 (FX2 of T2 T4 T6 T8) and is an exact dry
                    pass at every other FX2 and FX1 state block; position 3's output is
@@ -92,7 +100,7 @@ def q23(x):
 ALLOC = R7_ALLOC                  # r7 (0x6000 + 0x100 n) -> its base-table entry
 
 
-def render(L, R, r7=5, plocks=(), guard=False, frames=None, **kw):
+def render(L, R, r7=5, plocks=(), guard=False, frames=None, track=None, mem=None, entries=None, **kw):
     """L, R: float arrays. Returns (L, R) floats from the module. r7 = dsp_host's state block,
     0x6000 + 0x100 r7: 5 (0x6500) is a core's second FX2 slot, VOCODER's home; it runs at 5 and 11
     only (the built-in two-per-core limit, off a core's first track). plocks: (call, {knob: value}) pairs, applied from
@@ -102,9 +110,11 @@ def render(L, R, r7=5, plocks=(), guard=False, frames=None, **kw):
     li, ri = q23(L[:n]), q23(R[:n])
     fin, fout = TMP / "vc_in.raw", TMP / "vc_out.raw"
     fin.write_bytes(b"".join(struct.pack("<ii", a, b) for a, b in zip(li, ri)))
-    cmd = [HOST, "-mem", MEM, "-init", f"{init:x}", "-proc", f"{proc:x}",
+    ei, ep = entries or (init, proc)
+    cmd = [HOST, "-mem", mem or MEM, "-init", f"{ei:x}", "-proc", f"{ep:x}",
            "-inst", "1", "-r7", str(r7), "-alloc", str(ALLOC[r7]), "-inmask", "1", "-stereo",
            *(["-guard"] if guard else []),
+           *(["-track", ",".join(f"{t:x}" for t in track), "-trackout", str(TMP / "vc_track.txt")] if track else []),
            "-frames", str(fr), "-blocks", str(n // fr),
            "-in", str(fin), "-out", str(fout),
            "-params", ",".join(str(x) for x in params(**kw))]
@@ -200,17 +210,19 @@ for label, L, R, kw, pl in (("INT, C3", v, v, dict(MODE=0, NOTE=24), ()),
                             ("WHSP 64", v, v, dict(WHSP=64), ()),
                             ("WHSP 127 (noise)", v, v, dict(WHSP=127), ()),
                             ("a NOTE melody and two BEND moves, GLDE 80 ms", v, v, dict(GLDE=2), MEL),
+                            ("the melody in D PMAJ, BEND over 24ST, GLDE 80 ms", v, v, dict(GLDE=2, SCAL=7, KEY=2, RANG=2), MEL),
                             ("BEND swept -64 to +63 by the fader", v, v, dict(), sweep("BEND", 0, 127)),
                             ("GEND swept -64 to +63 by the fader", v, v, dict(), sweep("GEND", 0, 127)),
                             ("WHSP swept 0 to 127 by the fader", v, v, dict(), sweep("WHSP", 0, 127)),
                             ("scene jumps up and down (GEND, WHSP, DRY, CONS at once)", v, v, dict(GEND=0, WHSP=0, DRY=0, CONS=0), SCENE)):
     oL, oR = render(L, R, plocks=pl, **kw)
-    d = {k: DEFAULTS[K[k]] for k in ("NOTE", "BEND", "GEND", "WHSP", "GLDE", "CONS", "DRY")}
+    d = {k: DEFAULTS[K[k]] for k in ("NOTE", "BEND", "GEND", "WHSP", "GLDE", "CONS", "DRY", "SCAL", "KEY", "RANG")}
     d.update(kw)
     knobs = {k: (per_call(pl, k, d[k]) if any(k in ch for _, ch in pl) else d[k]) for k in d}
     ref = REF.vocode(L[:len(oL)], R[:len(oL)], mode=kw.get("MODE", 0), note=knobs["NOTE"], bend=knobs["BEND"],
                      gend=knobs["GEND"], whsp=knobs["WHSP"], glide=knobs["GLDE"],
-                     cons=knobs["CONS"], dry=knobs["DRY"], frames=FRAMES)
+                     cons=knobs["CONS"], dry=knobs["DRY"], frames=FRAMES,
+                     scal=knobs["SCAL"], key=knobs["KEY"], rang=knobs["RANG"])
     err = db(oL - ref) - db(ref)
     lv = db(oL) - db(ref)
     check(f"the law, {label}: within {err:.1f} dB of the float reference, level {lv:+.3f} dB (output {db(oL):.1f} dBFS RMS)",
@@ -279,6 +291,132 @@ a3 = render(v[:22050], v[:22050], r7=11, GEND=0, WHSP=64, BEND=100)
 check("position 3 (r7 0x6b00) renders position 1's output bit for bit (GEND off the centre)",
       np.array_equal(a1[0], a3[0]) and np.array_equal(a1[1], a3[1]))
 
+# ---- page 2's selectors: SCAL (slot 7), RANG (slot 9), KEY (slot 10) -----------------------------
+def tracked_incs(plocks, nbk, frames=FRAMES, **kw):
+    """Render nbk calls of silence with these locks; the DSP's phase increment (r7+$0c) per call."""
+    zz = np.zeros(nbk * frames)
+    render(zz, zz, plocks=plocks, frames=frames, track=(0x0c,), **kw)
+    rows = [ln.split() for ln in (TMP / "vc_track.txt").read_text().splitlines() if ln.strip()]
+    return np.array([int(r[1]) for r in rows])
+
+
+def knob_calls(plocks, nbk, knob, default):
+    out = np.full(nbk, default)
+    for blk, ch in sorted(plocks, key=lambda bc: bc[0]):
+        if knob in ch:
+            out[blk:] = ch[knob]
+    return out
+
+
+# every scale in every key: NOTE up and down its whole range, three calls a step, GLDE OFF
+HOLD = 3
+seq, blk = [], 0
+for si in range(len(REF.SCALES)):
+    for key in range(12):
+        for n in list(range(61)) + list(range(60, -1, -1)):
+            seq.append((blk, {"SCAL": si, "KEY": key, "NOTE": n})); blk += HOLD
+nsk = blk
+got = tracked_incs(seq, nsk)
+want = REF.incs_02(nsk, *(knob_calls(seq, nsk, k, DEFAULTS[K[k]]) for k in ("NOTE", "BEND", "GLDE")),
+                   frames=FRAMES, **{k.lower(): knob_calls(seq, nsk, k, 0) for k in ("SCAL", "KEY", "RANG")})
+bad = np.nonzero(got[:nsk] != want)[0]
+check(f"SCAL x KEY (10 x 12), NOTE swept C1-C6-C1: the phase increment is the reference's on all {nsk} calls",
+      len(got) >= nsk and not len(bad), f"(first mismatch at call {bad[0]})" if len(bad) else "")
+# and where each held note settles: the scale note at or below, in Hz against the table
+HOLDS = 220                       # 75 ms a note: GLDE OFF's 8 ms has settled to 0.01 %
+cases = [(si, key, n) for si, key in ((1, 0), (2, 9), (6, 4), (7, 2), (8, 9), (9, 7), (3, 5)) for n in range(0, 61, 7)]
+seq = [(i * HOLDS, {"SCAL": si, "KEY": key, "NOTE": n}) for i, (si, key, n) in enumerate(cases)]
+got = tracked_incs(seq, len(cases) * HOLDS)
+worst = 0.0
+for i, (si, key, n) in enumerate(cases):
+    m = n
+    while (m - key) % 12 not in REF.SCALES[si][1]:
+        m -= 1
+    want_hz = 440.0 * 2 ** ((REF.NOTE_LO + m - 69) / 12)
+    worst = max(worst, abs(got[(i + 1) * HOLDS - 1] * FS / (1 << 24) / want_hz - 1))
+check(f"{len(cases)} held notes in seven scales and keys settle on the scale note at or below NOTE, "
+      f"within {worst * 100:.3f} % of the table", worst < 5e-4)
+# RANG: BEND's reach, at both ends and the centre, on C1, C3 and C6; under C0 it is held at C0
+cases = [(r, n, b) for r in range(3) for n in (0, 24, 60) for b in (0, 64, 127)]
+seq = [(i * HOLDS, {"RANG": r, "NOTE": n, "BEND": b}) for i, (r, n, b) in enumerate(cases)]
+nbk = len(cases) * HOLDS
+got = tracked_incs(seq, nbk)
+want = REF.incs_02(nbk, *(knob_calls(seq, nbk, k, DEFAULTS[K[k]]) for k in ("NOTE", "BEND", "GLDE")),
+                   frames=FRAMES, rang=knob_calls(seq, nbk, "RANG", 0))
+worst = 0.0
+for i, (r, n, b) in enumerate(cases):
+    semis = REF.NOTE_LO + n - 12 + REF.RANGE_ST[r] * (b - 64) / 64
+    want_hz = REF.C0_HZ * 2 ** (max(semis, 0) / 12)
+    worst = max(worst, abs(got[(i + 1) * HOLDS - 1] * FS / (1 << 24) / want_hz - 1))
+check(f"RANG 12ST 6ST 24ST x NOTE C1 C3 C6 x BEND -64 0 +63: settles within {worst * 100:.3f} % of the table "
+      f"(C1 - 24 held at C0), every call the reference's", worst < 5e-4 and np.array_equal(got[:nbk], want))
+
+
+def measured_f0(oL, f0):
+    x = oL[4410:]; n = len(x)
+    X = np.abs(np.fft.rfft(x * np.hanning(n), 4 * n)); fr = np.fft.rfftfreq(4 * n, 1 / FS)
+    h = max(1, math.ceil(400 / f0))
+    m = np.nonzero((fr > h * f0 * 0.99) & (fr < h * f0 * 1.01))[0]
+    i = m[np.argmax(X[m])]
+    a_, b_, c_ = np.log(X[i - 1:i + 2])
+    return (fr[i] + 0.5 * (a_ - c_) / (a_ - 2 * b_ + c_) * (fr[1] - fr[0])) / h, h
+
+
+for label, kw, semis in (("C#3 in C MAJ plays C3", dict(NOTE=25, SCAL=1), 36),
+                         ("C3 in E PMIN plays B2", dict(NOTE=24, SCAL=8, KEY=4), 35),
+                         ("C3, RANG 24ST, BEND +63 plays 23.6 semitones up", dict(NOTE=24, RANG=2, BEND=127), 36 + 24 * 63 / 64),
+                         ("C3, RANG 6ST, BEND -64 plays F#2", dict(NOTE=24, RANG=1, BEND=0), 30),
+                         ("C1, RANG 24ST, BEND -64 is held at C0", dict(NOTE=0, RANG=2, BEND=0), 0)):
+    oL, _ = render(noise3, noise3, MODE=0, CONS=0, **kw)
+    f0 = REF.C0_HZ * 2 ** (semis / 12)
+    fm, h = measured_f0(oL, f0)
+    check(f"{label}: {fm:.3f} Hz (want {f0:.3f}; harmonic {h})", abs(fm / f0 - 1) < 5e-4)
+a = render(v[:22050], v[:22050], KEY=5, BEND=100, GLDE=2)
+b = render(v[:22050], v[:22050], KEY=0, BEND=100, GLDE=2)
+check("KEY does nothing with SCAL CHRO (KEY F renders KEY C bit for bit)", np.array_equal(a[0], b[0]))
+
+# value 0 of SCAL, KEY and RANG is the build before them, bit for bit: each render's SHA-256
+# against the one the build before the selectors gave (branch vocoder-02-even at 330c6da6,
+# 18 Oct 2026); with VC_BASE_MEM (a .mem of that build) the renders are compared directly too
+BASE = os.environ.get("VC_BASE_MEM")
+BASE_RENDERS = {
+    'defaults': "2dff4b27d22620c4e621bebe4ef19bdb21066cc4a2d132365294c873d3b6ab7d",
+    'EXT, a chord carrier': "07de9944195cd230cfec6625de6888858d0b02a4aa299ff0794ee84b2f1181ab",
+    'GEND 0, WHSP 64, BEND +36': "7d01b2a5683c5803b141fdcce269a4bff65cc77cbfafd3dea3bb7e8d93b7e7d4",
+    'the melody under GLDE 80 ms': "abe1c508113b9906657902658fa51f176d070af0463dbd54b6e7a856361d86a4",
+    'BEND swept': "4ea12b1a0502ccde3c4e39b4616b8c989c5b752c84cbc364951ed44032b26e7c",
+    'the scene jumps': "7d60505427384d566d50d24ff5e66af447f4f33a52f417a6f3a77c0168b2f0ca",
+    'NOTE swept C1 to C6, BEND -64': "0304cae0caf7e08f60a4d728113ca7b3360340b0f95ae1ac8f01f693fe0c1c90",
+    '1-sample calls at C6, BEND +63': "16ad2770996d8462cb5d8a5c0d4a17f2a02765c2692999fcc3cac412bc7fc739",
+    'position 3, GEND 127': "556a0e91b699bac2a9a9853ad00c90982a447326fc5e90adb6a6ea517417289a",
+}
+cases = [("defaults", v, v, dict(), (), None), ("EXT, a chord carrier", v, CHORD, dict(MODE=1), (), None),
+         ("GEND 0, WHSP 64, BEND +36", v, v, dict(GEND=0, WHSP=64, BEND=100), (), None),
+         ("the melody under GLDE 80 ms", v, v, dict(GLDE=2), MEL, None),
+         ("BEND swept", v, v, dict(), sweep("BEND", 0, 127), None),
+         ("the scene jumps", v, v, dict(GEND=0, WHSP=0, DRY=0, CONS=0), SCENE, None),
+         ("NOTE swept C1 to C6, BEND -64", v, v, dict(BEND=0), [(i * (nb // 61), {"NOTE": i}) for i in range(61)], None),
+         ("1-sample calls at C6, BEND +63", v[:22050], v[:22050], dict(NOTE=60, BEND=127), (), 1),
+         ("position 3, GEND 127", v, v, dict(GEND=127, BEND=20), (), None)]
+import hashlib
+same, direct, digests = 0, 0, {}
+be = send_probe.entry_points(BASE, FXID) if BASE else None
+for label, L, R, kw, pl, fr in cases:
+    r7 = 11 if label.startswith("position 3") else 5
+    n_ = render(L, R, r7=r7, plocks=pl, frames=fr, **kw)
+    h = hashlib.sha256(np.concatenate(n_).tobytes()).hexdigest()
+    digests[label] = h
+    same += h == BASE_RENDERS[label]
+    if BASE:
+        o_ = render(L, R, r7=r7, plocks=pl, frames=fr, mem=BASE, entries=be, **kw)
+        direct += np.array_equal(n_[0], o_[0]) and np.array_equal(n_[1], o_[1])
+        digests[label] = hashlib.sha256(np.concatenate(o_).tobytes()).hexdigest()   # the base build's
+if os.environ.get("VC_PRINT_DIGESTS"):
+    print("BASE_RENDERS = " + repr(digests))
+check(f"SCAL CHRO, KEY C, RANG 12ST (value 0): {same} of {len(cases)} renders hash as the build before the selectors"
+      + (f"; against that build's .mem directly, {direct} of {len(cases)} bit for bit" if BASE else ""),
+      same == len(cases) and (not BASE or direct == len(cases)))
+
 # ---- its writes: the state block and its 20-word Y slot, nothing over a loaded module ----------
 render(v[:22050], v[:22050], guard=True, GEND=0, WHSP=127, BEND=127)
 g5 = render.guard_out
@@ -304,7 +442,7 @@ for step, bend in ((24, 64), (24, 127)):
 
 # ---- every knob at both ends ---------------------------------------------------------------------
 for name, hi in (("NOTE", 60), ("BEND", 127), ("GEND", 127), ("WHSP", 127), ("CONS", 127), ("DRY", 127),
-                 ("MODE", 1), ("GLDE", 4)):
+                 ("MODE", 1), ("GLDE", 4), ("SCAL", 9), ("RANG", 2), ("KEY", 11)):
     for val in (0, hi):
         render(v[:22050], v[:22050], **{name: val})
 check("every knob at both ends renders", True)

@@ -95,11 +95,52 @@ def fmul(a, b):
     return (a * b) >> 23
 
 
-def pitch_target(note_raw, bend_raw):
-    """P from the two knob words as the DSP reads them (value << 16)."""
+# ---- SCAL, KEY and RANG (page 2, slots 7, 10 and 9) ----------------------------------------
+# SCAL snaps NOTE to the nearest note of the scale at or below it (monotonic: a sweep up never
+# goes down); KEY is the scale's root; CHRO, value 0, leaves NOTE as it is. RANG sets BEND's
+# reach; value 0 is 0.2's +-12 semitones. Value 0 of all three is 0.2 bit for bit.
+SCALES = (("CHRO", tuple(range(12))),
+          ("MAJ", (0, 2, 4, 5, 7, 9, 11)),
+          ("MIN", (0, 2, 3, 5, 7, 8, 10)),          # natural minor (aeolian)
+          ("DOR", (0, 2, 3, 5, 7, 9, 10)),
+          ("PHRY", (0, 1, 3, 5, 7, 8, 10)),
+          ("MIXO", (0, 2, 4, 5, 7, 9, 10)),
+          ("HMIN", (0, 2, 3, 5, 7, 8, 11)),         # harmonic minor
+          ("PMAJ", (0, 2, 4, 7, 9)),                # major pentatonic
+          ("PMIN", (0, 3, 5, 7, 10)),               # minor pentatonic
+          ("BLUE", (0, 3, 5, 6, 7, 10)))            # blues hexatonic
+SCALE_LABELS = tuple(n for n, _ in SCALES)
+KEY_LABELS = NOTE_NAMES
+RANGE_ST = (12, 6, 24)                              # BEND's reach, +- semitones, by RANG
+RANGE_LABELS = ("12ST", "6ST", "24ST")
+RNG = (0x180000, 0x0C0000, 0x300000)                # R = 3/16, 3/32, 3/8: 2 R 2^23 is the reach x 2^16
+P_MAX = 0x5FFFFF                                    # P held under C8 (96 semitones above C0): OCT's top
+
+
+def scale_down(scale):
+    """For each degree above the root (0..11), the semitones down to the scale note at or below."""
+    return tuple(next(j for j in range(12) if (d - j) % 12 in scale) for d in range(12))
+
+
+DOWN_WORDS = tuple(v << 16 for _, iv in SCALES for v in scale_down(set(iv)))   # 120 words, x 2^16
+
+
+def snap(n, scal=0, key=0):
+    """q(n), NOTE step n (C1 + n) snapped as the DSP does: n - DOWN[scal][(n + 12 - key) mod 12]."""
+    n = min(n, 60); scal = min(scal, len(SCALES) - 1); key = min(key, 11)
+    return n - (DOWN_WORDS[12 * scal + (n + 12 - key) % 12] >> 16)
+
+
+def pitch_target(note_raw, bend_raw, scal_raw=0, key_raw=0, rang_raw=0):
+    """P from the knob words as the DSP reads them: NOTE, BEND and KEY in the knob field
+    (value << 16), SCAL and RANG in the companion field (value << 8)."""
     n = min((note_raw & 0x7F0000) >> 16, 60)
+    k = min((key_raw & 0x7F0000) >> 16, 11)
+    s = min((scal_raw & 0x7F00) >> 8, len(SCALES) - 1)
+    r = min((rang_raw & 0x7F00) >> 8, 2)
     y = (bend_raw & 0x7F0000) - 0x400000
-    return ((n + 12) << 16) + ((y * 0x180000) >> 23)
+    p = ((snap(n, s, k) + 12) << 16) + ((y * RNG[r]) >> 23)
+    return min(max(p, 0), P_MAX)
 
 
 def inc_of(ps):
@@ -156,4 +197,5 @@ def lcg(x):
     return (s24(x) * LCG_A + LCG_C) & 0xFFFFFF
 
 WHSP_G = 0.31622777                          # uniform noise x G has the sawtooth mix's RMS
-TABLE_BAND, TABLE_OCT, TABLE_GLD = 0, 30, 38   # P table offsets: BAND[10] x {W/2, f1, f2}, OCT[8], GLD[5]
+TABLE_BAND, TABLE_OCT, TABLE_GLD, TABLE_RNG, TABLE_DOWN = 0, 30, 38, 43, 46   # P table offsets:
+# BAND[10] x {W/2, f1, f2}, OCT[8], GLD[5], RNG[3], DOWN[10][12]

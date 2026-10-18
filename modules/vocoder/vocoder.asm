@@ -16,7 +16,9 @@
 ;   c = 0.3 saw(pitch) + 0.2 saw(pitch + 12), the two sawtooths on one 24-bit phase (the
 ;       4' is the phase doubled), polyBLEP, branch-free; WHSP blends it to white noise at
 ;       the same RMS: c + w (G noise - c). Or R/2 (EXT)
-;   pitch: P = NOTE + 12 + 24 (BEND - 1/2) semitones above C0 (x 2^16), glided per call
+;   pitch: P = q(NOTE) + 12 + 2 B (BEND - 1/2) semitones above C0 (x 2^16), q the scale
+;       snap (SCAL, KEY: the scale note at or below), B = 12, 6 or 24 (RANG), P held to
+;       C0 .. just under C8, glided per call
 ;       (GLIDE: P_s += n7 K (P - P_s), 48 bits); inc = OCT[o] 2^r / 2 from x = 4/3 P_s,
 ;       o = floor(8x), r = frac(8x), 2^r a quintic; 1/(du 2^12) by one division per call.
 ;       Every step truncates, so vocoder_ref.py reproduces the increment bit for bit
@@ -34,10 +36,13 @@
 ;   hp6: three Chamberlin high-pass sections at 4 kHz (Q 0.518, 0.707, 1.932),
 ;       q/2 stored and applied twice (q is above 1)
 ;
-; ---- the P table (the manifest's ptable, 43 words) --------------------------
+; ---- the P table (the manifest's ptable, 166 words) --------------------------
 ;   +0   BAND[10] x {W/2, f1, f2}: the synthesis side, as the band loop reads it
 ;   +30  OCT[8]   the increment of C(o), x 2 (a cycle is 2^24)
 ;   +38  GLD[5]   GLIDE's K per sample: 8 (OFF), 30, 80, 200, 500 ms
+;   +43  RNG[3]   BEND's R: 3/16 (+-12 semitones), 3/32 (+-6), 3/8 (+-24)
+;   +46  DOWN[10][12] per scale and degree above KEY, the semitones to the scale note at
+;                 or below, x 2^16 (CHRO all 0)
 ; ---- the Y slot: this instance's allocator base (read at init), 20 words ------
 ;   per band k: f1 A, f2 A, written every call before the band loop
 ;
@@ -116,21 +121,77 @@ vc_run:
         move    #>$fab1e0,r4            ; the table base
         move    r4,x:(r7+$12)
         move    #>$ffffff,m3
-; ---- pitch: P = (NOTE + 12) 2^16 + (3/16) y, y = BEND - 1/2: semitones above C0, x 2^16 ---
+; ---- pitch: P = (q(NOTE) + 12) 2^16 + R y, y = BEND - 1/2: semitones above C0, x 2^16 ---
+;      q(n) = n - DOWN[SCAL][(n + 12 - KEY) mod 12]: the nearest note of the scale at or
+;      below n (CHRO: n itself); R = 3/16, 3/32 or 3/8 (RANG: +-12, +-6, +-24 semitones).
+;      P is held to [0, 96 x 2^16): C0 (16.35 Hz, 1/du's Q23 floor) up to just under C8
         move    x:(r6+$0),a             ; NOTE: the step in bits 16 and up
         and     #>$7f0000,a
         move    #>$3c0000,x0            ; 60, C6
         cmp     x0,a
         tgt     x0,a
+        move    a1,y1                   ; n
+        move    x:(r6+$e),b             ; KEY, slot 10: the knob field of $e
+        and     #>$7f0000,b
+        move    #>$0b0000,x0            ; 11, B
+        cmp     x0,b
+        tgt     x0,b
+        move    b1,x0
+        add     #>$0c0000,a
+        sub     x0,a                    ; d = n + 12 - KEY: 1 .. 72
+        move    #>$300000,x0            ; d mod 12: less 48, 24 and 12 where they go
+        move    a,b
+        sub     x0,b
+        tpl     b,a
+        move    #>$180000,x0
+        move    a,b
+        sub     x0,b
+        tpl     b,a
+        move    #>$0c0000,x0
+        move    a,b
+        sub     x0,b
+        tpl     b,a                     ; the degree above KEY, 0 .. 11
+        move    a1,x1
+        move    x:(r6+$c),b             ; SCAL, slot 7: the companion field of $c (bits 8-15)
+        and     #>$007f00,b
+        move    #>$000900,x0            ; 9, BLUE
+        cmp     x0,b
+        tgt     x0,b
+        asl     #$8,b,b                 ; s
+        move    b1,x0
+        asl     b
+        add     x0,b                    ; 3 s
+        asl     #$2,b,b                 ; 12 s
+        add     x1,b
+        asr     #$10,b,b
+        add     #>$00002e,b             ; + 46, DOWN
+        move    b1,n4
+        move    p:(r4+n4),x0            ; DOWN[s][degree]: 0 .. 2 semitones, x 2^16
+        move    y1,a
+        sub     x0,a                    ; q(n): -2 .. 60
         add     #>$0c0000,a             ; + 12: C1 is 12 semitones above C0
         move    a1,x1
-        move    x:(r6+$1),a             ; BEND: bipolar, +-12 semitones
+        move    x:(r6+$d),b             ; RANG, slot 9: the companion field of $d (bits 8-15)
+        and     #>$007f00,b
+        move    #>$000200,x0            ; 2, +-24
+        cmp     x0,b
+        tgt     x0,b
+        asr     #$8,b,b
+        add     #>$00002b,b             ; + 43, RNG
+        move    b1,n4
+        move    x:(r6+$1),a             ; BEND: bipolar
         and     #>$7f0000,a
         sub     #>$400000,a
         move    a,y0                    ; y
-        move    #>$180000,x0            ; 3/16
-        mpy     y0,x0,a                 ; floor((3/16) y)
+        move    p:(r4+n4),x0            ; R: 3/16, 3/32 or 3/8
+        mpy     y0,x0,a                 ; floor(R y)
         add     x1,a
+        clr     b
+        tst     a
+        tmi     b,a                     ; under C0: C0
+        move    #>$5fffff,x0            ; just under C8 (BEND +63 at C6 is 95.6 semitones)
+        cmp     x0,a
+        tgt     x0,a
         move    a1,y1                   ; P
 ; ---- GLIDE: P_s += (n7 K) (P - P_s), 48 bits; the first call takes P as it is -------------
         move    x:(r7+$15),a            ; primed?
