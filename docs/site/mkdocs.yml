@@ -31,21 +31,21 @@ nav:
       - Feature Directory: reference/modules.md
       - About: about.md
   - Effects:
-      - Send: reference/modules/send.md
-      - Delay Server: reference/modules/busdelay.md
-      - Reverb Server: reference/modules/busverb.md
       - BBD Delay: reference/modules/bbd.md
-      - Spectrum: reference/modules/spectrum.md
       - Character: reference/modules/character.md
       - Character TXTR: reference/modules/character-txtr.md
-      - Modulation: reference/modules/modulation.md
-      - Transient: reference/modules/transient.md
+      - Delay Server: reference/modules/busdelay.md
       - Euclid: reference/modules/euclid.md
       - Gate Verb: reference/modules/gateverb.md
       - LOFI2: reference/modules/lofi2.md
       - Miniverb: reference/modules/miniverb.md
+      - Modulation: reference/modules/modulation.md
+      - Reverb Server: reference/modules/busverb.md
+      - Send: reference/modules/send.md
       - Sidechain Compressor: reference/modules/sidechain-compressor.md
+      - Spectrum: reference/modules/spectrum.md
       - Tape Echo: reference/modules/tapeecho.md
+      - Transient: reference/modules/transient.md
       - Vocoder: reference/modules/vocoder.md
       - Wave: reference/modules/wave.md
   - Bus Setup:
@@ -59,29 +59,29 @@ nav:
       - Direct Jump: reference/modules/direct-jump.md
       - Direct Jump (Kyoti): reference/modules/direct-jump-kyoti.md
       - Euclid Fill: reference/modules/euclid-fill.md
+      - Mute Modes: reference/modules/mute-modes.md
+      - Page 2 Parameter Locks: reference/modules/plocks-p2.md
       - Quantize Live Rec Toggle: reference/modules/quantize-live-rec-toggle.md
-      - Scale Quantizer: reference/modules/quantizer.md
       - Rec Threshold: reference/modules/rec-threshold.md
       - Recorder Trig Mute: reference/modules/rec-trig-mute.md
       - RLEN PLEN: reference/modules/rlen-plen.md
+      - Scale Quantizer: reference/modules/quantizer.md
       - Stem Recording: reference/modules/stems.md
       - Synth Machine: reference/modules/synth.md
-      - Tuner: reference/modules/tuner.md
       - Tempo Controls: reference/modules/tempo-bus.md
+      - Tuner: reference/modules/tuner.md
       - Varispeed: reference/modules/varispeed.md
-      - Mute Modes: reference/modules/mute-modes.md
-      - Page 2 Parameter Locks: reference/modules/plocks-p2.md
   - Kits and Scenes:
       - Kits: reference/modules/kits.md
       - MIDI Part State: reference/modules/midi-part-state.md
       - MIDI Scenes: reference/modules/midi-scenes.md
       - Page 2 Scene Locks: reference/modules/scenes-p2.md
   - MIDI and USB:
+      - CC Feedback: reference/modules/cc-feedback.md
+      - CC Map: reference/modules/cc-map.md
       - MIDI Loopback: reference/modules/midi-loopback.md
       - MIDI Scales: reference/modules/midi-scales.md
       - USB: reference/modules/usb.md
-      - CC Map: reference/modules/cc-map.md
-      - CC Feedback: reference/modules/cc-feedback.md
   - Settings:
       - Brain: brain.md
       - Memory: reference/modules/memory.md
