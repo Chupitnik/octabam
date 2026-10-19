@@ -136,13 +136,13 @@ rnd_fill:
         bcs     rnd_one
 
         bsr     rnd_rng
-        and.l   #POOL_MASK,%d0
+        bsr     rnd_pool_idx
         lea     rnd_a,%a1
         bsr     rnd_nth
         move.l  %a1,%a2
 
         bsr     rnd_rng
-        and.l   #POOL_MASK,%d0
+        bsr     rnd_pool_idx
         lea     rnd_b,%a1
         bsr     rnd_nth
 
@@ -165,9 +165,9 @@ rnd_fill:
 rnd_one:
         bsr     rnd_rng
         move.l  %d0,%d1
-        and.l   #POOL_MASK,%d0
+        bsr     rnd_pool_idx
         lea     rnd_a,%a1
-        btst    #6,%d1
+        btst    #22,%d1                 | high half; low bit 6 was tempo-tied
         beqs    5f
         lea     rnd_b,%a1
 5:
@@ -233,21 +233,64 @@ rnd_nth:
         move.l  %a1@,%a1
         rts
 
+| Pool index from bits 16..21. Low 6 of this LCG track the seed's low
+| bits: tempo (BPM x 24) ^ K collapses to a handful of joins (FOGRET at
+| 120 BPM with the clock stopped).
+rnd_pool_idx:
+        swap    %d0
+        and.l   #POOL_MASK,%d0
+        rts
+
 rnd_rng:
         move.l  rnd_state,%d0
         bne     1f
-        move.l  TEMPO24,%d0
-        move.l  CLOCKEST,%d1
-        eor.l   %d1,%d0
-        move.l  #0xA5A5A5A5,%d1
-        eor.l   %d1,%d0
-        bne     1f
-        moveq   #1,%d0
+        bsr     rnd_seed
 1:
         move.l  #1664525,%d1
         mulu.l  %d1,%d0
         add.l   #1013904223,%d0
         move.l  %d0,rnd_state
+        rts
+
+| Cold seed: tempo ^ clock ^ RTC h:m:s ^ K (seconds change per use).
+rnd_seed:
+        lea     %sp@(-8),%sp
+        moveml  %d2/%a2,%sp@
+        move.l  TEMPO24,%d2
+        move.l  CLOCKEST,%d0
+        eor.l   %d0,%d2
+        lea     RTC_RD,%a2
+        pea     0                       | seconds
+        jsr     %a2@
+        addql   #4,%sp
+        move.l  %d0,%sp@-
+        jsr     BCD2BIN
+        addql   #4,%sp
+        eor.l   %d0,%d2
+        pea     1                       | minutes
+        jsr     %a2@
+        addql   #4,%sp
+        move.l  %d0,%sp@-
+        jsr     BCD2BIN
+        addql   #4,%sp
+        lsl.l   #8,%d0
+        eor.l   %d0,%d2
+        pea     2                       | hours
+        jsr     %a2@
+        addql   #4,%sp
+        move.l  %d0,%sp@-
+        jsr     BCD2BIN
+        addql   #4,%sp
+        swap    %d0
+        eor.l   %d0,%d2
+        move.l  #0xA5A5A5A5,%d0
+        eor.l   %d0,%d2
+        bne     0f
+        moveq   #1,%d2
+0:
+        move.l  %d2,%d0
+        moveml  %sp@,%d2/%a2
+        lea     %sp@(8),%sp
         rts
 
         .data
