@@ -3,8 +3,9 @@
 Clouds' reverb stage (clouds/dsp/fx/reverb.h, MIT, Emilie Gillet 2014): a
 Griesinger/Dattorro plate of four input allpasses and a loop of two halves,
 each two allpasses and a delay, with the first allpass smeared by an LFO and the
-second delay modulated. The delay lengths are scaled by 0.984 so the ring is
-16,120 words: the allocator gives an FX2 instance 16,384, and the top 256 words
+second delay modulated. The delay lengths are scaled by 0.9682 so the ring is
+15,862 words, under the FX2 rule (+$3DFD, #785) that keeps the slot's last $202
+words for SIDECHAIN_COMPRESSOR's window; the allocator gives an FX2 instance 16,384, and the top 256 words
 of the slot carry the stock mailbox and LOAD METER, so the module declares its
 extent (Claims.buffer_words) and never writes them.
 
@@ -38,7 +39,7 @@ MODULE = Module(
     dsp=DspSection(asm="modules/gateverb/gateverb.asm", priority=11,
                    bus_role=BusRole.NONE, ybase=YBase.NEVER,
                    r7_latch_slot=None, gate_label=None),
-    claims=Claims(stock_instance_buffer=True, buffer_words=16120),
+    claims=Claims(stock_instance_buffer=True, buffer_words=15862),
     harness=Harness(layout_char="H", is_server=False),
     gates=(Gate('tools/verify/verify_gateverb.py', remix_arg=False, venv=True),),
 )
