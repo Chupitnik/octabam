@@ -91,12 +91,18 @@ jobs:
         with:
           python-version: '3.12'
 
+      # keyed by the pinned versions: an edit to the script that leaves them
+      # alone keeps the cache
+      - name: 🔢 Toolchain Versions
+        id: m68kver
+        run: echo "v=$(scripts/m68k-toolchain.sh --versions)" >> "$GITHUB_OUTPUT"
+
       - name: 💾 Restore Toolchain Cache
         id: m68k
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.local/m68k-elf
-          key: m68k-elf-${{ runner.os }}-${{ hashFiles('scripts/m68k-toolchain.sh') }}
+          key: m68k-elf-${{ runner.os }}-${{ steps.m68kver.outputs.v }}
 
       # the pinned dsp56300 checkout with its patch and build; every input of
       # scripts/setup.sh's build of it is in the key
@@ -136,7 +142,7 @@ jobs:
         if: always() && steps.m68k.outputs.cache-hit != 'true' && steps.done.outputs.m68k == 'true'
         with:
           path: ~/.local/m68k-elf
-          key: m68k-elf-${{ runner.os }}-${{ hashFiles('scripts/m68k-toolchain.sh') }}
+          key: m68k-elf-${{ runner.os }}-${{ steps.m68kver.outputs.v }}
 
       - name: 💾 Save DSP Toolchain Cache
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0

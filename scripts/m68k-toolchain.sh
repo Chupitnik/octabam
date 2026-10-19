@@ -6,6 +6,7 @@
 #
 #   scripts/m68k-toolchain.sh [PREFIX]    # default $HOME/.local/m68k-elf
 #   scripts/m68k-toolchain.sh --check [PREFIX]   # exit 0 when PREFIX has a working gcc of this version
+#   scripts/m68k-toolchain.sh --versions         # print binutils-<v>-gcc-<v> (the CI cache key)
 #
 # Needs: a C/C++ compiler, make, curl, xz, and the gmp, mpfr, mpc, isl, zstd
 # and zlib development packages (Debian/Ubuntu: build-essential libgmp-dev
@@ -19,6 +20,7 @@ BINUTILS_SHA256=154ab23b60070e8f27013c22977f1129425d67d1e8acd6e13010e617811e4cff
 GCC_VER=16.2.0
 GCC_SHA256=e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e
 
+[ "${1:-}" = "--versions" ] && { echo "binutils-$BINUTILS_VER-gcc-$GCC_VER"; exit 0; }
 CHECK=0
 [ "${1:-}" = "--check" ] && { CHECK=1; shift; }
 PREFIX="${1:-$HOME/.local/m68k-elf}"
