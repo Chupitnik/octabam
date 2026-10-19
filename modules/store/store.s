@@ -455,14 +455,19 @@ sc_open:
 8:      movel   %sp@+,%d2
         rts
 sc_pass:
-        | LEVEL (control 6) + any open LISTPOP: scroll a row per detent.
-        | Stock's list menu does not; KITS hooked this for its own lists
-        | only. Same behaviour for every LISTPOP (COPY PROJECT, BRAIN, …).
+        | LEVEL (control 6) + COPY PROJECT's LISTPOP only (M_CBS == name_fp).
+        | Same gate kits_level uses for its own CBTAB. Other stock lists
+        | (BRAIN, …) stay on stock's dispatch / kits_level.
         moveq   #6,%d0
         cmpl    %sp@(4),%d0
         bne.s   sc_chain
         tstl    M_OBJ
         beq.s   sc_chain
+        movel   cp_cbs,%d0
+        beq.s   sc_chain
+        movel   M_CBS,%d1
+        cmpl    %d0,%d1
+        bne.s   sc_chain
         movel   %d2,%sp@-
         movel   %sp@(12),%d2
         beq.s   8f

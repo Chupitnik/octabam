@@ -34,6 +34,9 @@ typedef unsigned int u32;
 /* FS vtable: exists(path) -> 0 absent, 1 file, 2 folder (stems.s). */
 #define FS_EXISTS_SLOT 0x46c823fa
 #define FS_MKDIR_SLOT  0x46c8240a
+/* docs/firmware/STORAGE.md: walk(path, &dirs, &files, mode, progress);
+ * mode 0 unlinks every file and rmdirs every directory under path. */
+#define WALK ((int (*)(const char *, u32 *, u32 *, u32, void *))0x40090a14)
 
 #define NMAX   64
 #define EMAX   256			/* entries kept per directory */
@@ -49,6 +52,15 @@ static int fs_exists(const char *path)
 static int fs_mkdir(const char *path)
 {
 	return ((int (*)(const char *))*(u32 *)FS_MKDIR_SLOT)(path);
+}
+
+static void rm_tree(const char *path)
+{
+	u32 dirs = 0, files = 0;
+
+	if (!path || !path[0])
+		return;
+	WALK(path, &dirs, &files, 0, 0);
 }
 
 static void cpy(char *d, const char *s, u32 n)
@@ -118,7 +130,9 @@ static void scan_restore(void)
 		SCAN_STATE[i] = scan_save[i];
 }
 
-/* Fill ent_* from dir; return count. Names are ours after return. */
+/* Fill ent_* from dir; return count, -1 on scan error, -2 if a directory
+ * has more than EMAX entries or a name longer than NLEN (silent truncate
+ * would copy incompletely). Names are ours after return. */
 static int scan_entries(const char *dir)
 {
 	int n, i;
@@ -131,12 +145,17 @@ static int scan_entries(const char *dir)
 		ent_n = 0;
 		return -1;
 	}
-	for (i = 0; i < n && kept < EMAX; i++) {
+	for (i = 0; i < n; i++) {
 		u8 *rec = scan_tab + i * 12;
 		const char *nm = *(const char **)rec;
 		u32 is_dir = *(u32 *)(rec + 4);
 		if (!nm || !nm[0] || eq(nm, ".") || eq(nm, ".."))
 			continue;
+		if (kept >= EMAX || len(nm) > NLEN) {
+			scan_restore();
+			ent_n = 0;
+			return -2;
+		}
 		cpy(ent_name[kept], nm, NLEN + 1);
 		ent_dir[kept] = is_dir ? 1 : 0;
 		kept++;
@@ -151,7 +170,8 @@ static int scan_entries(const char *dir)
 static char names[NMAX][NLEN + 1];
 static char labels[NMAX][NLEN + 1];
 static const char *name_lp[NMAX];
-static void (*name_fp[NMAX])(u32);
+/* Global: STORE's LEVEL scroll compares M_CBS against this (kits_level idiom). */
+void (*name_fp[NMAX])(u32);
 static u32 name_sel;
 static u32 name_n;
 
@@ -183,7 +203,8 @@ static int is_project_dir(const char *set, const char *name)
 	return fs_exists(tmp_path) > 0;
 }
 
-static u32 list_projects(void)
+/* 0 = none, >0 = count, -1 = scan failed / over NMAX (caller shows COPY FAILED). */
+static int list_projects(void)
 {
 	const char *set = SET_PATH;
 	int n, i;
@@ -192,20 +213,24 @@ static u32 list_projects(void)
 	if (!set || !set[0])
 		return 0;
 	n = scan_entries(set);
-	if (n <= 0)
+	if (n < 0)
+		return -1;
+	if (n == 0)
 		return 0;
-	for (i = 0; i < n && kept < NMAX; i++) {
+	for (i = 0; i < n; i++) {
 		if (!ent_dir[i])
 			continue;
 		if (!is_project_dir(set, ent_name[i]))
 			continue;
+		if (kept >= NMAX)
+			return -1;
 		cpy(names[kept], ent_name[i], NLEN + 1);
 		cpy(labels[kept], ent_name[i], NLEN + 1);
 		name_lp[kept] = labels[kept];
 		name_fp[kept] = cp_picked;
 		kept++;
 	}
-	return kept;
+	return (int)kept;
 }
 
 /* Stock CREATE / SAVE TO NEW suggestion: "PROJECT " + YYMMDD (0x40081b30). */
@@ -221,13 +246,20 @@ static void stock_default_name(char *dst)
 
 void cp_menu(u32 unused)
 {
+	int n;
+
 	(void)unused;
-	name_n = list_projects();
-	if (!name_n) {
+	n = list_projects();
+	if (n < 0) {
+		MESSAGE("COPY FAILED", 0x60);
+		return;
+	}
+	if (!n) {
 		msg[0] = "NO PROJECTS IN SET";
 		POPUP("COPY PROJECT", 1, msg, 0, 0);
 		return;
 	}
+	name_n = (u32)n;
 	name_sel = 0;
 	LISTPOP(name_n, 0, &name_sel, name_lp, (void *)name_fp);
 }
@@ -248,6 +280,10 @@ void cp_named(u32 confirmed)
 	/* NAMEED done-cb: 0 = cancelled, non-zero = YES (CREATE / KITS / BRAIN). */
 	if (!confirmed || !ED_BUF[0])
 		return;
+	if (len(ED_BUF) > NLEN) {
+		MESSAGE("COPY FAILED", 0x60);
+		return;
+	}
 	cpy(dst_name, ED_BUF, NLEN + 1);
 	if (eq(dst_name, src_name)) {
 		msg[0] = "NAME ALREADY IN USE!";
@@ -343,6 +379,7 @@ static void cp_job(void)
 	cpy(frame_dst[0], dst_path, PATH_N);
 	st = copy_tree(0);
 	if (st < 0) {
+		rm_tree(dst_path);
 		MESSAGE("COPY FAILED", 0x60);
 		return;
 	}

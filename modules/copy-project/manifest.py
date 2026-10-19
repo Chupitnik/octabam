@@ -5,7 +5,7 @@ set, name the copy, confirm. The live project stays loaded; an engine job
 copies the source folder byte-for-byte (stock files and module sidecars).
 """
 
-from remix.schema import Category, Kind, Linked, Module, Poke, Proof, TableGrow
+from remix.schema import Category, Gate, Kind, Linked, Module, Poke, Proof, TableGrow
 
 # PROJECT list (docs/firmware/MAINMENU.md): count + rows pointer
 PROJ_DESC = 0x400CBCAC
@@ -20,9 +20,9 @@ MODULE = Module(
     kind=Kind.CF_PATCH,
     category=Category.UTILITIES,
     author="iliamurzinov",
-    author_url="https://github.com/iliamurzinov",
+    author_url="https://github.com/ilia-murzinov",
     proof=Proof.HARDWARE,
-    proof_note="flashed with CF card update and tested on author's MKII (17 Oct 2026)",
+    proof_note="flashed with CF card update and tested on author's MKII (17 Oct 2026); BUILD not recorded",
     doc="PROJECT > COPY PROJECT: duplicate a project folder on the card without loading it.",
     requires=("STORE",),  # STORE's encoder hook: LEVEL scrolls the project LISTPOP
     linked=(Linked("cp", "modules/copy-project/copyproj.s", cpu="5475", dram=True),),
@@ -44,4 +44,5 @@ MODULE = Module(
              write=(PROJ_N + 1).to_bytes(4, "big"),
              note="PROJECT rows 15 -> 16 (COPY PROJECT after SAVE TO NEW)"),
     ),
+    gates=(Gate("tools/verify/verify_copy_project.py", venv=True, once=True),),
 )

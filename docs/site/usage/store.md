@@ -3,5 +3,5 @@ MIDI SCENES' scenes.work — are written, copied and cleared at the right
 times: every bank load, a new project, the bank writer, the project save
 and reload.
 
-On any open stock list popup (LISTPOP), LEVEL scrolls a row per detent
-(same path KITS uses for its own lists).
+With COPY PROJECT in the remix, LEVEL scrolls that module's project list
+only (same `M_CBS` gate KITS uses for its own lists).
