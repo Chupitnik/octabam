@@ -129,6 +129,32 @@ jobs:
       - run: python3 tools/site/gen_pages.py
       - run: mkdocs build --strict --config-file docs/site/mkdocs.yml
 
+  web-patches:
+    # The web builder's committed patches (docs/site/builder/). Needs no
+    # firmware: the manifest must match the patch files, and on main each
+    # remix the code has moved past is reported as a warning. The patches are
+    # rebuilt from a machine with the user's 1.40C: make webpatch BUILD=N.
+    name: web builder patches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          # the staleness check loads the registry, whose manifests read the author submodules
+          submodules: true
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - run: |
+          if [ -f docs/site/builder/manifest.json ]; then
+            python3 tools/web/stale.py --check
+            if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then python3 tools/web/stale.py; fi
+          else
+            echo "no published patches yet"
+          fi
+
   dsp-toolchain:
     name: dsp56300 + our patch (${{ matrix.os }})
     needs: classify

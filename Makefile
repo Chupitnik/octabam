@@ -116,6 +116,11 @@ image: bus ## Repack the build into a card-flashable .bin (see docs/guide/BUILDI
 	@echo "  REMIX SWITCH: out/$(IMAGE_NAME).RMX (/BRAIN/REMIXES/ on the card; MAIN MENU > BRAIN boots it without flashing)"
 	@echo "  -> docs/guide/BUILDING.md before you write either to hardware."
 
+.PHONY: webpatch
+webpatch: ## Web builder: patches + manifest for every official remix -> out/web (BUILD=N is required; tools/web/publish.py)
+	@test "$(origin BUILD)" != "file" || { echo "make webpatch needs BUILD=N"; exit 1; }
+	python3 tools/web/publish.py --build $(BUILD)
+
 # ------------------------------------------------- audition without flashing --
 
 .PHONY: render
