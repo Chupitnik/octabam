@@ -6,7 +6,8 @@
     python3 tools/hw/ot_midi.py -p A note <ch> <note> [vel] [hold_s]
     python3 tools/hw/ot_midi.py -p A raw  B0 28 40             # hex bytes
     python3 tools/hw/ot_midi.py -p A start | stop
-    python3 tools/hw/ot_midi.py -p A listen [seconds]          # dump incoming
+    python3 tools/hw/ot_midi.py -p A listen [seconds]          # dump incoming; clock (F8) and
+                                                               # active sensing (FE) are counted, not printed
 
 OT map (manual + docs/firmware/MIDI.md appendix A): FX2 params 1-6 = CC 40-45 on the
 track's channel (SEND: 40 = -DEL, 41 = -VRB); FX1 = CC 34-39; level CC 7;
@@ -36,11 +37,23 @@ cm.MIDIPortConnectSource.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_
 READPROC = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
 
 
+def find(kind, name, wait=3.0):
+    """The endpoint called `name`, or None. A new process can see an empty endpoint
+    list for the first moments (seen 19 Oct 2026, one run in several), so poll."""
+    t0 = time.time()
+    while True:
+        m = [ep for n, ep in endpoints(kind) if n == name]
+        if m or time.time() - t0 >= wait:
+            return m[0] if m else None
+        time.sleep(0.1)
+
+
 def listen(port_name, seconds):
-    """Print incoming events from source `port_name` for `seconds`."""
+    """Print incoming events from source `port_name` for `seconds`; F8 and FE are only counted."""
     client = ctypes.c_uint32(); inport = ctypes.c_uint32()
     cm.MIDIClientCreate(cfstr("octabam-in"), None, None, ctypes.byref(client))
     t0 = time.time()
+    skipped = {0xF8: 0, 0xFE: 0}
 
     def cb(pktlist, _a, _b):
         n = ctypes.cast(pktlist, ctypes.POINTER(ctypes.c_uint32))[0]
@@ -48,19 +61,27 @@ def listen(port_name, seconds):
         for _ in range(n):
             length = ctypes.cast(p + 8, ctypes.POINTER(ctypes.c_uint16))[0]
             data = ctypes.string_at(p + 10, length)
-            if data[0] not in (0xF8, 0xFE):
-                print(f"{time.time()-t0:7.3f}  {data.hex(' ')}", flush=True)
-            p += 10 + length + ((4 - (10 + length) % 4) % 4)
+            for b in data:
+                if b in skipped:
+                    skipped[b] += 1
+            rest = bytes(b for b in data if b not in skipped)
+            if rest:
+                print(f"{time.time()-t0:7.3f}  {rest.hex(' ')}", flush=True)
+            # packets are packed: 8-byte timestamp, 2-byte length, data. Padding each to
+            # 4 bytes (as MIDIPacketNext does on x86) ran off the list after the first
+            # packet on an arm64 Mac, 19 Oct 2026, and the rest of the burst printed nothing.
+            p += 10 + length
     proc = READPROC(cb)
     cm.MIDIInputPortCreate(client, cfstr("in"), proc, None, ctypes.byref(inport))
-    m = [ep for n, ep in endpoints("src") if n == port_name]
-    if not m:
+    src = find("src", port_name)
+    if src is None:
         sys.exit(f"no MIDI source named {port_name!r}")
-    cm.MIDIPortConnectSource(inport, m[0], None)
+    cm.MIDIPortConnectSource(inport, src, None)
     cf.CFRunLoopRunInMode.argtypes = [ctypes.c_void_p, ctypes.c_double, ctypes.c_bool]
     mode = cfstr("kCFRunLoopDefaultMode")
     while time.time() - t0 < seconds:
         cf.CFRunLoopRunInMode(mode, 0.1, False)
+    print(f"not printed: {skipped[0xF8]} clock (F8), {skipped[0xFE]} active sensing (FE)")
 
 
 def cfstr(s):
@@ -86,11 +107,10 @@ class Out:
         self.client = ctypes.c_uint32(); self.port = ctypes.c_uint32()
         cm.MIDIClientCreate(cfstr("octabam"), None, None, ctypes.byref(self.client))
         cm.MIDIOutputPortCreate(self.client, cfstr("out"), ctypes.byref(self.port))
-        m = [ep for n, ep in endpoints("dst") if n == port_name]
-        if not m:
+        self.dest = find("dst", port_name)
+        if self.dest is None:
             sys.exit(f"no MIDI destination named {port_name!r}; have "
                      f"{[n for n, _ in endpoints('dst')]}")
-        self.dest = m[0]
 
     def send(self, data):
         buf = ctypes.create_string_buffer(1024)
