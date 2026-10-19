@@ -154,7 +154,7 @@ def check_create(image: pathlib.Path, card: pathlib.Path, set_name: str,
 
 
 def check_saveas_choose(image: pathlib.Path, card: pathlib.Path,
-                        set_name: str, project: str) -> None:
+                        set_name: str, project: str, export_row: int = 5) -> None:
     """SAVE PROJECT AS and CHOOSE NEW PROJECT NAME under MenuPort."""
     sys.path.insert(0, str(ROOT / "tools" / "verify"))
     sys.path.insert(0, str(ROOT / "tools" / "panel"))
@@ -165,7 +165,8 @@ def check_saveas_choose(image: pathlib.Path, card: pathlib.Path,
 
     def menu_proj_row(p, row: int) -> None:
         # Selectable PROJECT rows skip separators: CHANGE=0 … SAVE TO NEW=4,
-        # EXPORT TO SET=5 (capture_copy_project / MAINMENU.md).
+        # EXPORT TO SET=5 (capture_copy_project / MAINMENU.md); COPY PROJECT,
+        # when the remix has it, sits at 5 and pushes EXPORT TO SET to 6.
         if popup_geometry(p.rt.uc) != (5, 0, 0xf6, 0x40):
             p.open_menu()
         p.press("left", settle=80)
@@ -214,7 +215,7 @@ def check_saveas_choose(image: pathlib.Path, card: pathlib.Path,
             p.press("no", settle=300)
 
         # EXPORT TO SET -> YES -> YES -> CHOOSE NEW PROJECT NAME
-        menu_proj_row(p, 5)
+        menu_proj_row(p, export_row)
         p.run(600)
         for step in range(4):
             p.press("yes", settle=400)
@@ -290,7 +291,8 @@ def main() -> int:
         sys.exit(f"verify_rnd_name: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
 
     check_create(image, card, a.set_name, a.name)
-    check_saveas_choose(image, card, a.set_name, a.name)
+    check_saveas_choose(image, card, a.set_name, a.name,
+                        export_row=6 if "COPY PROJECT" in remix.modules else 5)
     return 0
 
 
