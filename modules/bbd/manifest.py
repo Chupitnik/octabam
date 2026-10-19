@@ -10,9 +10,10 @@ governed by LIM; FRZ fades the input and sustains the loop, 127 loops the line; 
 20..400 Hz high-pass on the input (0 off).
 Free-running TIME: the DSP side has no tempo word.
 
-Reads the allocator at init (x:>$213) and uses the first 4,095 words of an
-FX2 slot's 16,384-word Y buffer for the ring and base + $2000.. for the
-filter coefficients; an FX1 slot (3,072 words) is too small, so FX2 only.
+Reads the allocator at init (x:>$213) and uses 8,250 words of an FX2 slot's
+16,384-word Y buffer: the ring at base + $0000..$0FFF, the filter
+coefficients at base + $2000..$2039 (README, "Memory"); an FX1 slot (3,072
+words) is too small, so FX2 only.
 State lives in r7 + $00..$5a. bbd_ref.py is the float model the DSP is
 proven against (tools/verify/verify_bbd.py).
 
@@ -59,7 +60,7 @@ MODULE = Module(
     dsp=DspSection(asm="modules/bbd/bbd.asm", priority=16,
                    bus_role=BusRole.NONE, ybase=YBase.NEVER,
                    r7_latch_slot=None, gate_label=None),
-    claims=Claims(stock_instance_buffer=True, buffer_words=16384),
+    claims=Claims(stock_instance_buffer=True, buffer_words=0x203A),   # 8,250: up to the FREQ bandpass at +$2039
     linked=(Linked("bbd_kill", "modules/bbd/kill.s", defsyms=(("BBD_ID", FX2_ID),)),),
     detours=(Detour(0x40004d0c, bytes.fromhex("302a00380680ffffffec"), "bbd_kill", "bbd_kill",
                     "the stop kill's reverb test: BBD's id too, slot 11 only", pad_to=10),),

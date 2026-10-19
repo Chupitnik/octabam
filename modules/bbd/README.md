@@ -144,9 +144,25 @@ built by Modwerk's builder (derived from octabam) with BBD at FX2 id `0x0e`.
 
 ## Limits
 
-- FX2 only: the line needs the 16,384-word FX2 buffer
-  (`Claims(stock_instance_buffer=True)`); an FX1 slot (3,072 words) is too
-  small.
+- FX2 only: BBD needs 8,250 words of the FX2 slot's Y buffer
+  (`Claims(stock_instance_buffer=True, buffer_words=0x203A)`); an FX1 slot
+  (3,072 words) is too small.
+
+## Memory
+
+BBD's Y words, as offsets from the slot's buffer base (read from the
+allocator at init):
+
+| Offset | What |
+| --- | --- |
+| `+$0000..$0FFF` | The bucket ring: 1,022 or 4,094 words (STGS); a STGS change, a reset or the stop kill zeroes all 4,096, 256 a call. |
+| `+$2000..$202A` | The nine clock filter sections' coefficients, halved (five words a biquad, three for the real pole). |
+| `+$2030..$2034` | HPF's section. |
+| `+$2035..$2039` | FREQ's bandpass. |
+
+Nothing above `+$2039` is read or written, so `buffer_words` is `0x203A`
+(8,250) and the rest of the slot, up to SIDECHAIN_COMPRESSOR's window from
+`+$3DFE`, stays free. State is in X at `r7 + $00..$5a`.
 - Mono wet; the dry stays stereo.
 - Free-running TIME: the DSP side has no tempo word. Deliberate: TIME is the
   bucket clock, and gliding it is what bends the pitch.
