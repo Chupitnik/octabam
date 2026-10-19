@@ -181,10 +181,10 @@ def capture_bus(p,r):
     for track,key,box,last in ((1,'DELAY SERVER','DELAY',5),(5,'REVERB SERVER','REVERB',9)):
         m=registry.modules()[key]
         press(p,f't{track}');press(p,'pg_fx2')
-        shot(p,m.name,'main',f'{key} on track {track}: the FX2 page (DEL and REV).',r)
+        shot(p,m.name,'fx2',f'{key} on track {track}: the FX2 page (DEL and REV).',r)
         press(p,'tempo')
         if box=='REVERB':press(p,'right')
-        shot(p,m.name,'tempo-top',f'{key}: the {box} box in the TEMPO window, first rows.',r)
+        shot(p,m.name,'main',f'{key}: the {box} box in the TEMPO window, first rows.',r)
         press(p,'down',last)
         shot(p,m.name,'tempo-bottom',f'{key}: the {box} box in the TEMPO window, last rows.',r)
         close(p)

@@ -1,6 +1,6 @@
 # Octabam Bus
 
-![Bus Delay, the bus effect on FX1](img/busdelay/main.png)
+![Delay Server: the DELAY box in the TEMPO window](img/busdelay/main.png)
 
 *Bus Delay, the bus effect on FX1*
 
