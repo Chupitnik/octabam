@@ -118,7 +118,7 @@ def capture_core(p,r):
 
 def capture_features(p,r):
     p.chord('t1','page')
-    shot(p,'euclid-fill','fill','Euclidean trig fill: pattern length, pulses, and rotation.',r)
+    shot(p,'euclid-fill','fill','Euclidean trig fill: STEPS, PULSE, ROT, RAND VEL, RAND PTCH.',r)
     close(p)
     p.chord('func','recab');enc(p,3,12);close(p)
     p.chord('func','recab')
@@ -133,6 +133,18 @@ def capture_features(p,r):
     p.open_menu();press(p,'left');press(p,'up',5);press(p,'yes',2);p.run(3000);press(p,'up');press(p,'yes');p.run(3000)
     p.chord('func','cue')
     shot(p,'rnd-name','name','Random project name after FUNC + CUE.',r)
+
+
+def capture_buffer_saver(p,r):
+    # TRIG to HOLD in RECORDING SETUP 1 (two steps of encoder D), a one-second
+    # take on track 1 (TRACK 1 + REC AB held), then FUNC + PROJ: the module asks
+    # before stock's SAVE runs.
+    p.chord('func','recab');enc(p,3,8);close(p)
+    p.key('t1',True);p.run(60);p.key('recab',True);p.run(1000)
+    p.key('recab',False);p.run(60);p.key('t1',False);p.run(3000)
+    p.chord('func','proj');p.run(3000)
+    shot(p,'buffer-saver','ask','After a take, SAVE PROJECT asks SAVE SAMPLES? first.',r)
+    close(p)
 
 
 def capture_fx(p,r,assignments):
@@ -239,7 +251,7 @@ def prepare(remix,project,assignments):
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('groups',nargs='+',choices=['core','features','inserts','bus','extras','machines','probes'])
+    ap.add_argument('groups',nargs='+',choices=['core','features','inserts','bus','extras','machines','probes','utilities'])
     cfg=Path.home()/'.octabam_project'
     ap.add_argument('--project',default=os.environ.get('OT_PROJECT') or (cfg.read_text().strip() if cfg.is_file() else ''))
     a=ap.parse_args();OUT.mkdir(parents=True,exist_ok=True)
@@ -257,6 +269,7 @@ def main():
         elif group=='bus':jobs=[('octabam-bus',capture_bus,[])]
         elif group=='machines':jobs=[('analog-bassdrum',capture_analog,[]),('octatrick',capture_synth,[])]
         elif group=='probes':jobs=[('cfmeter',capture_fx,[(8,'fx2','CF METER')])]
+        elif group=='utilities':jobs=[('buffer-saver',capture_buffer_saver,[])]
         else:
             jobs=[(r,capture_fx,[(2,'fx1' if r in ('character-txtr','testgen') else 'fx2',k)]) for r,k in [('character-txtr','CHARACTER TXTR'),('testgen','TESTGEN'),('sidechain-compressor','SIDECHAIN_COMPRESSOR'),('miniverb','MINIVERB'),('tapeecho','TAPE ECHO'),('vocoder','VOCODER'),('wave','WAVE')]]
         for remix,fn,assignments in jobs:
