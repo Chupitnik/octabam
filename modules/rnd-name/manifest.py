@@ -19,9 +19,11 @@ MODULE = Module(
     kind=Kind.CF_PATCH,
     category=Category.UTILITIES,
     author="iliamurzinov",
-    author_url="https://github.com/iliamurzinov",
+    author_url="https://github.com/ilia-murzinov",
     proof=Proof.HARDWARE,
-    proof_note="cursory testing on Sam's MKII (owner report, 16 Oct 2026); " "FUNC+CUE on CREATE under the port (verify_rnd_name); pools from unit",
+    proof_note="cursory testing on Sam's MKII (owner report, 16 Oct 2026); "
+    "FUNC+CUE on CREATE / SAVE PROJECT AS / CHOOSE NEW PROJECT NAME under "
+    "the port (verify_rnd_name); pools from unit",
     doc="Project name editors: FUNC+CUE fills YYMMDD + random pool name.",
     linked=(Linked("rnd", "modules/rnd-name/rnd.s", dram=True),),
     symbol_refs=(

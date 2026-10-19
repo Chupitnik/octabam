@@ -22,18 +22,19 @@ follows the editor’s `ED_MAX`. Entropy: LCG seeded from tempo/clock words.
 
 ## Measured / inferred
 
-- **Measured (port):** FUNC+CUE on CREATE EMPTY PROJECT under `ot_emu`
-  (`verify_rnd_name`, `--rtc` pinned) writes `YYMMDD ` + a pool join and a
-  second chord changes the words. Name-editor FUNC keys pointer leaves
-  stock `0x400d0916` for DRAM `rnd_func_keys`.
+- **Measured (port):** FUNC+CUE under `ot_emu` (`verify_rnd_name`, `--rtc`
+  pinned) writes `YYMMDD ` + a pool join on CREATE EMPTY PROJECT, SAVE
+  PROJECT AS… (PROJECT → SAVE TO NEW), and CHOOSE NEW PROJECT NAME
+  (PROJECT → EXPORT TO SET → YES → YES). A second chord on CREATE changes
+  the words. Each fill fits that editor’s `ED_MAX`. Name-editor FUNC keys
+  pointer leaves stock `0x400d0916` for DRAM `rnd_func_keys`.
 - **Measured (stock image):** create seeds `PROJECT ` + `DDMMYY` via
   `0x40081b30`; editor opens and callback sites for sample / save-as /
   dir / set from pea's into `0x4007e664`.
 - **Inferred:** KITS SAVE KIT is any name-editor callback in the DRAM
   arena (`0x40a00000..0x4f000000`); falsifier: another DRAM module opens
   this editor with a different done-cb and gets an unwanted fill.
-- **Not gated under the port:** sample / save-as / dir / set / kits chord
-  paths (create-only in `verify_rnd_name`).
+- **Not gated under the port:** sample / new dir / set / kits chord paths.
 
 ## Remix
 

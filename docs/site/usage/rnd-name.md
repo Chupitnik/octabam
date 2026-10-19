@@ -21,5 +21,6 @@ build the test remix `rnd-name`.
 - Stock still seeds a new project's name with `PROJECT DDMMYY` until the
   chord runs. The date comes from the clock chip.
 - Pressing the chord again changes the words.
-- Measured on the port: the chord on CREATE EMPTY PROJECT. The sample,
-  save-as, directory, set and Kit paths are not gated under the port.
+- Measured on the port: FUNC+CUE on CREATE, SAVE PROJECT AS, and CHOOSE
+  NEW PROJECT NAME (`verify_rnd_name`). Sample, directory, set and Kit
+  paths are not gated under the port.
