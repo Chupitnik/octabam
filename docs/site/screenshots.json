@@ -65,10 +65,17 @@
   "plocks-p2": {
     "lock": {
       "image": "plocks-p2/lock.png",
-      "caption": "FX2 setup page with trig 1 held for parameter locking.",
+      "caption": "Trig 1 held: GVOL is locked to 50 with the value area highlighted.",
       "remix": "octabam-core",
       "source": "emulator panel UART",
-      "firmware_sha256": "f87679c92ddc36c09728279a8940f51f0c6d86cbce5b1c42b3c6dc39da1c0ca0"
+      "firmware_sha256": "2e797bc5a1d85480ea6243361e4be01f7fb3f83e67e94a64067f3d47afab97a9"
+    },
+    "released": {
+      "image": "plocks-p2/released.png",
+      "caption": "Trig released: GVOL shows the Part value 20; the step keeps its lock.",
+      "remix": "octabam-core",
+      "source": "emulator panel UART",
+      "firmware_sha256": "2e797bc5a1d85480ea6243361e4be01f7fb3f83e67e94a64067f3d47afab97a9"
     }
   },
   "direct-jump-kyoti": {
@@ -92,10 +99,10 @@
   "euclid-fill": {
     "fill": {
       "image": "euclid-fill/fill.png",
-      "caption": "Euclidean trig fill: pattern length, pulses, and rotation.",
+      "caption": "Euclidean trig fill: STEPS, PULSE, ROT, RAND VEL, RAND PTCH.",
       "remix": "manual-features",
       "source": "emulator panel UART",
-      "firmware_sha256": "64122fb623b81885b532e646b06ea81ab72ecab3db0a0130c1cf640bfabae750"
+      "firmware_sha256": "4fe378bc54b94d9789d8774e36be693088cb129c78f4d7ae298ee26d2dd7db71"
     }
   },
   "rec-threshold": {
@@ -446,14 +453,14 @@
       "caption": "Vocoder: main parameter page.",
       "remix": "vocoder",
       "source": "emulator panel UART",
-      "firmware_sha256": "b986795e0719c94680cfdcc3f8f4371bf844fd9fe6719863a10fb1b74f8778b5"
+      "firmware_sha256": "ef7031498307f77c34f0eaa48d1fd88a87a70c61790eb4e191f342c615431aaf"
     },
     "setup": {
       "image": "vocoder/setup.png",
       "caption": "Vocoder: effect selection and setup parameters.",
       "remix": "vocoder",
       "source": "emulator panel UART",
-      "firmware_sha256": "b986795e0719c94680cfdcc3f8f4371bf844fd9fe6719863a10fb1b74f8778b5"
+      "firmware_sha256": "ef7031498307f77c34f0eaa48d1fd88a87a70c61790eb4e191f342c615431aaf"
     }
   },
   "wave": {
@@ -605,6 +612,45 @@
       "remix": "cfmeter",
       "source": "emulator panel UART",
       "firmware_sha256": "a9f09d312cdb9d74f00fb000cc28442b6621e9523936de425960de6339eb7e1a"
+    }
+  },
+  "buffer-saver": {
+    "ask": {
+      "image": "buffer-saver/ask.png",
+      "caption": "After a take, SAVE PROJECT asks SAVE SAMPLES? first.",
+      "remix": "buffer-saver",
+      "source": "emulator panel UART",
+      "firmware_sha256": "54fcab1dea475054acfe455ac69a65ec37ac6abd0096fe67e28d692f9a6454c3"
+    }
+  },
+  "midi-scales": {
+    "key-off": {
+      "image": "midi-scales/key-off.png",
+      "caption": "MIDI ARP SETUP: KEY OFF bypasses scale correction.",
+      "remix": "midi-scales",
+      "source": "emulator panel UART",
+      "firmware_sha256": "d3a2476762978a946d1733c2f153ea23ab67b81ee40017d0349e2cbc65a3edcf"
+    },
+    "c-major": {
+      "image": "midi-scales/c-major.png",
+      "caption": "MIDI ARP SETUP: C Major selected with encoder F.",
+      "remix": "midi-scales",
+      "source": "emulator panel UART",
+      "firmware_sha256": "d3a2476762978a946d1733c2f153ea23ab67b81ee40017d0349e2cbc65a3edcf"
+    },
+    "c-dorian": {
+      "image": "midi-scales/c-dorian.png",
+      "caption": "MIDI ARP SETUP: C Dorian selected with encoder F.",
+      "remix": "midi-scales",
+      "source": "emulator panel UART",
+      "firmware_sha256": "d3a2476762978a946d1733c2f153ea23ab67b81ee40017d0349e2cbc65a3edcf"
+    },
+    "c-mixolydian": {
+      "image": "midi-scales/c-mixolydian.png",
+      "caption": "MIDI ARP SETUP: C Mixolydian selected with encoder F.",
+      "remix": "midi-scales",
+      "source": "emulator panel UART",
+      "firmware_sha256": "d3a2476762978a946d1733c2f153ea23ab67b81ee40017d0349e2cbc65a3edcf"
     }
   },
   "midi-loopback": {

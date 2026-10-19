@@ -116,9 +116,25 @@ def capture_core(p,r):
     shot(p,'reload-from-project','status','Track 1 sequence reload from the saved project.',r)
 
 
+def capture_plocks(p,r):
+    """PLATE REV slot A: a held lock and the normal Part value on release."""
+    press(p,'t1');p.press('pg_fx2',hold=180,settle=180)
+    if not setup_window_open(p.rt.uc):
+        p.press('pg_fx2',hold=30,settle=30)
+        p.press('pg_fx2',hold=180,settle=180)
+    assert setup_window_open(p.rt.uc), 'PLOCKS capture did not reach FX2 SETUP'
+    # Establish a visible Part value through the encoder, regardless of defaults.
+    enc(p,0,-127);enc(p,0,20)
+    press(p,'rec');press(p,'trig1')
+    p.key('trig1',True);p.run(180);enc(p,0,30)
+    shot(p,'plocks-p2','lock','Trig 1 held: GVOL is locked to 50 with the value area highlighted.',r)
+    p.key('trig1',False);p.run(350)
+    shot(p,'plocks-p2','released','Trig released: GVOL shows the Part value 20; the step keeps its lock.',r)
+
+
 def capture_features(p,r):
     p.chord('t1','page')
-    shot(p,'euclid-fill','fill','Euclidean trig fill: pattern length, pulses, and rotation.',r)
+    shot(p,'euclid-fill','fill','Euclidean trig fill: STEPS, PULSE, ROT, RAND VEL, RAND PTCH.',r)
     close(p)
     p.chord('func','recab');enc(p,3,12);close(p)
     p.chord('func','recab')
@@ -133,6 +149,18 @@ def capture_features(p,r):
     p.open_menu();press(p,'left');press(p,'up',5);press(p,'yes',2);p.run(3000);press(p,'up');press(p,'yes');p.run(3000)
     p.chord('func','cue')
     shot(p,'rnd-name','name','Random project name after FUNC + CUE.',r)
+
+
+def capture_buffer_saver(p,r):
+    # TRIG to HOLD in RECORDING SETUP 1 (two steps of encoder D), a one-second
+    # take on track 1 (TRACK 1 + REC AB held), then FUNC + PROJ: the module asks
+    # before stock's SAVE runs.
+    p.chord('func','recab');enc(p,3,8);close(p)
+    p.key('t1',True);p.run(60);p.key('recab',True);p.run(1000)
+    p.key('recab',False);p.run(60);p.key('t1',False);p.run(3000)
+    p.chord('func','proj');p.run(3000)
+    shot(p,'buffer-saver','ask','After a take, SAVE PROJECT asks SAVE SAMPLES? first.',r)
+    close(p)
 
 
 def capture_fx(p,r,assignments):
@@ -211,6 +239,19 @@ def capture_midi_loopback(p,r):
     shot(p,'midi-loopback','channel-both','MIDI NOTE SETUP: CHAN 1B indicates both destinations.',r)
 
 
+def capture_midi_scales(p,r):
+    # Sample-free fixture starts in audio mode with MIDI KEY OFF.
+    press(p,'midi');press(p,'t1');p.chord('func','pg_amp')
+    shot(p,'midi-scales','key-off','MIDI ARP SETUP: KEY OFF bypasses scale correction.',r)
+    press_encoder(p,5)
+    enc(p,5,4)
+    shot(p,'midi-scales','c-major','MIDI ARP SETUP: C Major selected with encoder F.',r)
+    enc(p,5,4)
+    shot(p,'midi-scales','c-dorian','MIDI ARP SETUP: C Dorian selected with encoder F.',r)
+    for _ in range(3): enc(p,5,4)
+    shot(p,'midi-scales','c-mixolydian','MIDI ARP SETUP: C Mixolydian selected with encoder F.',r)
+
+
 def prepare(remix,project,assignments):
     label='manual-features' if remix.startswith('../') else remix
     work=OUT/label;work.mkdir(parents=True,exist_ok=True)
@@ -261,7 +302,7 @@ def prepare(remix,project,assignments):
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('groups',nargs='+',choices=['core','features','inserts','bus','extras','machines','probes','midi-loopback'])
+    ap.add_argument('groups',nargs='+',choices=['core','plocks','features','inserts','bus','extras','machines','probes','midi-scales','midi-loopback','utilities'])
     cfg=Path.home()/'.octabam_project'
     ap.add_argument('--project',default=os.environ.get('OT_PROJECT') or (cfg.read_text().strip() if cfg.is_file() else ''))
     a=ap.parse_args();OUT.mkdir(parents=True,exist_ok=True)
@@ -269,6 +310,8 @@ def main():
         assignments=[]
         if group=='core': jobs=[('octabam-core',capture_core,[])]
         elif group=='midi-loopback':jobs=[('midi-loopback',capture_midi_loopback,[])]
+        elif group=='plocks': jobs=[('octabam-core',capture_plocks,[(1,'fx2','PLATE REV')])]
+        elif group=='midi-scales':jobs=[('midi-scales',capture_midi_scales,[])]
         elif group=='features':
             # A scratch selection: THR and REC_TRIG_MUTE share a hook and cannot coexist.
             scratch=OUT/'features.py'
@@ -280,6 +323,7 @@ def main():
         elif group=='bus':jobs=[('octabam-bus',capture_bus,[])]
         elif group=='machines':jobs=[('analog-bassdrum',capture_analog,[]),('octatrick',capture_synth,[])]
         elif group=='probes':jobs=[('cfmeter',capture_fx,[(8,'fx2','CF METER')])]
+        elif group=='utilities':jobs=[('buffer-saver',capture_buffer_saver,[])]
         else:
             jobs=[(r,capture_fx,[(2,'fx1' if r in ('character-txtr','testgen') else 'fx2',k)]) for r,k in [('character-txtr','CHARACTER TXTR'),('testgen','TESTGEN'),('sidechain-compressor','SIDECHAIN_COMPRESSOR'),('miniverb','MINIVERB'),('tapeecho','TAPE ECHO'),('vocoder','VOCODER'),('wave','WAVE')]]
         for remix,fn,assignments in jobs:

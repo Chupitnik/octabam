@@ -53,13 +53,16 @@ Groups and what each captures, from the `shot(...)` calls:
 | group | remix built | modules shot |
 |---|---|---|
 | `core` | `octabam-core` | rec-trig-mute, quantize-live-rec-toggle, mute-modes, quantizer, rlen-plen, midi-scenes, scenes-p2, plocks-p2, direct-jump-kyoti, reload-from-project |
+| `plocks` | `octabam-core`, PLATE REV on track 1 | plocks-p2 held lock and released Part value; use a disposable project with trig 1 empty |
 | `features` | `octabam-core` with REC THRESHOLD, EUCLID FILL, RND NAME and STEM REC added and REC TRIG MUTE removed (a scratch selection; THR and REC_TRIG_MUTE share a hook) | euclid-fill, rec-threshold, stems, rnd-name |
 | `inserts` | `octabam-inserts`, one effect per track | setup and main pages of SPECTRUM, CHARACTER, MODULATION, TRANSIENT, EUCLID, LOFI2, GATE VERB, DELAY |
 | `bus` | `octabam-bus` | fx2-lock, tempo-bus, load-meter, memory, usb, and the DELAY SERVER, SEND and REVERB SERVER pages |
 | `extras` | one test remix per module (character-txtr, testgen, sidechain-compressor, miniverb, tapeecho, vocoder, wave) | setup and main page of each |
 | `machines` | `analog-bassdrum`, `octatrick` | analog-bassdrum, synth, direct-jump |
 | `midi-loopback` | `midi-loopback` | midi-loopback (EXT/INT/BOTH windows and CHAN indicators) |
+| `midi-scales` | `midi-scales` | midi-scales (OFF, Major, Dorian, Mixolydian) |
 | `probes` | `cfmeter` | CF METER |
+| `utilities` | `buffer-saver` | buffer-saver (a one-second take, then FUNC + PROJ: the SAVE SAMPLES? question) |
 
 The project is `--project`, `OT_PROJECT`, or the path in
 `~/.octabam_project`. The tool copies it to `out/manual-captures/<remix>/project`
@@ -124,3 +127,6 @@ Name the groups, project and remix in the PR body.
 
 The `midi-loopback` group uses a sample-free fixture starting on audio track 1,
 with MIDI channel 1 and routing EXT. Pass that local fixture with `--project`.
+
+The `midi-scales` group uses a sample-free fixture starting on audio track 1,
+with MIDI KEY OFF. Pass that local fixture with `--project`.

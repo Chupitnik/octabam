@@ -74,6 +74,7 @@ nav:
       - Page 2 Scene Locks: reference/modules/scenes-p2.md
   - MIDI and USB:
       - MIDI Loopback: reference/modules/midi-loopback.md
+      - MIDI Scales: reference/modules/midi-scales.md
       - USB: reference/modules/usb.md
       - CC Map: reference/modules/cc-map.md
       - CC Feedback: reference/modules/cc-feedback.md
@@ -82,6 +83,7 @@ nav:
       - Memory: reference/modules/memory.md
       - Store: reference/modules/store.md
   - Utilities:
+      - Buffer Saver: reference/modules/buffer-saver.md
       - Random Naming: reference/modules/rnd-name.md
       - Reload from Project: reference/modules/reload-from-project.md
       - Remix Switch: reference/modules/remix-switch.md

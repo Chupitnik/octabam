@@ -207,6 +207,9 @@ WORDS: dict[str, int] = {}
 # and knobs were at the stamped project's values. The extents match fixed
 # buffer sizes (2,048, 3,072, 4,096 words), not a sweep that stopped.
 # SLOT_EXTENT[key] = highest offset written (0 = base word).
+# SIDECHAIN_COMPRESSOR's cross-core window is the last 0x202 words of the T3 and
+# T7 slots (0x33dfe, 0x3bdfe): an effect that fills its slot must stop at
+# +0x3DFD (buffer_words <= 15,870) to sit beside it; ledger.py refuses the rest.
 SLOT_EXTENT: dict[str, int] = {
     "FLANGER": 0x7FF, "CHORUS": 0xBFD, "SPATIALIZER": 0xA5F, "COMB FILTER": 0xBFF,
     "PLATE REV": 0x37FF, "SPRING REV": 0xFFF, "DARK REV": 0x3DA2,
