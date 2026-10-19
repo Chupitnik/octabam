@@ -41,7 +41,7 @@ class ByGate(unittest.TestCase):
 
     def test_module_gates_are_one_job_each(self):
         names = [j[0] for j in self.jobs()]
-        self.assertIn("gate:verify_scenesp2", names)
+        self.assertIn("scenes-p2", names)
         self.assertEqual(len(names), len(set(names)))
 
     def test_every_job_carries_the_remix(self):

@@ -149,7 +149,7 @@ build number and which of the three were checked are not recorded.
   USB run at another rate. That the time stretch, LFOs and FX read this
   tempo is inferred.
 - `usbmidi_rx_decode` now does the ISR's five instructions for each `0xF8`
-  before it is enqueued. `verify_usbmidi_clock`: two USB runs at 50 and
+  before it is enqueued. `verify_usb_midi_clock`: two USB runs at 50 and
   40 ms per tick read 1200 and 1498 (want 1200 and 1501); before the change
   both read 2400, the DIN run's tempo.
 - DTIN0's clock is inferred: the handler's constant gives BPM × 24 only for
@@ -171,7 +171,7 @@ Read from `usbmidi.s`: `usbmidi_up` is set at SET_CONFIGURATION and never
 cleared, and `usbmidi_tx_busy` is cleared only by an EP2 IN completion or by
 SET_CONFIGURATION. The unit is mains powered, so both outlive a cable pull.
 
-Under the port (`verify_usbmidi_replug`, the `usb-midi` remix; `ot_emu`'s
+Under the port (`verify_usb_midi_replug`, the `usb-midi` remix; `ot_emu`'s
 new `plug` command brings the session back after `unplug`), on this module
 before the change:
 
@@ -198,7 +198,7 @@ while ENDPTSTAT shows a bit, every wait bounded), both overlay tokens
 cleared, any EP2 completion dropped. The two sites are USB AUDIO's too:
 with an output stream its `audio_reset_shim` and
 `audio_sessend_shim` override these detours and call `usbmidi_rx_bus_end`.
-After the change all 21 of `verify_usbmidi_replug`'s checks pass (five fail
+After the change all 21 of `verify_usb_midi_replug`'s checks pass (five fail
 before).
 
 On a unit (Ignorato's MKII, 9 Oct 2026, image OCTABAM21 = the OCTABAM14
@@ -245,7 +245,7 @@ The `usb-midi` remix (this module on the stock effects) has not been flashed.
 - `verify_usbmidi_rx` (image stage): the four packets of "Receive path",
   parsed bytes compared with sent bytes, and each packet accepted whole by
   the dTD. Five of its nine checks fail on the code before this change.
-- `verify_usbmidi_replug` (image stage): the first connection, four cable
+- `verify_usb_midi_replug` (image stage): the first connection, four cable
   pulls (two with a clock transfer in flight, two idle), each followed by
   `plug`, a reset and an enumeration, and a bus reset with the cable in; a
   note-on and a clock byte must arrive on EP2 IN after each, nothing queued
@@ -253,7 +253,7 @@ The `usb-midi` remix (this module on the stock effects) has not been flashed.
   session end and the next SET_CONFIGURATION, and EP2 OUT must still
   deliver. Five of its checks fail on the code before the bus-reset and
   session-end shims.
-- `verify_usbmidi_clock` (image stage): DIN clock, then USB clock at two
+- `verify_usb_midi_clock` (image stage): DIN clock, then USB clock at two
   other rates, under `--interactive` with each byte handed over at a known
   sample; `0x80001818` within 1% of the tick spacing's BPM × 24 after each
   run. Both USB checks fail without the timestamp.

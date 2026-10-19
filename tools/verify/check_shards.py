@@ -282,13 +282,13 @@ def remix_jobs(remix_name, shard):
         return (name, cmds, env, set(scripts))
     jobs = [
         job("cycles", [["make", "cycles", f"REMIX={remix_name}"]]),
-        job("dirtystate", [[py, f"{V}/verify_dirtystate.py", remix_name]], f"{V}/verify_dirtystate.py"),
-        job("initregs", [[py, f"{V}/verify_initregs.py", remix_name]], f"{V}/verify_initregs.py"),
-        job("dram_boot", [[py, f"{V}/verify_dram_boot.py"]], f"{V}/verify_dram_boot.py"),
+        job("dirty-state", [[py, f"{V}/verify_dirty_state.py", remix_name]], f"{V}/verify_dirty_state.py"),
+        job("init-regs", [[py, f"{V}/verify_init_regs.py", remix_name]], f"{V}/verify_init_regs.py"),
+        job("dram-boot", [[py, f"{V}/verify_dram_boot.py"]], f"{V}/verify_dram_boot.py"),
     ]
-    for name in ("labels", "modenames", "hidden"):
+    for name in ("labels", "mode_names", "hidden"):
         # as the Makefile: SKIP without the .venv, and the job still stands for the script
-        jobs.append(job(name, [[str(venv), f"{V}/verify_{name}.py", remix_name]] if has_venv
+        jobs.append(job(name.replace("_", "-"), [[str(venv), f"{V}/verify_{name}.py", remix_name]] if has_venv
                         else [["echo", f"  [SKIP] {name}: no .venv (make emu-setup)"]], f"{V}/verify_{name}.py"))
     remix = registry.remix(remix_name)
     # once=False: a once-per-run gate runs in the shared half (module_gates
@@ -308,7 +308,7 @@ def remix_jobs(remix_name, shard):
         cmd = module_gates.command(g, remix_name, root=ROOT)
         cmd[0] = cmd[0] if g.venv else PY
         cmd[1] = str(g.script)
-        jobs.append(job(f"gate:{pathlib.Path(g.script).stem}", [cmd], f"{V}/module_gates.py"))
+        jobs.append(job(pathlib.Path(g.script).stem.removeprefix("verify_").replace("_", "-"), [cmd], f"{V}/module_gates.py"))
     jobs.append(job("menu", [[py, f"{V}/verify_menu.py"], [py, f"{V}/verify_replaces.py", "--image", remix_name]],
                     f"{V}/verify_menu.py", f"{V}/verify_replaces.py"))
     jobs.append(job("set", [[py, f"{V}/verify_set.py", remix_name]], f"{V}/verify_set.py"))

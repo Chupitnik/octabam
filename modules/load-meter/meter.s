@@ -35,7 +35,7 @@ lm_out:
         sub.l   lm_t0,%d0                       | this interrupt's duration
         add.l   %d0,lm_sum
         addq.l  #1,lm_cnt
-        addq.l  #1,lm_irqs                      | every frame interrupt, for verify_loadmeter
+        addq.l  #1,lm_irqs                      | every frame interrupt, for verify_load_meter
         cmp.l   lm_max,%d0
         bls.s   1f
         move.l  %d0,lm_max
@@ -79,7 +79,7 @@ lm_out:
 lm_scrub:
         lea     %sp@(-24),%sp
         movem.l %d0-%d3/%a0-%a1,%sp@
-        addq.l  #1,lm_scrubs                    | every pass, for verify_loadmeter
+        addq.l  #1,lm_scrubs                    | every pass, for verify_load_meter
         lea     MAIN_LO,%a0
         lea     lm_raw,%a1
         moveq   #22,%d1                         | bytes 0..22: the meter record, then OTOP's
@@ -246,7 +246,7 @@ lm_irqs: .long  0                               | frame interrupts (lm_out)
 | core 0 busy, core 1 busy, records: summed since the reset. The port's
 | timer moves in 1,024-count steps (the vendored emulator updates timers
 | every 2,048 instructions), so one frame's busy cannot resolve a small
-| change; the mean over many frames can (verify_loadmeter calibrate)
+| change; the mean over many frames can (verify_load_meter calibrate)
 lm_dsum: .long  0, 0, 0
 lm_raw: .space  24
         .balign 4

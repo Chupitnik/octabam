@@ -56,8 +56,8 @@ HOW A PATH IS PLACED (28 Sep 2026; before, by directory):
                               with remix_arg=False)
                                 -> make check-shared once (for the cover) / its owners
                               a gate of the PER-REMIX half (the verify-remix
-                              recipe: dirtystate, initregs, dram_boot, labels,
-                              modenames, hidden, menu, set, usb)
+                              recipe: dirty-state, init-regs, dram-boot, labels,
+                              mode-names, hidden, menu, set, usb)
                                 -> make check-remix for the cover
                               a manifest gate with remix_arg=True
                                 -> make check-remix for its owners' remixes

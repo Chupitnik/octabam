@@ -99,7 +99,7 @@ anyway, unless the default can name it.
 | leg | cost | how |
 |---|---|---|
 | the chainload itself (gate, hash over the stage, copy, entry) | ✅ the staged image's entry runs ~190 ms after the flashed image's | the unit, build 14 (`modules/remix-switch/README.md`); build 4 reported 103 ms for a 1.1 MB stage |
-| the hash over 1.1 MB | ✅ ~8.9 M instructions | the port, `verify_remixswitch` chain case |
+| the hash over 1.1 MB | ✅ ~8.9 M instructions | the port, `verify_remix_switch` chain case |
 | both DSP uploads after the switch | ✅ ~60 ms, final echo 3 on each core | the unit, build 14 |
 | power-on → a point where the card is mounted, in the flashed image | ❓ | BOOT TRACE (`modules/boot-trace`) note at the candidate hook, timed on the Mac against note 1 at the gate |
 | reading a 1.1–1.2 MB `.OBI` off the card | ❓ | the same trace, note before and after `osw_load`'s read loop (`switch.s:666-686`) |
@@ -313,7 +313,7 @@ What it needs:
   `0x4006d57c` — which is exactly the shape of the retired first prototype
   (`FIRMWARE_SWITCHER.md` section 3, "❌ a seventh CONTROL row with a
   one-file-at-a-time dialog"), and needs no menu at all. What would answer
-  it: drive both under the port with `verify_remixswitch`'s `--live-script`
+  it: drive both under the port with `verify_remix_switch`'s `--live-script`
   path and render the result with `--lcd`.
 - **a hook after the UI is up.** The same ❓ as section 4, but far weaker: showing
   a pane stops no playback, syncs no project and reads no file beyond the
@@ -324,7 +324,7 @@ What it needs:
 
 ## 8. Gates
 
-`verify_remixswitch.py` (16 checks) already proves, for the machinery both
+`verify_remix_switch.py` (16 checks) already proves, for the machinery both
 designs reuse: the row, the dialog, the deferred load, the mailbox's
 contents, the stage reading back equal to the file, the chainload from
 exactly the memory a switch leaves, the four refusals, the DSP park, and

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """LOAD METER under the ColdFire port, with both DSP cores running.
 
-    python3 tools/verify/verify_loadmeter.py [remix] [--project DIR]
+    python3 tools/verify/verify_load_meter.py [remix] [--project DIR]
 
 The remix (default `octabam-bus`) carries BRAIN and LOAD METER. Each run loads the
 project, opens BRAIN > PERFORMANCE (or leaves it closed) and dumps LOAD METER's
@@ -68,7 +68,7 @@ def symbol(name):
         parts = line.split()
         if len(parts) == 3 and parts[2] == name:
             return int(parts[0], 16)
-    sys.exit(f"verify_loadmeter: {name} not in {ELF}")
+    sys.exit(f"verify_load_meter: {name} not in {ELF}")
 
 
 def build(remix, burn, tag, nopub=False, noot=False):
@@ -86,7 +86,7 @@ def build(remix, burn, tag, nopub=False, noot=False):
     r = subprocess.run([sys.executable, str(ROOT / "tools/build/build_bus.py")], env=env,
                        capture_output=True, text=True, cwd=ROOT)
     if r.returncode:
-        sys.exit(f"verify_loadmeter: building {remix} (LM_BURN={burn}) failed:\n{(r.stdout + r.stderr)[-1500:]}")
+        sys.exit(f"verify_load_meter: building {remix} (LM_BURN={burn}) failed:\n{(r.stdout + r.stderr)[-1500:]}")
     image = OUT / f"mainos_{tag}.bin"
     shutil.copy2(ROOT / "out/mainos_bus.bin", image)
     return image, symbol("LM_DSP")
@@ -108,12 +108,12 @@ def main():
     if not project and pathlib.Path("~/.octabam_project").expanduser().is_file():
         project = pathlib.Path("~/.octabam_project").expanduser().read_text().strip()
     if not project:
-        print("  [SKIP] verify_loadmeter: no project (OT_PROJECT=<dir>, --project or ~/.octabam_project)"); return 0
+        print("  [SKIP] verify_load_meter: no project (OT_PROJECT=<dir>, --project or ~/.octabam_project)"); return 0
     if not EMU.is_file():
-        print("  [SKIP] verify_loadmeter: no port binary (make emu-cf)"); return 0
+        print("  [SKIP] verify_load_meter: no port binary (make emu-cf)"); return 0
     remix = registry.remix(a.remix)
     if "LOAD METER" not in remix.modules or "BRAIN" not in remix.modules:
-        print(f"  [ -- ] verify_loadmeter: {a.remix} carries no LOAD METER and BRAIN"); return 0
+        print(f"  [ -- ] verify_load_meter: {a.remix} carries no LOAD METER and BRAIN"); return 0
     OUT.mkdir(parents=True, exist_ok=True)
     copy = OUT / "project"
     shutil.rmtree(copy, ignore_errors=True)
@@ -131,7 +131,7 @@ def main():
                             "--tree", str(OUT / f"tree_{tag}"), "--out", str(card)], cwd=ROOT,
                            capture_output=True, text=True)
         if r.returncode:
-            sys.exit(f"verify_loadmeter: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
+            sys.exit(f"verify_load_meter: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
         t, lines = 1500, []
         for code, gap in keys:
             lines += [f"{t} key {code:#x} down", f"{t + 30} key {code:#x} up"]
@@ -150,7 +150,7 @@ def main():
             r = subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
         text = log.read_text()
         if r.returncode or "ended on quit" not in text:
-            sys.exit(f"verify_loadmeter: the {tag} run did not finish -- {log}")
+            sys.exit(f"verify_load_meter: the {tag} run did not finish -- {log}")
         v = struct.unpack(">18I", d_lmd.read_bytes())
         ot = struct.unpack(">64I", d_ot.read_bytes())
         now = struct.unpack(">3i", d_now.read_bytes())
@@ -275,7 +275,7 @@ def main():
                                               "--mem-dump", f"{sym['aud_sum']:#x},8192={ring}"])),
                                cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
         if r.returncode:
-            sys.exit(f"verify_loadmeter: the {tag} run failed -- {log}")
+            sys.exit(f"verify_load_meter: the {tag} run failed -- {log}")
         rings.append(ring.read_bytes())
     if len(rings) == 3:
         diff = sum(1 for x, y in zip(rings[0], rings[1]) if x != y)
@@ -285,9 +285,9 @@ def main():
         diff = sum(1 for x, y in zip(rings[0], rings[2]) if x != y)
         check(f"usb: the ring is byte-identical with OTOP's stamps on and off ({diff} bytes differ)", diff == 0)
     if FAILS:
-        print(f"verify_loadmeter: FAILED ({len(FAILS)} failure(s)) -- {OUT}")
+        print(f"verify_load_meter: FAILED ({len(FAILS)} failure(s)) -- {OUT}")
         return 1
-    print(f"verify_loadmeter: ok (0 failure(s)) -- {OUT}")
+    print(f"verify_load_meter: ok (0 failure(s)) -- {OUT}")
     return 0
 
 

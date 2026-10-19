@@ -13,7 +13,7 @@
 ;                and before the ColdFire pulls this frame's read-back.
 ; Timer 0 (CLK/2) is armed here the first time a core passes the start hook
 ; (TCSR0 = TRM | TE, no interrupt enable: stock never writes the timers,
-; tools/verify/verify_dspvectors.py's peripheral set).
+; tools/verify/verify_dsp_vectors.py's peripheral set).
 ;
 ; The figures live in the shared window at X:$37F10-$37F2F (Claims
 ; dsp_ranges), so core 1's reach core 0: core 0's at $37F10, core 1's at
@@ -81,7 +81,7 @@
 ; class's nine parallel and conditional sites: P:$d8, P:$225, P:$24b,
 ; P:$470, P:$74d, P:$7b2, P:$838, P:$d2e, P:$d60) and move b,a (the
 ; register-move class 21xxxx; move b,x0 has 29 sites in A). Both are
-; gate-checked by verify_loadmeter.
+; gate-checked by verify_load_meter.
 
 lm_start:
         move    r5,x:>$206              ; the displaced instruction

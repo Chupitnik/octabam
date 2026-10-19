@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""verify_descdefaults -- the FX choosers take a new effect's knob defaults
+"""verify_desc_defaults -- the FX choosers take a new effect's knob defaults
 from its descriptor in RAM at the moment of the select.
 
-    python3 tools/verify/verify_descdefaults.py [REMIX] [--project DIR]
+    python3 tools/verify/verify_desc_defaults.py [REMIX] [--project DIR]
 
 The BRAIN module's card-layer defaults rest on it (docs/proposals/BRAIN.md
 section 5.1): it writes the card's values over the descriptor
@@ -68,7 +68,7 @@ def run(image, card, a, page, poke, tag):
         f.write(" ".join(map(str, cmd)) + "\n"); f.flush()
         r = subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=f, stderr=subprocess.STDOUT)
     if r.returncode or "ended on quit" not in log.read_text():
-        sys.exit(f"verify_descdefaults: ot_emu did not finish its script -- {log}")
+        sys.exit(f"verify_desc_defaults: ot_emu did not finish its script -- {log}")
     m = dump.read_bytes()
     return m[IDS - LANES:], m[72:144]
 
@@ -84,9 +84,9 @@ def main():
     if not project and pathlib.Path("~/.octabam_project").expanduser().is_file():
         project = pathlib.Path("~/.octabam_project").expanduser().read_text().strip()
     if not project:
-        print("  [SKIP] verify_descdefaults: no project (OT_PROJECT=<dir>, --project or ~/.octabam_project)"); return 0
+        print("  [SKIP] verify_desc_defaults: no project (OT_PROJECT=<dir>, --project or ~/.octabam_project)"); return 0
     if not EMU.is_file():
-        print("  [SKIP] verify_descdefaults: no port binary (make emu-cf)"); return 0
+        print("  [SKIP] verify_desc_defaults: no port binary (make emu-cf)"); return 0
     remix = registry.remix(a.remix)
     OUT.mkdir(parents=True, exist_ok=True)
     image = OUT / "mainos.bin"
@@ -94,7 +94,7 @@ def main():
     r = subprocess.run([sys.executable, str(ROOT / "tools/build/build_bus.py")], env=env,
                        capture_output=True, text=True, cwd=ROOT)
     if r.returncode:
-        sys.exit(f"verify_descdefaults: building {a.remix} failed:\n{(r.stdout + r.stderr)[-1500:]}")
+        sys.exit(f"verify_desc_defaults: building {a.remix} failed:\n{(r.stdout + r.stderr)[-1500:]}")
     shutil.copy2(ROOT / "out/mainos_bus.bin", image)
     from remix import booted
     img = booted.image(image.read_bytes())   # descriptors may be in the DRAM runtime
@@ -113,7 +113,7 @@ def main():
     r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
                         "--tree", str(OUT / "tree"), "--out", str(card)], cwd=ROOT, capture_output=True, text=True)
     if r.returncode:
-        sys.exit(f"verify_descdefaults: stage_card failed:\n{r.stdout[-1000:]}{r.stderr[-1000:]}")
+        sys.exit(f"verify_desc_defaults: stage_card failed:\n{r.stdout[-1000:]}{r.stderr[-1000:]}")
 
     unlock = [(UNLOCK[0] + i, b) for i, b in enumerate(UNLOCK[1])] if "FX2 LOCK" in remix.modules else []
     fails = 0
@@ -136,7 +136,7 @@ def main():
         ok = ids2[row + 1] == fx and got2 == sentinel
         print(f"  [{'ok' if ok else 'FAIL'}] {page}: the same select with the defaults poked in RAM lands the poked bytes  {got2.hex(' ')}")
         fails += not ok
-    print(f"verify_descdefaults: {'ok' if not fails else 'FAILED'} ({fails} failure(s)) -- {OUT}")
+    print(f"verify_desc_defaults: {'ok' if not fails else 'FAILED'} ({fails} failure(s)) -- {OUT}")
     return 1 if fails else 0
 
 

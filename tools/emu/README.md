@@ -8,8 +8,8 @@ There are two ways to run the Octatrack's OS without flashing it:
   emu-live`.
 - **Tier-0** (`tools/emu/emu_bringup.py`, Unicorn). It boots to the RTOS
   handoff and calls the firmware's draw and formatter code directly. It is used by:
-  - the label gates in `make check` (`verify_labels`, `verify_modenames`,
-    `verify_hidden`) and CC MAP's `verify_ccmap`;
+  - the label gates in `make check` (`verify_labels`, `verify_mode_names`,
+    `verify_hidden`) and CC MAP's `verify_cc_map`;
   - `tools/build/stock_labels.py`;
   - the remixer's UNIT pane.
 
@@ -139,7 +139,7 @@ out/emu/ot_emu --image out/mainos_bus.bin --card out/card.img --set OCTABAM --pr
   before the mount, as a unit that has run a project has them, and posts
   nothing itself: the one LOAD PROJECT is the firmware's own (sys's media
   case, through `0x4002574c`). With a short `--load-ms` the run goes on to
-  `--live-script` while the load is still held (`verify_remixswitch`'s boot
+  `--live-script` while the load is still held (`verify_remix_switch`'s boot
   cases).
 - **Three things the DSP emulator does that the chip does not** (found
   bringing up REMIX SWITCH's DSP park, 29 Sep 2026): `dsp peek <core> P <addr>`
@@ -519,7 +519,7 @@ O15a-O24, M5 Mac, 12-13 Sep) is the history of what the port already does:
 - 18 verifiers start the cores. A grep for the lockstep-only instruments
   (`--dsp-writes`, `--dsp-peek`, `--block-dump`, `--audio-out` and the
   others) finds none in `stems_panel`, `verify_analog_bassdrum_ui`,
-  `verify_boottrace`, `verify_kits`, `verify_plocksp2`, `verify_scenesp2`,
+  `verify_boot_trace`, `verify_kits`, `verify_plocks_p2`, `verify_scenes_p2`,
   `verify_usb_post`; the other eleven use at least one. This was not audited
   per gate.
 
@@ -548,9 +548,9 @@ that third.
    `DspPair::rtAfterFork`, called in the child after `fork()`), the children's
    host-port traffic equals lockstep's (192,890 words in, 61,660 out, 720
    commands) and the JIT's code ran in the child without trouble on the M3.
-   `verify_scenesp2`, whose one load and forked scenarios use `--dsp`, gave
+   `verify_scenes_p2`, whose one load and forked scenarios use `--dsp`, gave
    the same verdict twice (28 ok, 0 fail) in 15-16 s against 29-30 s in
-   lockstep. `verify_plocksp2` gave no change (98 s either way): it runs
+   lockstep. `verify_plocks_p2` gave no change (98 s either way): it runs
    `--dsp` in one `play` scenario only, and its time is ColdFire-bound loads
    and power cycles. `verify_kits`' main fork runs without the cores at all
    (`--dsp` is only on its strand boot), so the JIT does nothing there.
@@ -560,10 +560,10 @@ that third.
    repeated enough to call it deterministic; nothing but arm64 macOS. The
    gates that run the cores in one process without an instrument are
    `verify_kits`' strand boot (106 s, already beside the fork since #670, so
-   it saves CPU and not wall time), `verify_boottrace`,
+   it saves CPU and not wall time), `verify_boot_trace`,
    `verify_analog_bassdrum_ui`, `stems_panel` and `verify_usb_post` (not
-   measured). The whole-gate wall gain is about 15 s on `verify_scenesp2`
-   (a 39-48 s job beside `verify_plocksp2`'s 98-147 s). Lockstep stays the
+   measured). The whole-gate wall gain is about 15 s on `verify_scenes_p2`
+   (a 39-48 s job beside `verify_plocks_p2`'s 98-147 s). Lockstep stays the
    default and the reference.
 2. **A PGO build in the port store** (`tools/emu/port_store.py`). Done 12 Oct:
    `make emu-pgo` (or `python3 tools/emu/port_store.py pgo`) builds it once
@@ -610,14 +610,14 @@ that third.
      is to reconcile our DMA hunks with it.
    - Estimate (not measured): half a day to a day to reconcile the DMA
      hunks and pass the gate command, then the gates of the 22 Sep re-pin
-     (`scripts/refhash.sh check`, `verify-bus`, `verify-twocore`, every DSP
+     (`scripts/refhash.sh check`, `verify-bus`, `verify-two-core`, every DSP
      gate) and `ci-dsp` from the main checkout. The gain is a smaller patch
      (about 60 lines fewer) and eight JIT fixes that matter to `--dsp-rt`
      only.
 4. **Snapshot the machine after LOAD PROJECT** and restore it per gate.
    Removes about 23 s per boot of the same image and project; a bottleservice
-   half boots at least seven times (`set`, `verify_scenesp2`,
-   `verify_plocksp2`, TEMPO BUS, USB MIDI twice, FX2 LOCK). `--scenario`
+   half boots at least seven times (`set`, `verify_scenes_p2`,
+   `verify_plocks_p2`, TEMPO BUS, USB MIDI twice, FX2 LOCK). `--scenario`
    already forks after one load inside one gate. Needs the ColdFire RAM, both
    DSP cores' state, the peripherals and the card serialised: a large change;
    proof is a restored run's outputs byte-identical to a fresh boot's.
@@ -741,7 +741,7 @@ The helpers:
 - `render_fx2(r, track, effect_id)` and `render_fx1(...)` render an FX
   parameter page with the effect assigned.
 - `tools/build/stock_labels.py`, `verify_labels.py` and
-  `verify_modenames.py` call the display formatters through the same
+  `verify_mode_names.py` call the display formatters through the same
   machine.
 
 Descending into a menu item needs the real key handler `FUN_40064e64`.

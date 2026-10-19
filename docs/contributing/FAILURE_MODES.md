@@ -48,7 +48,7 @@ a mode is seen on hardware.
   card store and restore it at boot before the project loads. Missing targets
   release the project load in FLASHED; STARTUP MENU > EXIT bypasses the choice;
   the selected image does not recursively switch. Both DSP cores restart.
-  `verify_remixswitch` covers these paths. Hardware retest is open, including
+  `verify_remix_switch` covers these paths. Hardware retest is open, including
   the real boot duration and startup-menu bypass on the reporter's MKII.
 
 `git show 666b6154:docs/remixer/FAILURE_MODES.md` holds the earlier text of
@@ -98,7 +98,7 @@ sequencer and not the tempo", "A ten-character page-2 label faults the unit", "E
 
 - **Seen:** reported on Discord, 6 Oct 2026, a remix carrying USB MIDI: USB clock reaches the sequencer, not time stretch, LFOs or FX; DIN clock drives all of them.
 - **Cause:** the tempo (`0x80001818`) is built by the clock handler `0x40005a48` from the DTCN0 interval the UART0 ISR stores for each `0xF8` (`0x4001070a`); the USB decoder enqueued the byte without it, so the tempo stayed at the project's (no DIN clock since power-on) or at the last DIN clock's. Measured under the port (`modules/usb/README.md` "Clock"); that time stretch, LFOs and FX read `0x80001818` is inferred.
-- **Fix:** `usbmidi_rx_decode` timestamps each `0xF8` as the ISR does; `verify_usbmidi_clock` (#633). Kazeko's MKI, 6 Oct 2026: reported working on a build carrying #633 (build number and which of time stretch, LFOs and FX were checked not recorded).
+- **Fix:** `usbmidi_rx_decode` timestamps each `0xF8` as the ISR does; `verify_usb_midi_clock` (#633). Kazeko's MKI, 6 Oct 2026: reported working on a build carrying #633 (build number and which of time stretch, LFOs and FX were checked not recorded).
 
 
 ## Image A7 (bottleservice + BRAIN) halts on every power-on: EXCEPTION VEC:04 ADDR:400D7790 ✅ fixed (B0)
@@ -162,20 +162,20 @@ sequencer and not the tempo", "A ten-character page-2 label faults the unit", "E
 
 - **Seen:** BSRET8BP, 30 Sep 2026: power-on, the boot picker, YES -> SYNCING PROJECT, then that message; the switch went through.
 - **Cause (measured):** the YES path reused the pane's OS UPGRADE stop sequence, whose `0x40022cd4(1)` posts SYNC TO CARD; at the boot picker nothing is loaded (the files job is held).
-- **Fix:** a boot-picker YES skips the sync (the next image boots from the same SRAM); the pane's YES keeps it. BSRET9BP on the unit: no message. **Check:** `verify_remixswitch` (both paths).
+- **Fix:** a boot-picker YES skips the sync (the next image boots from the same SRAM); the pane's YES keeps it. BSRET9BP on the unit: no message. **Check:** `verify_remix_switch` (both paths).
 
 ## OS SWITCH: the boot picker never opens on the unit ✅ measured, fixed; closed by removal (8 Oct 2026: REMIX SWITCH has no boot picker)
 
 - **Seen:** BSRET6BP, 30 Sep 2026: power-on went straight to the project; BOOT TRACE sent notes 1 and 12 and no 26 -- the hook was never called.
 - **Cause (measured):** the hook was the boot's LOAD PROJECT post (`0x4002574c`). A unit whose battery SRAM knows the card (id at `0x100f8584`, compared by `0x4004abcc`) never posts it: the project stays in SRAM and only the last set is mounted, which posts LOADING FILES (`0x4002573e`). The port boots SRAM zeroed, so every port boot took the reload path.
-- **Fix:** whichever of the two posts comes first opens the picker; the other is held and replayed in stock's order. BSRET7BP on the unit: it opens. **Check:** `verify_remixswitch` boot case from a dumped SRAM.
+- **Fix:** whichever of the two posts comes first opens the picker; the other is held and replayed in stock's order. BSRET7BP on the unit: it opens. **Check:** `verify_remix_switch` boot case from a dumped SRAM.
 - **Lesson:** power-on behaviour is measured from SRAM a boot has left (`ot_emu --preload 0x10000000=sram.bin`), not from zeroed RAM.
 
 ## REMIX SWITCH (OS SWITCH at the time): VEC:04 at PC 0x2007E788 on a file load after a switch 🟡 cause inferred, fixed
 
 - **Seen:** BSRET3OS, 29 Sep 2026, once: a switch to itself, a power-cycle, a file load -> `VEC:04 ADDR:2007E788`.
 - **Cause (🟡):** MAIN MENU's rescan listed the card through the stock dir scan (`0x4007f598`), whose one global name pool (`0x460e76ac`) and cache the project, set and sample browsers keep pointing into.
-- **Fix:** the rescan saves the pool and cache, lists into its own table and restores both. BSRET3OS2 ran the sequence clean. **Check:** `verify_remixswitch` (the cache as found after the menu).
+- **Fix:** the rescan saves the pool and cache, lists into its own table and restores both. BSRET3OS2 ran the sequence clean. **Check:** `verify_remix_switch` (the cache as found after the menu).
 
 ## REMIX SWITCH (OS SWITCH at the time): the unit hangs on the logo after a switch, keys dimmer than at power-on ✅ measured, fixed (build 14, on the unit)
 
@@ -207,7 +207,7 @@ sequencer and not the tempo", "A ten-character page-2 label faults the unit", "E
 - **Seen:** under the port, 28 Sep 2026. Image 88 carried the twelve-byte build; the halt was not reported from the unit.
 - **Cause (measured):** SCENES P2's entry detours at `0x4003a9dc` / `0x4003abe4` displaced twelve bytes and nopped the third stock instruction (`moveal %sp@(32),%a2`, the slot argument). Octakit's trampoline replays eight bytes and continues at entry+8, so a2 held a stale code address, the body took its slot>5 exit, and `validate_result` reported corrupt: `illegal` at `gk_track_setup_byte_fatal` (`0x45d28e98` in bottleservice's runtime). kits (Octakit alone) takes the same turn.
 - **Fix:** the detours displace eight bytes (`pad_to=8`), the stubs continue at entry+8 (`modules/scenes-p2`), 28 Sep 2026.
-- **Check:** `verify_modedefaults` and `verify_scenesp2` run their editor calls under bottleservice.
+- **Check:** `verify_mode_defaults` and `verify_scenes_p2` run their editor calls under bottleservice.
 
 ## Junk on main R for one frame, from T1 with BusDelay, about twice a minute ✅ measured, fixed (image 43)
 
@@ -242,7 +242,7 @@ sequencer and not the tempo", "A ten-character page-2 label faults the unit", "E
 - **Seen:** 5-6 Sep 2026 (tag 93, the bus image of that date). Sequencer runs, no audio, sample preview silent, record meters B/C/D lit. Distinct from the DSP hang (sequencer frozen).
 - **Cause (measured 6 Sep 2026):** T8's station (Character, return role) sent into the reverb bus it returns: T8 FX1 -VRB at 71 in bank02's parts; turning it to 0 brought audio back. Why the loop reads as silence is not established.
 - **Fix:** stations have no sends; SEND is refused at track 8's dispatch position on payload A whatever its knob. The refusal outlived the T8 return (20 Sep 2026): with MASTER TRACK on, T8's input includes the hosts' wet.
-- **Check:** `tools/verify/verify_onebus.py`.
+- **Check:** `tools/verify/verify_one_bus.py`.
 
 ## The audio engine wedges with only BusVerb + the return 🔴 open (the return removed 20 Sep 2026)
 
@@ -255,7 +255,7 @@ sequencer and not the tempo", "A ten-character page-2 label faults the unit", "E
 - **Seen:** OCTABAM86. No delay; TONE, PING and MIX pinned and immovable; cleared by a reboot, back when page 2 was drawn.
 - **Cause (measured, emulator write watch, 13 Sep 2026):** `tools/build/mode_names.py` wrote renames at `P + 0x4e + 6·slot` where the names live at `E + 0x4e` and `P = E + 0x38`, landing in the minimum-value table (`P + 0x6a + 4·slot`): GRAIN's names set `min[3..5]` to 0x4d444550 / 0x4d524154. Character's SAT view and Modulation's COMB view had the same fault.
 - **Fix:** `NAMES_AT = 0x16` (P-relative); the project re-stamped from the manifests (OCTABAM87) measured clean on the ladder.
-- **Check:** `verify_modenames` reads the names from the corrected offset (it had read back from the same wrong one).
+- **Check:** `verify_mode_names` reads the names from the corrected offset (it had read back from the same wrong one).
 - **Lesson:** an autocorrelation of the mix that "measured TIME inert" was reading the material's own eighth and quarter (248 / 496 ms at 121 BPM) and is retracted; measure a delay time from the repeats' spacing after the source stops.
 
 ## CC MAP (CC PAGE 2 until 25 Sep 2026) did not write on hardware ✅ fixed (image 96)
@@ -263,7 +263,7 @@ sequencer and not the tempo", "A ten-character page-2 label faults the unit", "E
 - **Seen:** CC 62-67 changed nothing on the panel, stopped or running.
 - **Cause (measured):** the cave used the PLAYBACK page-2 editor's stores (`0x4003a474`), corrupting the track's PLAYBACK page-2 byte. The FX2 editor's stores are Part `+0x8f084`, shadow `0x100a51d2`, lane +0x38.
 - **Fix:** the cave uses the FX2 stores; image 96: CC 63 on channel 5 moved SHMR and raised the tail's 2-8 kHz bands 5-8 dB. Every page-2 sweep taken over the old cave is void.
-- **Check:** `verify_ccmap` proves the write against the FX2 editor.
+- **Check:** `verify_cc_map` proves the write against the FX2 editor.
 
 ## BusDelay's SEND knob drew TIME's division labels ✅ measured
 
@@ -307,7 +307,7 @@ sequencer and not the tempo", "A ten-character page-2 label faults the unit", "E
 - **Seen:** 13-14 Sep 2026. Character on T8 with COMP above ~40: R drops 40+ dB, L holds; scales with WDTH; only with the stations loaded.
 - **Cause (measured 14 Sep 2026):** T4's Spectrum generated near-full-scale DC from state: init cleared `$00..$17` only; filter B's two HP poles at cHP = 0 were frozen and `hp2 = yB − h2` subtracted a stale h2 every sample (−0.5 FS on silence from a block pre-filled with 0x400000, under `dsp_host`). The makeup clipped DC + audio on the channel with the larger offset. Track LEVEL 0 on T4 cleared it; AMP VOL 0 did not.
 - **Fix:** every persistent slot zeroed at init (Spectrum `$00..$3f`, Modulation's LFO values, Character's counters, phase and grace). Image 8: bank G's master at COMP 40 / 80 / 127 reads R−L −0.4 / −0.1 / −0.6 dB (was −44 at COMP 80).
-- **Check:** `tools/verify/verify_dirtystate.py` (in `make verify`) renders every module from a garbage block on silence and refuses output above −100 dBFS.
+- **Check:** `tools/verify/verify_dirty_state.py` (in `make verify`) renders every module from a garbage block on silence and refuses output above −100 dBFS.
 - **Lesson:** a channel-asymmetric failure in channel-symmetric code is a data asymmetry; an AC-coupled capture cannot see DC.
 
 ## A diagnostic image silenced every bank with stations; the port played them 🔴 open
@@ -321,7 +321,7 @@ sequencer and not the tempo", "A ten-character page-2 label faults the unit", "E
 - **Seen:** image 99, 13 Sep 2026, every project loading a Spectrum on FX1.
 - **Cause (measured, the port's last-PC ring):** the FX1 dispatcher keeps the effect id in r1 across `jsr init` and indexes the proc table with it (`P:0x4c8..0x4d7`). Spectrum's init returned r1 = r7+24; `jsr (r2)` landed on P:0. `dsp_host` calls init and proc itself and cannot see it.
 - **Fix:** init zeroes through r5. Recovery: power-cycle and a project without the module.
-- **Check:** `tools/verify/verify_initregs.py` (in `make check`) refuses an init that writes r1/n1/m1.
+- **Check:** `tools/verify/verify_init_regs.py` (in `make check`) refuses an init that writes r1/n1/m1.
 
 ## Sequencer stuck on step 1: cycle overrun or a wild value
 
@@ -429,7 +429,7 @@ sequencer and not the tempo", "A ten-character page-2 label faults the unit", "E
 - **Seen:** flash 6: wet out of T1 and T5 (the engines' hosts), nothing at T8.
 - **Cause (measured):** the station pinned the return to track 8 by `r7 & 0xff00` against `$6700/$6800` (the harness's two-per-track model). The stock dispatcher bumps r7 three times per track (the third unconditional at P:0x51e), so T8's FX1 runs at `$6a00`.
 - **Fix:** pin `$6a00/$6b00`; the harness's r7 model corrected. Confirmed on flash 7.
-- **Lesson:** `verify_onebus` was green on exactly this property; dispatcher facts are measured under the port.
+- **Lesson:** `verify_one_bus` was green on exactly this property; dispatcher facts are measured under the port.
 
 ## The port reports a wrong bank/pattern for an image that detours `0x40087d44`: the instrument
 
@@ -513,7 +513,7 @@ Entries from here to the end of the file (5 Oct 2026) were recorded in other doc
 
 - **Seen:** image 99, 4 Oct 2026, bottleservice: an FX2 change on T5 took the reverb off the track; with the engines hidden from the chooser there was no row to put it back. Source: `modules/fx2-lock/README.md`.
 - **Cause:** the FX2 chooser's select handler writes the Part's FX2 id for any track.
-- **Fix:** FX2 LOCK: YES's entry in the chooser window's key table points at NO's handler, so the select handler never runs. Measured under the port by `verify_fx2lock`; no hardware result recorded in `modules/fx2-lock/README.md` ("On the unit: Not yet").
+- **Fix:** FX2 LOCK: YES's entry in the chooser window's key table points at NO's handler, so the select handler never runs. Measured under the port by `verify_fx2_lock`; no hardware result recorded in `modules/fx2-lock/README.md` ("On the unit: Not yet").
 
 ## Sound-on-sound plays a zero at each pass (sos-capture BUILD=94 and 95) ✅ measured on the unit (Bryan T), BUILD=95 fixes the cases run
 
@@ -580,4 +580,4 @@ Entries from here to the end of the file (5 Oct 2026) were recorded in other doc
 
 - **Seen:** not reported on a unit. Found 10 Oct 2026 while checking whether PLOCKS P2 and MIDI SCENES can share a remix (radiohagen, Discord, 9 Oct 2026).
 - **Cause:** both modules store their data at Part `+0x1712..+0x1832`, which stock uses for the LFO designer records of audio tracks 2–8 and MIDI tracks 2–8 (`docs/firmware/PARTS.md` section 9, measured under the port). MIDI SCENES writes its sparse blob (`+0x17a2`) once a Part holds MIDI scene locks and its freeze twin (`+0x1712`) on Part Save; SCENES P2 wrote its pool (`+0x17a2`) from the first page-2 scene lock. A track whose LFO WAVE is a designed shape (12–18 for T2–T8) then plays the module's bytes as its shape; the module reads a design the editor wrote as its own data.
-- **Fix:** SCENES P2 keeps its locks in bytes 30 and 31 of the stock scene block since 10 Oct 2026 (`verify_scenesp2`); the old pool's bytes stay as the last image wrote them. MIDI SCENES: open; its storage is its author's. To find out: on a unit, a designed LFO on T2 before and after a MIDI scene lock and a Part Save.
+- **Fix:** SCENES P2 keeps its locks in bytes 30 and 31 of the stock scene block since 10 Oct 2026 (`verify_scenes_p2`); the old pool's bytes stay as the last image wrote them. MIDI SCENES: open; its storage is its author's. To find out: on a unit, a designed LFO on T2 before and after a MIDI scene lock and a Part Save.

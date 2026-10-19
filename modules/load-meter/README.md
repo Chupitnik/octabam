@@ -69,7 +69,7 @@ the last finished frame's:
 stock recorder reads MAIN) copies the bytes out and zeroes them, before the
 recorder (`0x400068e4`), USB's audio producer and STEMS read the buffer: every
 reader sees stock's bytes; it runs once per frame interrupt (its pass
-count equals the interrupt count, `verify_loadmeter` every), ahead of the
+count equals the interrupt count, `verify_load_meter` every), ahead of the
 recorder's call at `0x4000d340` and USB's audio producer's at `0x4000d9a0`. STEM
 REC reads MAIN from the transfer routine (`0x40004b12`), outside that
 order, so the two are refused together (`conflicts`) until measured. A record whose magic, sum, period (20,000 to
@@ -85,7 +85,7 @@ peak mark; then `WORST FRAME` (the longest single run of the frame interrupt
 as a share of the 362.8 µs frame, `OVER` at 100%); then the cost of each effect call
 (below), sorted. `-` = no sample yet, `?` = only bad records since the last
 refresh. While the screen is closed nothing draws and the DSPs and the host
-port carry the same traffic as with it open (`verify_loadmeter` closed); the
+port carry the same traffic as with it open (`verify_load_meter` closed); the
 scrub runs every frame either way.
 
 **OTOP, the cost of each effect call.** Four more DSP hooks on the stock
@@ -109,7 +109,7 @@ FX2 of the first position, then the next), 8..15 payload B's (tracks 1-4).
 the stock mixer, AMP and everything else. The stamps read and write only
 registers that are dead at the hook sites (`a` and `b` and `r2`, `r3`; the
 start hook saves `a` through the displaced store) and no modifier register;
-`verify_loadmeter` compares USB's audio-out ring with the stamps in and
+`verify_load_meter` compares USB's audio-out ring with the stamps in and
 replaced by no-ops (`LM_NOOT`): byte-identical. They cost 101 words a
 payload (257 in all with the meter). Measured only under the port, whose
 timer moves in 1,024-count steps, so single calls read 0 or 1,024 and only
@@ -152,7 +152,7 @@ the chip's:
 
 ## Measured
 
-Both DSP cores under the port (`verify_loadmeter`, 12 Oct 2026, project
+Both DSP cores under the port (`verify_load_meter`, 12 Oct 2026, project
 BRAINPRJ, the view open for 4 s of emulated time): 89,783 good records and 2 bad
 (the first frames, before timer 0 is armed) out of 89,785 frame
 interrupts; core 0 busy 20,480 of a 36,864-count period, core 1 17,421 of
@@ -170,7 +170,7 @@ the chip's; the numbers on a unit are a hardware-round item.
 
 ## Gates
 
-- `tools/verify/verify_loadmeter.py`: with both DSP cores under the port,
+- `tools/verify/verify_load_meter.py`: with both DSP cores under the port,
   the records arrive and pass, the view's DSP rows carry numbers, the
   scrub zeroes MAIN's byte every frame and runs once per frame interrupt,
   USB's audio-out ring is byte-identical with the publish on and off
@@ -180,5 +180,5 @@ the chip's; the numbers on a unit are a hardware-round item.
   busy by N/2 counts.
 - `tools/verify/verify_brain.py` (BRAIN's gate) runs the PERFORMANCE screen on the
   `octabam-bus` remix, which carries this module.
-- `tools/verify/verify_dspvectors.py`, `verify_twocore` and `make
+- `tools/verify/verify_dsp_vectors.py`, `verify_two_core` and `make
   verify-bus` (audio bit-identity) for the DSP section.

@@ -1,6 +1,6 @@
-"""verify_fx2lock -- the FX2 chooser cannot change a track's effect.
+"""verify_fx2_lock -- the FX2 chooser cannot change a track's effect.
 
-    python3 tools/verify/verify_fx2lock.py REMIX [--project DIR]
+    python3 tools/verify/verify_fx2_lock.py REMIX [--project DIR]
 
 Boots the selected image (out/mainos_bus.bin, an "image" gate) under the
 port with the project staged, selects T2, opens the FX2 chooser (FX2
@@ -56,17 +56,17 @@ def main():
     a = ap.parse_args()
     remix = registry.remix(a.remix)
     if "FX2 LOCK" not in remix.modules:
-        print(f"  [ -- ] verify_fx2lock: {a.remix} carries no FX2 LOCK"); return 0
+        print(f"  [ -- ] verify_fx2_lock: {a.remix} carries no FX2 LOCK"); return 0
     project = a.project
     if not project and pathlib.Path("~/.octabam_project").expanduser().is_file():
         project = pathlib.Path("~/.octabam_project").expanduser().read_text().strip()
     if not project:
-        print("  [SKIP] verify_fx2lock: no project (OT_PROJECT=<dir>, --project or ~/.octabam_project)"); return 0
+        print("  [SKIP] verify_fx2_lock: no project (OT_PROJECT=<dir>, --project or ~/.octabam_project)"); return 0
     if not EMU.is_file():
-        print("  [SKIP] verify_fx2lock: no port binary (make emu-cf)"); return 0
+        print("  [SKIP] verify_fx2_lock: no port binary (make emu-cf)"); return 0
     pdir = pathlib.Path(project).expanduser()
     if not (pdir / "project.work").is_file():
-        sys.exit(f"verify_fx2lock: {pdir} is not a project")
+        sys.exit(f"verify_fx2_lock: {pdir} is not a project")
     OUT.mkdir(parents=True, exist_ok=True)
     image = ROOT / "out/mainos_bus.bin"
     img = image.read_bytes()
@@ -91,7 +91,7 @@ def main():
     r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
                         "--tree", str(OUT / "tree"), "--out", str(card)], cwd=ROOT, capture_output=True, text=True)
     if r.returncode:
-        sys.exit(f"verify_fx2lock: stage_card failed:\n{r.stdout[-1000:]}{r.stderr[-1000:]}")
+        sys.exit(f"verify_fx2_lock: stage_card failed:\n{r.stdout[-1000:]}{r.stderr[-1000:]}")
 
     ids = {}
     stock = STOCK                                    # the control: the poke undone in RAM
@@ -107,7 +107,7 @@ def main():
             f.write(" ".join(map(str, cmd)) + "\n"); f.flush()
             r = subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=f, stderr=subprocess.STDOUT)
         if r.returncode:
-            sys.exit(f"verify_fx2lock: ot_emu exit {r.returncode} -- {log}")
+            sys.exit(f"verify_fx2_lock: ot_emu exit {r.returncode} -- {log}")
         text = log.read_text()
         check(f"{tag}: the live script ran to its quit", "ended on quit" in text)
         ids[tag] = dump.read_bytes()
@@ -116,7 +116,7 @@ def main():
           fx2["select"] == fx2["quiet"] and len(ids["quiet"]) == 16)
     check(f"control (the poke undone in RAM): the same select changes T2's FX2  {fx2['control']}",
           fx2["control"] != fx2["quiet"] and fx2["control"][:2] == fx2["quiet"][:2])
-    print(f"verify_fx2lock: {'ok' if not fails else 'FAILED'} ({fails} failure(s)) -- {OUT}")
+    print(f"verify_fx2_lock: {'ok' if not fails else 'FAILED'} ({fails} failure(s)) -- {OUT}")
     return 1 if fails else 0
 
 

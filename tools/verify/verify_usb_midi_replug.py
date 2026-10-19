@@ -74,7 +74,7 @@ def check(what, ok, detail=""):
 def symbols():
     nm = shutil.which("m68k-elf-nm") or shutil.which("m68k-linux-gnu-nm")
     if not nm:
-        print("  [FAIL] verify_usbmidi_replug: neither m68k-elf-nm nor m68k-linux-gnu-nm is on PATH")
+        print("  [FAIL] verify_usb_midi_replug: neither m68k-elf-nm nor m68k-linux-gnu-nm is on PATH")
         sys.exit(1)
     out = subprocess.run([nm, str(ELF)], capture_output=True, text=True).stdout
     return {p[2]: int(p[0], 16) for p in (l.split() for l in out.splitlines()) if len(p) == 3}
@@ -150,7 +150,7 @@ def run():
           sym.get("usbmidi_tx_acc_len") == sym["usbmidi_up"] + 4,
           f"up {sym['usbmidi_up']:#x} acc_len {sym.get('usbmidi_tx_acc_len', 0):#x}")
     sock = f"/tmp/ot-replug-{os.getpid()}-{tag}.sock"
-    log = ROOT / f"out/verify_usbmidi_replug_{tag}.log"
+    log = ROOT / f"out/verify_usb_midi_replug_{tag}.log"
     watch = f"{sym['usbmidi_up']:#x},2;{MIDI_FIFO_HEAD:#x},4"
     env = dict(os.environ, OT_USB_TRACE="1")
     with open(log, "w") as lf:
@@ -214,16 +214,16 @@ def run():
 
 def main():
     if not EMU.is_file():
-        print("  [SKIP] verify_usbmidi_replug: the port is not built (make emu-cf)")
+        print("  [SKIP] verify_usb_midi_replug: the port is not built (make emu-cf)")
         return 0
     if not IMAGE.is_file():
-        print("  [FAIL] verify_usbmidi_replug: no out/mainos_bus.bin (make bus)")
+        print("  [FAIL] verify_usb_midi_replug: no out/mainos_bus.bin (make bus)")
         return 1
     if "USB" not in registry.remix(os.environ.get("REMIX")).modules:
-        print("  [SKIP] verify_usbmidi_replug: the remix has no USB")
+        print("  [SKIP] verify_usb_midi_replug: the remix has no USB")
         return 0
     run()
-    print(f"verify_usbmidi_replug: {'OK' if not fails else f'{len(fails)} FAILED'}")
+    print(f"verify_usb_midi_replug: {'OK' if not fails else f'{len(fails)} FAILED'}")
     return 1 if fails else 0
 
 

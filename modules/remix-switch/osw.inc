@@ -1,5 +1,5 @@
 | REMIX SWITCH -- the addresses both units share, and the gate reads
-| (tools/verify/verify_remixswitch.py parses the `.set` lines of this file).
+| (tools/verify/verify_remix_switch.py parses the `.set` lines of this file).
 |
 | The stage is the top of octabam's platform reserve, which MEMORY keeps
 | reaching to 0x41495de0 in every remix that carries this module (its

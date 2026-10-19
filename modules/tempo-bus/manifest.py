@@ -109,5 +109,5 @@ MODULE = Module(
         Poke(0x40059F08, H("48780049"), H("48780076"), note="TEMPO window width 73 -> 118 (the menu window's)"),
     ),
     # reads the card verify_set staged: an image-stage gate
-    gates=(Gate('tools/verify/verify_tempobus.py', stage='image'),),
+    gates=(Gate('tools/verify/verify_tempo_bus.py', stage='image'),),
 )

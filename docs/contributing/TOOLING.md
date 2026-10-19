@@ -121,7 +121,7 @@ one-word displaced move, the DMA dual-counter reload, the host-stepped
 mode, the shared window, the unmapped-register hooks). Gated on: upstream's
 own `dsp56kTestRunner` suite, `scripts/refhash.sh check` against a
 pre-repin baseline (24 cases), `verify-bus`, `verify-spectrum-ident`,
-`verify-twocore`, and `make check` with a real project under the port
+`verify-two-core`, and `make check` with a real project under the port
 (`verify_set`) -- all bit-identical or passing. Our own AGU fix is still
 an open, uncommented upstream PR (#13, since 8 Sep).
 
@@ -135,7 +135,7 @@ with the window open on 1199 of 1200 rewrites. Ported octemu's renewal
 (`m_deRenewed`, in `setDCR`/`finishTransfer`) — but its block-dump
 against the same project, same frame count, is **bit-identical** with or
 without the fix, so it is landed defensively (matches the DMA manual's
-own semantics, costs nothing, `verify-twocore` and every gate stay
+own semantics, costs nothing, `verify-two-core` and every gate stay
 green) rather than as a fix for an observed symptom. Not octemu's other
 DE-renewal hunk (disabling `HostTransmitData` as a request source):
 `ot_emu` drives HDI08 directly, never through a `DmaChannel`, so that
@@ -224,8 +224,8 @@ Render on the desktop at ~6× real time instead of flashing.
 |---|---|
 | `tools/harness/dsp_host` | the emulator harness: boots a payload dump (both payloads, `-memB`, shared window shared), calls effects through the recovered ABI, captures audio, polices memory, meters instructions per block |
 | `tools/harness/rig_render.py` (`make render-rig`) | all eight tracks locally on both cores, FX1→FX2 chained per track, ids and knobs from a project part or by name, stems in, per-track + mix wavs and `meter.txt` out |
-| `tools/verify/verify_twocore.py` (`make verify-twocore`, in `make check`) | the two-core gate: the servers on their real cores render bit-identical to the DEV hatch, and under four interleave skews |
-| `tools/verify/verify_onebus.py` (`make verify-onebus`, in `make check`) | the one aux bus on both cores: the chain, each host's print, WET passthrough (sample-exact), the track-8 send refusal, a stored RET byte inert, stations without sends, four skews |
+| `tools/verify/verify_two_core.py` (`make verify-two-core`, in `make check`) | the two-core gate: the servers on their real cores render bit-identical to the DEV hatch, and under four interleave skews |
+| `tools/verify/verify_one_bus.py` (`make verify-one-bus`, in `make check`) | the one aux bus on both cores: the chain, each host's print, WET passthrough (sample-exact), the track-8 send refusal, a stored RET byte inert, stations without sends, four skews |
 | `tools/harness/render_reverb.py` (`make reverb IN=..`) | wav → BusVerb → wav, knobs by name, sweeps, wet-only |
 | `tools/harness/send_probe.py` (`make render`, `make render-delay`) | renders a SEND→bus→server path and measures it numerically; `--direct` puts audio through one module on its own track, the way an insert is rendered |
 | `tools/harness/abkit.py`, `station_laws.py`, `pressure.py`, `port_compare.py` | A/B kits for voicing by ear; a station's control laws read off noise; every selectable layout priced and the dearest rendered; the harness against the ColdFire port on one part |
@@ -247,7 +247,7 @@ CI). The family, and what each proves:
 | `tools/verify/verify_midi.py` | the note→PITCH interval path, locally, via a build override |
 | `tools/verify/verify_dram_boot.py` | every DRAM remix booted under the port and its window read back |
 | `tools/verify/verify_kits.py` | KITS under the port: staging, LOAD/SAVE KIT, the files, migration and Octakit import |
-| `tools/verify/verify_dirtystate.py`, `verify_initregs.py`, `verify_replaces.py`, `verify_labels.py`, `verify_modenames.py`, `verify_hidden.py`, `verify_grains.py`, `verify_twocore.py`, `verify_onebus.py`, the per-module render gates | every module silent from a garbage block; no init writes r1; no stock effect hijacked; selects print their words on the emulated firmware; the mode formatter renames; hidden engines; the grain lever; both cores; the bus |
+| `tools/verify/verify_dirty_state.py`, `verify_init_regs.py`, `verify_replaces.py`, `verify_labels.py`, `verify_mode_names.py`, `verify_hidden.py`, `verify_grains.py`, `verify_two_core.py`, `verify_one_bus.py`, the per-module render gates | every module silent from a garbage block; no init writes r1; no stock effect hijacked; selects print their words on the emulated firmware; the mode formatter renames; hidden engines; the grain lever; both cores; the bus |
 | `tools/remix/selftest.py` | the resource ledger catches every collision it claims to, and every shipped remix is clean (part of `make check`) |
 | `scripts/refhash.sh` | a change to the build (not a module) changed nothing: 24 configurations, artifacts and build reports, bit-identical; save a baseline on a tree you trust first |
 

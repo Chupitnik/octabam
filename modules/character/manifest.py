@@ -126,6 +126,6 @@ MODULE = Module(
     variant=stations.variant(lambda: MODULE),
     gates=(Gate('tools/verify/verify_character.py', remix_arg=False),
            Gate('tools/verify/verify_stations_fx2.py', remix_arg=False),
-           Gate('tools/verify/verify_charkey.py', remix_arg=False)),
+           Gate('tools/verify/verify_char_key.py', remix_arg=False)),
     dear={'DRV': 127, 'FOLD': 127, 'COMP': 127, 'MIX': 127, 'WDTH': 127, 'SAT': 0},
 )

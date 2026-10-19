@@ -3090,7 +3090,7 @@ hostquit:
             # what lets a remix that harvests NOTHING carry one. Stock leaves
             # runs of vector slots as `jmp *`, a self-jump that would freeze
             # the core if that interrupt ever fired, so they are dead words;
-            # tools/verify/verify_dspvectors.py proves nothing arms one, on
+            # tools/verify/verify_dsp_vectors.py proves nothing arms one, on
             # every build, and is the licence for this.
             #
             # The runs are not long enough for a section whole, so the source
@@ -3143,7 +3143,7 @@ hostquit:
                     print(f"  {'PINNED':13} P:0x{_at:05x}..0x{_at + _hi - _lo:05x} "
                           f"({_hi - _lo:4d} words)  {name}"
                           f"{', piece ' + str(_n + 1) if len(_cuts) > 1 else ''}"
-                          f", in stock's dead vectors (verify_dspvectors)")
+                          f", in stock's dead vectors (verify_dsp_vectors)")
                 for _h in (_sec.hooks or ()):
                     if not _h.on(tag):
                         continue

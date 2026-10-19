@@ -24,7 +24,7 @@ SOURCE = "modules/load-meter/dsp_meter.asm"
 
 
 def _dsp_asm():
-    """The DSP source; for tools/verify/verify_loadmeter.py's builds a copy
+    """The DSP source; for tools/verify/verify_load_meter.py's builds a copy
     under out/: LM_BURN=N burns N iterations of a one-cycle `nop` DO loop at
     each core's frame end, before the busy stamp (the calibration); LM_NOPUB=1
     leaves out core 0's publish and LM_NOOT=1 OTOP's stamps (the bit-identity references)."""
@@ -53,7 +53,7 @@ def _dsp_asm():
 MODULE = Module(
     name="load-meter", key="LOAD METER", kind=Kind.HYBRID,
     category=Category.REFERENCE, author="sambanks", author_url="https://github.com/sambanks",
-    proof=Proof.HARDWARE, proof_note="cursory testing on Sam's MKII (owner report, 16 Oct 2026); " "the window and both DSP cores' figures under the port (verify_loadmeter, verify_brain)",
+    proof=Proof.HARDWARE, proof_note="cursory testing on Sam's MKII (owner report, 16 Oct 2026); " "the window and both DSP cores' figures under the port (verify_load_meter, verify_brain)",
     doc="The frame interrupt's share of the ColdFire, each DSP core's busy time per frame and each effect call's cost, for BRAIN's OTOP screen.",
     linked=(Linked("loadmeter", "modules/load-meter/meter.s", cpu="5475", dram=True),),
     # Each core's busy time per frame (dsp_meter.asm): stamps of timer 0 at
@@ -94,6 +94,6 @@ MODULE = Module(
     # STEM REC reads MAIN at its frame hook in the transfer routine (0x40004b12),
     # outside the order lm_scrub is measured against: refused until measured.
     conflicts=(("STEM REC", "reads MAIN before lm_scrub's place in the frame interrupt is shown to precede it"),),
-    gates=(Gate("tools/verify/verify_loadmeter.py", remix_arg=False, venv=True, stage="image"),
-           Gate("tools/verify/verify_dspvectors.py"),),
+    gates=(Gate("tools/verify/verify_load_meter.py", remix_arg=False, venv=True, stage="image"),
+           Gate("tools/verify/verify_dsp_vectors.py"),),
 )

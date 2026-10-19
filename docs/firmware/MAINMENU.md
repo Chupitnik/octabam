@@ -71,7 +71,7 @@ each time MAIN MENU opens from a detour at `0x40064c32`, the opener's
 new-window path (skipped while the menu is already up), before the window
 is created: its row count and cursor may change there (REMIX SWITCH's rows
 in BRAIN's pane, sanderlegit). ✅ drawn and driven under the port, 29 Sep
-2026 (OS SWITCH's own category then) and 8 Oct 2026 (`verify_remixswitch`,
+2026 (OS SWITCH's own category then) and 8 Oct 2026 (`verify_remix_switch`,
 BRAIN); STEMS own window, `verify_stems_menu` / `stems-brain`.
 
 Root rows: window descriptor set, child set, action 0. Leaf rows: window 0,

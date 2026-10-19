@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """BOOT TRACE under the port: a normal MKII boot sends notes 1..6 in order.
 
-    python3 tools/verify/verify_boottrace.py remix-switch-trace
+    python3 tools/verify/verify_boot_trace.py remix-switch-trace
 
 Boots the remix (NOR's bootstrap version preloaded, so the entry takes the
 hardware's path) and watches the trace routine's entry: the note it is
@@ -34,21 +34,21 @@ def main():
     # 29 Sep 2026, docs/contributing/FAILURE_MODES.md). A gate that asserts a
     # normal boot cannot be run on that image.
     if "DSP RESET PROBE" in mods:
-        print(f"  [SKIP] verify_boottrace: {remix} carries DSP RESET PROBE, which stops the "
+        print(f"  [SKIP] verify_boot_trace: {remix} carries DSP RESET PROBE, which stops the "
               f"boot on purpose")
         return 0
     if "BOOT TRACE" not in mods:
-        print(f"  [SKIP] verify_boottrace: {remix} does not carry BOOT TRACE")
+        print(f"  [SKIP] verify_boot_trace: {remix} does not carry BOOT TRACE")
         return 0
     if not EMU.exists():
-        print("  [SKIP] verify_boottrace: the ColdFire port is not built (make emu-cf)")
+        print("  [SKIP] verify_boot_trace: the ColdFire port is not built (make emu-cf)")
         return 0
     env = dict(os.environ, REMIX=remix, XBUS="1", SPEC="1")
     env.setdefault("BUILD", "0")
     r = subprocess.run([sys.executable, str(ROOT / "tools/build/build_bus.py")], env=env,
                        capture_output=True, text=True, cwd=ROOT)
     if r.returncode:
-        sys.exit(f"verify_boottrace: building {remix} failed:\n{(r.stdout + r.stderr)[-1500:]}")
+        sys.exit(f"verify_boot_trace: building {remix} failed:\n{(r.stdout + r.stderr)[-1500:]}")
     trace = nm(ROOT / "out/linked/boot-trace/boot_trace/u.elf")["tracev"]
     watch = [trace]
     chain = None
@@ -80,7 +80,7 @@ def main():
           and [v for n, v in echoes if n == 18] == [3, 3] and not [1 for n, v in echoes if n == 19]
           and dict(seq).get(9) == 22 and 10 not in notes and 11 not in notes
           and chain_bytes == (6 if chain else 0))
-    print(f"  [{'PASS' if ok else 'FAIL'}] verify_boottrace: a normal MKII boot sends notes "
+    print(f"  [{'PASS' if ok else 'FAIL'}] verify_boot_trace: a normal MKII boot sends notes "
           f"{'1, 12 (the chainloader), ' if chain else ''}{want}, clock 22, never 10/11, "
           f"uploads 14/15 on core 0 then core 1, final echoes 18 = 3, 3  "
           f"(saw {seq}, {chain_bytes} chainloader byte(s))")

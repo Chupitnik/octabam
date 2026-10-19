@@ -678,7 +678,7 @@ class DspSection:
     # is already there. The one place that has words to give is the interrupt
     # vector table: stock leaves whole runs of slots as `jmp *` (a self-jump
     # plus a zero word), which would freeze the core if that interrupt ever
-    # fired, so they are dead -- `tools/verify/verify_dspvectors.py` proves
+    # fired, so they are dead -- `tools/verify/verify_dsp_vectors.py` proves
     # nothing arms one, on every build, and that gate is the licence for this
     # field. The build walks forward from `pin` while the stock pattern
     # holds, refuses if what it finds is not that pattern, and claims every
@@ -1028,7 +1028,7 @@ class Harness:
     # None = the default, FX2 position 0 (n = 2), or FX1 (n = 1) for an
     # fx1_only module. A module that runs at some positions only and is a
     # dry pass elsewhere names one it runs at, or `send_probe --direct`,
-    # the audition and verify_dirtystate measure its dry pass (VOCODER:
+    # the audition and verify_dirty_state measure its dry pass (VOCODER:
     # 5, 0x6500, a core's second FX2 slot).
     render_r7: int | None = None
 

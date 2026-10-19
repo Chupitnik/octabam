@@ -176,7 +176,7 @@ MODULE = Module(
     # the GRAIN lever, the tempo feed, and the bus's two-core and one-aux gates
     gates=(Gate('tools/verify/verify_grains.py'),
            Gate('tools/verify/verify_tempo.py'),
-           Gate('tools/verify/verify_twocore.py', remix_arg=False),
-           Gate('tools/verify/verify_onebus.py', remix_arg=False)),
+           Gate('tools/verify/verify_two_core.py', remix_arg=False),
+           Gate('tools/verify/verify_one_bus.py', remix_arg=False)),
     dear={'DEL': 100, 'FDBK': 100, 'MODE': 1, 'SCTR': 127, 'DENS': 127, 'WET': 127},
 )

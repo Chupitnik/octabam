@@ -24,7 +24,7 @@ A DSP-side class exists for one kind of code (sanderlegit, PR #542):
 
 Stock's unused vectors are self-jumps: an interrupt that fired there would
 spin the core in it for good, so stock never enables them.
-`tools/verify/verify_dspvectors.py` checks that on every build (the runs
+`tools/verify/verify_dsp_vectors.py` checks that on every build (the runs
 are all self-jumps; no DMA whose vector is in one has DIE set; no ESAI
 control word has an interrupt enable; the set of peripherals either
 payload configures is the audited one), and that gate is the licence for
@@ -156,7 +156,7 @@ are `.bss` there.
 writes it just before a reset and the next boot's OS entry reads it before
 anything else runs; nothing between a reset and the OS entry writes SDRAM
 outside the image the bootstrap unpacks (`docs/firmware/ARCHITECTURE.md`
-section 3a). In a remix carrying the module, `verify_remixswitch` refuses a
+section 3a). In a remix carrying the module, `verify_remix_switch` refuses a
 runtime and stage that reach the mailbox.
 
 The OS never touches a reservation again: the arena clear starts at the

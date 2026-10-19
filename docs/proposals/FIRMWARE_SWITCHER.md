@@ -168,7 +168,7 @@ from the state the bootstrap hands over, minus one parked argument and the
 
 ---
 
-## 4. What is measured ✅ (the port, `tools/verify/verify_remixswitch.py`, 16 checks)
+## 4. What is measured ✅ (the port, `tools/verify/verify_remix_switch.py`, 16 checks)
 
 - The panel drives the row, the dialog, the deferred load and the reset
   sequence on a card holding `STOCK140.OBI`. The stage reads back equal
@@ -223,7 +223,7 @@ its own (`dsp_park.asm`: host command `$12` on stock's unused vector
 `P:$24`; DMA and ESAI stopped; the interrupt left; count, address, words,
 jump). Under the port both cores take it, the stock upload completes
 through the loaders, and each core enters its stock bootstrap and payload
-start again (`verify_remixswitch`'s `dsp` case). The steps below stand, for
+start again (`verify_remix_switch`'s `dsp` case). The steps below stand, for
 build 6 (with BOOT TRACE: `remix-switch-trace`):
 
 **Builds 7-14, on the unit** (BOOT TRACE throughout; the whole story is

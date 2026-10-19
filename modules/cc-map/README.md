@@ -16,7 +16,7 @@ places it) and one poke. Named CC PAGE 2 (`modules/ccpage2`) until
 
 ## Measured
 
-- `tools/verify/verify_ccmap.py` (in `make check`): for each track 0–7
+- `tools/verify/verify_cc_map.py` (in `make check`): for each track 0–7
   on its own channel, CC 62 lands count-clamped at the traced Part, live
   and shadow bytes; an over-count value clamps; CC 40 reaches the next
   handler and writes no page-2 byte. This runs single-core under Unicorn, so
@@ -45,7 +45,7 @@ places it) and one poke. Named CC PAGE 2 (`modules/ccpage2`) until
 
 ## Gates
 
-- `tools/verify/verify_ccmap.py` (in `make check`, Unicorn), the manifest's
+- `tools/verify/verify_cc_map.py` (in `make check`, Unicorn), the manifest's
   gate.
 - `verify_set` (`OT_PROJECT=<dir> make check`) under the ColdFire port.
 
@@ -120,7 +120,7 @@ their standard MIDI meanings:
 3. Widen the range test at `CAVE` (today `cc−62 ≤ 11`) and add a write path
    for the block.
 4. Regenerate the oracle (`manifest.CODE`), and extend
-   `tools/verify/verify_ccmap.py` to prove the new stores on all eight
+   `tools/verify/verify_cc_map.py` to prove the new stores on all eight
    tracks against the editor.
 
 ## Oracle

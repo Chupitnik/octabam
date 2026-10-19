@@ -19,7 +19,7 @@ stored value is used as an index and stalls the sequencer.
 Source is the truth: the build links cc_map.s into the DRAM runtime;
 `legacy_bytes()` is the hand-assembled oracle the linked source is
 compared against (Linked.reference, and
-tools/verify/verify_ccmap.py, which also proves the write for all eight
+tools/verify/verify_cc_map.py, which also proves the write for all eight
 tracks in the emulator against the firmware editor)."""
 
 import pathlib
@@ -106,5 +106,5 @@ MODULE = Module(
                             ("CC_MODEDEF1", STOCK_RTS))),),
     symbol_refs=(SymbolRef(DISPATCH_CC, STOCK_CC, "ccmap", "ccm_entry",
                            "MIDI dispatch: the CC vector (CC 62-67 reach FX2 page 2, CC 68-73 FX1 page 2)"),),
-    gates=(Gate('tools/verify/verify_ccmap.py', remix_arg=False, venv=True),),
+    gates=(Gate('tools/verify/verify_cc_map.py', remix_arg=False, venv=True),),
 )

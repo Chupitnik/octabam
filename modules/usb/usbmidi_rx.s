@@ -169,7 +169,7 @@ usbmidi_rx_flush:
 | MKII (OCTABAM14, macOS and two Windows 10 hosts, 7-9 Oct 2026): transmit
 | works on the first connection after boot and never after an unplug and
 | replug; a bus reset with the cable in does not do it. Under the port
-| (verify_usbmidi_replug) the session end leaves usbmidi_up = 1, the unit
+| (verify_usb_midi_replug) the session end leaves usbmidi_up = 1, the unit
 | goes on queueing clock and primes EP2 IN with USBCMD.RS clear, and the
 | bytes queued while unplugged go out after the next SET_CONFIGURATION.
 | How silicon then loses EP2 IN for good is inferred, not measured: a prime
@@ -205,7 +205,7 @@ usbmidi_rx_sessend_shim:
 | nothing to the next host), and both EP2 directions are flushed. The
 | accumulator length is usbmidi.s's local usbmidi_tx_acc_len, at
 | usbmidi_up + 4 in his verbatim layout (up, tx_busy, tmpbyte, .balign 2):
-| Linked.reference pins those bytes and verify_usbmidi_replug checks the
+| Linked.reference pins those bytes and verify_usb_midi_replug checks the
 | offset. Interrupts are masked for the three stores, as usbmidi.s masks its
 | own accumulator. Saves everything it uses.
 | usbmidi_tx_kick sets tx_busy and runs the encoder with interrupts unmasked;

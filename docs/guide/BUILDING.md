@@ -226,7 +226,7 @@ its own gates). [docs/contributing/TESTING.md](../contributing/TESTING.md) says 
 each step proves. Measured on one machine, 27 Sep 2026, over the 25
 remixes of the day: 475 s for the shared half, 223 s per remix on average
 (`lofi-amf-fix` 51 s, `bottleservice` 1,143 s). Without `make emu-setup`
-(the `.venv`) the label gates (`verify_labels`, `verify_modenames`,
+(the `.venv`) the label gates (`verify_labels`, `verify_mode_names`,
 `verify_hidden`) report `[SKIP]`; without `make emu-cf` the set gates do;
 without a project in `OT_PROJECT` the set gates do too.
 

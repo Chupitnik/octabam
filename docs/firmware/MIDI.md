@@ -359,7 +359,7 @@ page-2 edit at the panel reaches the DSP on a THRU track
 Tooling: `tools/hw/hw_bus_test.py` (synchronous paired A/B over MIDI with
 capture, a page-1 control proving the harness each run), an emulator
 write-diff of the editor against the cave (every store, same inputs),
-`tools/verify/verify_ccmap.py` (the cave's writes for all eight tracks
+`tools/verify/verify_cc_map.py` (the cave's writes for all eight tracks
 against the FX2 editor under the emulator).
 
 

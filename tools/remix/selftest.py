@@ -314,7 +314,7 @@ def _harness_preflight() -> int:
     `make setup` builds both, but its step 4 used to (a) swallow a failed
     cmake build behind an echo and (b) decide "already built" from the
     DISASSEMBLER alone, so a machine whose first setup got that far and no
-    further passed every later `make setup` and then died in verify_twocore
+    further passed every later `make setup` and then died in verify_two_core
     as a FileNotFoundError traceback on dsp_host -- the second wall Bryan T
     hit on a fresh clone. And a missing dsp_host is not only a
     crash later: the FLANGER passthrough probe below silently SKIPS without
