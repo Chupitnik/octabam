@@ -459,17 +459,32 @@ def main():
         print(f"  [FAIL] stock instance buffer: LOAD METER clashes with {_lm_hits}; SEND does not with {_send_hits}")
 
     # SIDECHAIN_COMPRESSOR's cross-core window (half-relative: the tail of T7's and
-    # T3's FX2 slot) against each buffered effect's extent: every stock one stops
-    # short of it (DARK REV at +$3DA2); MINIVERB, GATE VERB and WAVE do not.
+    # T3's FX2 slot, +$3DFE..) against each buffered effect's extent: refused exactly
+    # where the extent reaches +$3DFE (stock.SLOT_EXTENT, else a module's
+    # buffer_words). Every stock effect stops short (DARK REV at +$3DA2), and so does
+    # every module that keeps the rule under SLOT_EXTENT.
     _sc = registry.by_key("SIDECHAIN_COMPRESSOR")
-    _sc_hits = sorted(k for k in _buf + ["MINIVERB", "GATE VERB", "WAVE"]
+    _cands = _buf + sorted(k for k, m in registry.modules().items()
+                           if k not in _buf and getattr(m, "claims", None) is not None
+                           and m.claims.stock_instance_buffer and not m.claims.fx1_only)
+
+    def _reaches(k):
+        ext = _stk_ext.SLOT_EXTENT.get(k)
+        if ext is None:
+            ext = (registry.by_key(k).claims.buffer_words or 16384) - 1
+        return ext >= 0x3DFE
+
+    _sc_want = sorted(k for k in _cands if _reaches(k))
+    _sc_hits = sorted(k for k in _cands
                       if any("stock instance buffer" in x
                              for x in ledger.check([_sc, registry.by_key(k)])))
-    if _sc_hits == ["GATE VERB", "MINIVERB", "WAVE"]:
-        print("  [PASS] SIDECHAIN_COMPRESSOR's window clashes with MINIVERB, GATE VERB and WAVE, with no stock effect")
+    if _sc_hits == _sc_want and not set(_sc_hits) & set(_buf):
+        print("  [PASS] SIDECHAIN_COMPRESSOR's window clashes with exactly the buffered effects that "
+              f"reach +$3DFE ({', '.join(_sc_want) or 'none'}), with no stock effect")
     else:
         bad += 1
-        print(f"  [FAIL] stock instance buffer: SIDECHAIN_COMPRESSOR's window clashes with {_sc_hits}")
+        print(f"  [FAIL] stock instance buffer: SIDECHAIN_COMPRESSOR's window clashes with {_sc_hits}, "
+              f"expected {_sc_want}")
 
     try:
         Param(b"SIXSIX")
