@@ -43,7 +43,7 @@ longer than 32 characters. Nesting deeper than 6 folders also fails.
 (`docs/contributing/FAILURE_MODES.md`). Copy uses stock `DIRSCAN`
 (`0x4007f598`), mkdir (`0x46c8240a`), and file copy (`0x40016388`) from
 an engine job (type 21), posted like REMIX SWITCH's deferred load.
-Failed-copy cleanup uses stock's recursive walker (`0x40090a14`, mode 0).
+Failed-copy cleanup uses stock's recursive walker (`0x40090a14`, mode 0). Gated under the port: a source directory with more than 256 entries forces `COPY FAILED`, removes the partial destination, leaves SRC intact, and a retry with the same name does not read `NAME ALREADY IN USE!`.
 
 ## On the unit
 

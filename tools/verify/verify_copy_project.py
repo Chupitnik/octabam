@@ -4,13 +4,15 @@
     python3 tools/verify/verify_copy_project.py [REMIX]
     make check REMIX=copy-project   # runs this as the module gate
 
-Stages a project as SRC, opens PROJECT > COPY PROJECT, picks it, accepts
-the stock default name (`PROJECT YYMMDD` under a pinned RTC), confirms,
-answers NO on OPEN IT?, flushes the card, and checks the destination
-folder holds the same project.work bytes as the source.
+1. Success: stage SRC, PROJECT > COPY PROJECT, stock default name under a
+   pinned RTC, confirm, OPEN IT? NO — destination matches source.
+2. Failure / cleanup: SRC with more than 256 entries in one directory
+   forces COPY FAILED; destination is removed; source untouched; a retry
+   with the same name does not hit NAME ALREADY IN USE! (dest still gone
+   after the name editor YES).
 
-SKIPs without the port or a project. Cannot see: a directory past EMAX
-entries, a name past NLEN, copy while the sequencer plays (hardware).
+SKIPs without the port or a project. Copy while the sequencer plays is
+hardware only.
 """
 from __future__ import annotations
 
@@ -31,6 +33,8 @@ OUT = ROOT / "out/copy_project_verify"
 # 2026-10-14 12:00:00 UTC — same epoch as verify_rnd_name
 RTC_EPOCH = 1791979200
 DST = "PROJECT 261014"
+# copyproj.c EMAX — one more than kept entries refuses the scan
+EMAX = 256
 
 
 def press(p, name, n=1, settle=80):
@@ -51,22 +55,7 @@ def menu_copy_project(p):
     press(p, "down", 5)  # COPY PROJECT (after SAVE TO NEW)
 
 
-def main() -> int:
-    remix = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("REMIX")
-    if not remix:
-        sys.exit("verify_copy_project: remix name required")
-    if "COPY PROJECT" not in registry.remix(remix).modules:
-        print(f"  [ -- ] verify_copy_project: {remix} carries no COPY PROJECT")
-        return 0
-    if not EMU.is_file():
-        print("  [SKIP] verify_copy_project: no port binary (make emu-cf)")
-        return 0
-    pdir = pathlib.Path(os.environ.get(
-        "OT_PROJECT", str(ROOT / "template_project/!DEF_N1"))).expanduser()
-    if not (pdir / "project.work").is_file():
-        print(f"  [SKIP] verify_copy_project: no project at {pdir}")
-        return 0
-
+def build_image(remix: str) -> pathlib.Path:
     OUT.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, REMIX=remix, XBUS="1", SPEC="1")
     env.setdefault("BUILD", "0")
@@ -76,14 +65,14 @@ def main() -> int:
         sys.exit(f"verify_copy_project: build failed:\n{(r.stdout + r.stderr)[-1500:]}")
     image = OUT / "mainos.bin"
     image.write_bytes((ROOT / "out/mainos_bus.bin").read_bytes())
+    return image
 
-    fixture = OUT / "src"
-    if fixture.exists():
-        shutil.rmtree(fixture)
-    shutil.copytree(pdir, fixture)
-    src_work = (fixture / "project.work").read_bytes()
 
-    card, tree = OUT / "card.img", OUT / "tree"
+def stage(fixture: pathlib.Path, card: pathlib.Path, tree: pathlib.Path) -> None:
+    if tree.exists():
+        shutil.rmtree(tree)
+    if card.exists():
+        card.unlink()
     r = subprocess.run(
         [str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"),
          str(fixture), "OCTABAM", "SRC", "--tree", str(tree), "--out", str(card)],
@@ -91,25 +80,19 @@ def main() -> int:
     if r.returncode:
         sys.exit(f"verify_copy_project: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
 
-    sys.path.insert(0, str(ROOT / "tools/verify"))
-    from stems_panel import MenuPort  # noqa: E402
 
-    log = OUT / "port.log"
-    with MenuPort(image.resolve(), card.resolve(), "OCTABAM", "SRC", True,
-                  log_path=log, extra=("--rtc", str(RTC_EPOCH))) as p:
-        p.settle()
-        menu_copy_project(p)
-        press(p, "yes", settle=400)          # open list
-        press(p, "yes", settle=600)          # pick SRC -> name editor
-        press(p, "yes", settle=400)          # accept PROJECT YYMMDD
-        press(p, "yes", settle=400)          # confirm COPY SRC -> DST?
-        p.run(20000)                         # engine job 21
-        press(p, "no", settle=400)           # OPEN IT? -> leave live project
-        p.card_flush()
-
+def card_files(card: pathlib.Path) -> dict:
     import emu_card  # noqa: E402
 
-    files = emu_card.extract_image(card.read_bytes())
+    return emu_card.extract_image(card.read_bytes())
+
+
+def project_keys(files: dict, name: str) -> list[str]:
+    needle = f"/{name}/"
+    return [k for k in files if needle in k.replace("\\", "/")]
+
+
+def assert_success(files: dict, src_work: bytes, log: pathlib.Path) -> None:
     dst_key = next((k for k in files if k.endswith(f"/{DST}/project.work")), None)
     if not dst_key:
         sample = sorted(k for k in files if "project.work" in k)[:12]
@@ -133,7 +116,127 @@ def main() -> int:
     if missing:
         sys.exit(f"verify_copy_project: destination missing {missing[:8]} -- {log}")
     print(f"  [PASS] verify_copy_project: {DST!r} matches SRC "
-          f"({len(src_work)}-byte project.work, {len(files) - len(missing)} files)")
+          f"({len(src_work)}-byte project.work, "
+          f"{sum(1 for k in files if k.startswith(src_prefix))} files)")
+
+
+def run_success(image: pathlib.Path, pdir: pathlib.Path) -> None:
+    fixture = OUT / "src"
+    if fixture.exists():
+        shutil.rmtree(fixture)
+    shutil.copytree(pdir, fixture)
+    src_work = (fixture / "project.work").read_bytes()
+    card, tree = OUT / "card.img", OUT / "tree"
+    stage(fixture, card, tree)
+
+    sys.path.insert(0, str(ROOT / "tools/verify"))
+    from stems_panel import MenuPort  # noqa: E402
+
+    log = OUT / "port.log"
+    with MenuPort(image.resolve(), card.resolve(), "OCTABAM", "SRC", True,
+                  log_path=log, extra=("--rtc", str(RTC_EPOCH))) as p:
+        p.settle()
+        menu_copy_project(p)
+        press(p, "yes", settle=400)          # open list
+        press(p, "yes", settle=600)          # pick SRC -> name editor
+        press(p, "yes", settle=400)          # accept PROJECT YYMMDD
+        press(p, "yes", settle=400)          # confirm COPY SRC -> DST?
+        p.run(20000)                         # engine job 21
+        press(p, "no", settle=400)           # OPEN IT? -> leave live project
+        p.card_flush()
+
+    assert_success(card_files(card), src_work, log)
+
+
+def run_fail_cleanup(image: pathlib.Path, pdir: pathlib.Path) -> None:
+    """SRC with EMAX+1 files in one directory -> COPY FAILED + rm_tree."""
+    fixture = OUT / "src_fat"
+    if fixture.exists():
+        shutil.rmtree(fixture)
+    shutil.copytree(pdir, fixture)
+    src_work = (fixture / "project.work").read_bytes()
+    for i in range(EMAX + 1):
+        (fixture / f"pad{i:04d}.bin").write_bytes(b"x")
+
+    card, tree = OUT / "card_fat.img", OUT / "tree_fat"
+    stage(fixture, card, tree)
+
+    sys.path.insert(0, str(ROOT / "tools/verify"))
+    from stems_panel import MenuPort  # noqa: E402
+
+    log = OUT / "port_fat.log"
+    with MenuPort(image.resolve(), card.resolve(), "OCTABAM", "SRC", True,
+                  log_path=log, extra=("--rtc", str(RTC_EPOCH))) as p:
+        p.settle()
+        menu_copy_project(p)
+        press(p, "yes", settle=400)
+        press(p, "yes", settle=600)
+        press(p, "yes", settle=400)          # accept PROJECT YYMMDD
+        press(p, "yes", settle=400)          # confirm
+        p.run(20000)                         # COPY FAILED + rm_tree
+        p.card_flush()
+
+        files = card_files(card)
+        if project_keys(files, DST):
+            sys.exit(f"verify_copy_project: {DST!r} still on card after COPY FAILED "
+                     f"-- cleanup missed -- {log}")
+        src_key = next((k for k in files if k.endswith("/SRC/project.work")), None)
+        if not src_key or files[src_key] != src_work:
+            sys.exit(f"verify_copy_project: SRC damaged after COPY FAILED -- {log}")
+        pad = sum(1 for k in files if "/SRC/pad" in k.replace("\\", "/"))
+        if pad < EMAX + 1:
+            sys.exit(f"verify_copy_project: SRC lost pad files "
+                     f"({pad} < {EMAX + 1}) -- {log}")
+        print(f"  [PASS] verify_copy_project: COPY FAILED cleaned {DST!r}; "
+              f"SRC untouched ({pad} pad files)")
+
+        # Retry same default name: dest must still be absent after name YES
+        # (proves NAME ALREADY IN USE! did not fire — that path needs dest present).
+        menu_copy_project(p)
+        press(p, "yes", settle=400)
+        press(p, "yes", settle=600)
+        press(p, "yes", settle=400)          # accept PROJECT YYMMDD again
+        p.card_flush()
+        files = card_files(card)
+        if project_keys(files, DST):
+            sys.exit(f"verify_copy_project: retry hit NAME ALREADY IN USE! "
+                     f"({DST!r} present after name YES) -- {log}")
+        print(f"  [PASS] verify_copy_project: retry name {DST!r} not in use "
+              f"(dest still absent after name YES)")
+
+        press(p, "yes", settle=400)          # confirm again -> FAIL + cleanup
+        p.run(20000)
+        p.card_flush()
+
+    files = card_files(card)
+    if project_keys(files, DST):
+        sys.exit(f"verify_copy_project: {DST!r} left after second COPY FAILED -- {log}")
+    src_key = next((k for k in files if k.endswith("/SRC/project.work")), None)
+    if not src_key or files[src_key] != src_work:
+        sys.exit(f"verify_copy_project: SRC damaged after retry -- {log}")
+    print("  [PASS] verify_copy_project: second COPY FAILED still cleans dest; "
+          "SRC intact")
+
+
+def main() -> int:
+    remix = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("REMIX")
+    if not remix:
+        sys.exit("verify_copy_project: remix name required")
+    if "COPY PROJECT" not in registry.remix(remix).modules:
+        print(f"  [ -- ] verify_copy_project: {remix} carries no COPY PROJECT")
+        return 0
+    if not EMU.is_file():
+        print("  [SKIP] verify_copy_project: no port binary (make emu-cf)")
+        return 0
+    pdir = pathlib.Path(os.environ.get(
+        "OT_PROJECT", str(ROOT / "template_project/!DEF_N1"))).expanduser()
+    if not (pdir / "project.work").is_file():
+        print(f"  [SKIP] verify_copy_project: no project at {pdir}")
+        return 0
+
+    image = build_image(remix)
+    run_success(image, pdir)
+    run_fail_cleanup(image, pdir)
     return 0
 
 
