@@ -14,7 +14,7 @@ repointed to our copy with CUE added; editors are gated on callback slot
 from remix.schema import Category, Gate, Kind, Linked, Module, Proof, SymbolRef
 
 
-def _rnd_include(modules):
+def _rnd_include(modules, _remix):
     """remix.inc: HAVE_COPY_PROJECT when COPY PROJECT's cp_named is linkable."""
     return f".set HAVE_COPY_PROJECT, {int('COPY PROJECT' in modules)}\n"
 
