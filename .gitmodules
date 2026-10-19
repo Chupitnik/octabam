@@ -44,3 +44,6 @@
 	path = modules/midi-scales/upstream
 	url = https://github.com/radiohagen/octatrack-modules.git
 	branch = codex/pr/midi-scales
+[submodule "modules/blackpyramids-303/upstream"]
+	path = modules/blackpyramids-303/upstream
+	url = https://github.com/Zac-Kyoti/octatrack-kyoti-fw
