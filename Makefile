@@ -475,7 +475,14 @@ ci-dsp: ## CI: dsp56300 at its pin + our patch, built; upstream's test runner; c
 	scripts/vendor.sh dsp56300
 	cmake -S vendor/dsp56300 -B vendor/dsp56300/build -DCMAKE_BUILD_TYPE=Release
 	cmake --build vendor/dsp56300/build --target dsp56kDisassemble dsp_asm dsp_host dsp56kTestRunner -j
-	vendor/dsp56300/build/source/dsp56kTestRunner/dsp56kTestRunner
+	@# The runner logs every JIT'd instruction (`_log@` lines): ~160,000 lines
+	@# per run. Kept in out/dsp56kTestRunner.log; the last 40 other lines print,
+	@# the last 300 on failure.
+	@mkdir -p out
+	@vendor/dsp56300/build/source/dsp56kTestRunner/dsp56kTestRunner > out/dsp56kTestRunner.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then grep -v '^_log@' out/dsp56kTestRunner.log | tail -300; exit $$rc; fi; \
+	  echo "dsp56kTestRunner: $$(wc -l < out/dsp56kTestRunner.log) log lines in out/dsp56kTestRunner.log, last 40 other lines:"; \
+	  grep -v '^_log@' out/dsp56kTestRunner.log | tail -40
 	@$(MAKE) --no-print-directory check-asm
 
 # rtos, dsp and repitch-* read the stock OS and return 0 without it, so
