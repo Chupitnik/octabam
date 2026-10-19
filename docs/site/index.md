@@ -1,20 +1,28 @@
-# A love letter to the Octatrack
+# Octabam
 
-octabam adds community features to the Elektron Octatrack: Kits, templates,
-expanded scenes and parameter locks, USB audio, and new effects. You choose
-which features to install by building a **remix** from your own copy of
-OS 1.40C.
+*A love letter to the Octatrack*
 
-This manual explains the additions to stock OS. It assumes you are familiar
-with tracks, Parts, patterns, scenes, and the Octatrack's front panel.
+octabam adds community features to the Elektron Octatrack's operating
+system (OS 1.40C): Kits, templates, expanded scenes and parameter locks, USB
+audio and MIDI, and new effects. You pick a **remix**, build it in your
+browser from your own copy of OS 1.40C, and install it from a CF card or
+over MIDI. octabam is unofficial community software; see [About](about.md).
 
-## First Installation
+## Get started
 
-1. [Choose a remix](choosing.md) for the effects and workflow you want.
-2. Read [Safety and recovery](safety.md), then back up your CF card.
-3. Follow [Build and install](web-builder.md) to build and install your image.
+1. [Choose a remix](choosing.md).
+2. [Build and install](web-builder.md) it.
+3. Use the features below.
 
-## Everyday Use
+## The remixes
+
+| Remix | What you get |
+|---|---|
+| [Octabam Core](remix-core.md) | The core features on the 14 stock effects. |
+| [Octabam Inserts](remix-inserts.md) | The core features plus seven effects that run on any track. |
+| [Octabam Bus](remix-bus.md) | The core features plus a shared delay and reverb bus and three FX1 effects. |
+
+## Everyday use
 
 | To… | Open… |
 |---|---|
@@ -25,23 +33,12 @@ with tracks, Parts, patterns, scenes, and the Octatrack's front panel.
 | Record MAIN and CUE on a computer | [USB audio and MIDI](reference/modules/usb.md) |
 | Look up an effect or shortcut | [Feature directory](reference/modules.md) |
 
-## Reading the Instructions
+## Reading this manual
 
-**Bold labels** identify controls and menu items. An arrow indicates a menu
-path: **PROJ → BRAIN → TEMPLATES**. A plus sign indicates a combination:
-hold **FUNC** while pressing the other key. Commands and filenames appear
-in `monospace`.
-
-Screen illustrations show captured firmware screens. Their values are
-examples; available features and screen labels depend on the image you run.
-
-## About the Project
-
-octabam is unofficial community software and is not supported by Elektron.
-Hardware testing varies by feature and remix; emulator checks do not prove
-hardware behaviour. Read the test status on the relevant remix page.
-
-Build images locally from your own OS 1.40C. Built firmware contains
-Elektron's software and must not be shared. Module authors are listed in
-[Credits](reference/credits.md). Source code and technical documentation are
-in the [repository](https://github.com/sambanks/octabam).
+This manual describes the additions to stock OS and assumes you know tracks,
+Parts, patterns, scenes and the front panel. **Bold labels** are controls and
+menu items. An arrow is a menu path: **PROJ → BRAIN → TEMPLATES**. A plus
+sign is a key combination: hold **FUNC** while pressing the other key.
+Commands and filenames are in `monospace`. Screen illustrations are captured
+firmware screens; their values are examples, and the features and labels you
+see depend on the remix you run.

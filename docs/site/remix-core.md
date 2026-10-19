@@ -4,12 +4,10 @@
 
 *BRAIN in the main menu, added by Octabam Core*
 
-A remix of Octatrack OS 1.40C, built from your own copy of it, that adds the
-core modules and changes no effect: all 14 stock effects and both effect
-menus stay as stock has them, with stock LO-FI's AMF knob fixed (the LOFI AMF
-FIX module). The other official remixes add effects to this set:
-[Octabam Inserts](remix-inserts.md) (effects that run on any track) and
-[Octabam Bus](remix-bus.md) (a delay and reverb bus).
+Octabam Core adds the core features to Octatrack OS 1.40C. All 14 stock
+effects and both effect menus stay as stock has them, with stock LO-FI's AMF
+knob fixed (the LOFI AMF FIX module). [Octabam Inserts](remix-inserts.md)
+and [Octabam Bus](remix-bus.md) add effects to this set.
 
 ## Included Features
 
@@ -20,6 +18,25 @@ FIX module). The other official remixes add effects to this set:
 - [MIDI scenes](reference/modules/midi-scenes.md), CC mapping, and CC feedback.
 - [USB](reference/modules/usb.md): MIDI input and output, plus MAIN and CUE audio to a computer.
 - Recorder, sequencing, mute, and storage fixes listed below.
+
+## Build and Install
+
+[Build and Install](web-builder.md) builds this remix in the browser. To build
+from source instead:
+
+1. **Build.** Pick a build number; it becomes the OS version the unit shows.
+
+   ```bash
+   make image REMIX=octabam-core BUILD=91
+   ```
+
+2. **Back up the card.** KITS writes `kits.work` into each project it loads.
+3. Follow [Build and Install](web-builder.md#install-the-image) to install the image and confirm
+   that SYSTEM STATUS → OS VERSION reads `OCTABAM91`.
+4. To restore stock OS, follow [Safety and recovery](safety.md).
+
+If the unit misbehaves, the failure register lists what has gone wrong and
+why: https://github.com/sambanks/octabam/blob/main/docs/contributing/FAILURE_MODES.md
 
 ## Module List
 
@@ -45,22 +62,3 @@ but is not implemented in this version.
 
 Port gates only: `make check REMIX=octabam-core` and the reach round. Not on
 a unit.
-
-## Build and Install
-
-[Build and Install](web-builder.md) builds this remix in the browser. To build
-from source instead:
-
-1. **Build.** Pick a build number; it becomes the OS version the unit shows.
-
-   ```bash
-   make image REMIX=octabam-core BUILD=91
-   ```
-
-2. **Back up the card.** KITS writes `kits.work` into each project it loads.
-3. Follow [Build and Install](web-builder.md#install-the-image) to install the image and confirm
-   that SYSTEM STATUS → OS VERSION reads `OCTABAM91`.
-4. To restore stock OS, follow [Safety and recovery](safety.md).
-
-If the unit misbehaves, the failure register lists what has gone wrong and
-why: https://github.com/sambanks/octabam/blob/main/docs/contributing/FAILURE_MODES.md

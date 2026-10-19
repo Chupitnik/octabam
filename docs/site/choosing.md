@@ -1,48 +1,44 @@
 # Choose a Remix
 
-A **module** adds one feature. A **remix** combines modules into an operating
-system image. The three official remixes share the core features and differ
-mainly in their effects.
+A **module** adds one feature. A **remix** combines modules into an image.
+All three official remixes carry the same core features and differ in their
+effects.
 
-## Keep the Stock Effects
+| If you want… | Choose |
+|---|---|
+| The core features on the stock effects | [Octabam Core](remix-core.md) |
+| New effects on individual tracks | [Octabam Inserts](remix-inserts.md) |
+| Several tracks sharing one delay and one reverb | [Octabam Bus](remix-bus.md) |
+| A different set of modules | [Create your own remix](own-remix.md) |
 
-Choose [Octabam Core](remix-core.md) for Kits, BRAIN, expanded scenes and
-parameter locks, USB, and workflow fixes. All 14 stock effects remain in
-the stock menus, with the LO-FI AMF control fixed.
+## Core features in every remix
 
-## Add Effects to Individual Tracks
+Kits, BRAIN, expanded scenes and parameter locks, USB audio and MIDI, and
+recorder, sequencer and storage fixes. The list is on each remix page.
 
-Choose [Octabam Inserts](remix-inserts.md) for SPECTRUM, CHARACTER,
-MODULATION, TRANSIENT, and EUCLID on FX1 and FX2, plus GATE VERB and LOFI2
-on FX2. The stock DELAY remains. These effects process their own tracks;
-you do not need shared bus routing.
+## Octabam Core
 
-## Share a Delay and Reverb Bus
+All 14 stock effects stay in the stock menus, with the LO-FI AMF control
+fixed. The DSP half of LOAD METER does not fit in Core.
 
-Choose [Octabam Bus](remix-bus.md) to send several tracks to the same delay
-and reverb. Track 1 hosts the delay and track 5 hosts the reverb. Tracks
-2–4 and 6–7 have SEND controls; track 8 retains the stock DELAY.
-SPECTRUM, CHARACTER, and MODULATION are available on FX1.
+## Octabam Inserts
+
+SPECTRUM, CHARACTER, MODULATION, TRANSIENT and EUCLID on FX1 and FX2, plus
+GATE VERB and LOFI2 on FX2. The stock DELAY stays. Each effect processes its
+own track.
+
+## Octabam Bus
+
+Track 1 hosts a delay and track 5 hosts a reverb. Tracks 2–4 and 6–7 have
+SEND controls for both, and track 8 keeps the stock DELAY. SPECTRUM,
+CHARACTER and MODULATION are on FX1.
 
 The tested bus setup uses THRU machines on tracks 1 and 5 with no trigs of
-their own. Read the [bus setup instructions](remix-bus.md) before choosing
-this remix for an existing project.
+their own. The [Octabam Bus page](remix-bus.md) has the setup steps.
 
-## At a Glance
+## Shared limits
 
-| Remix | Effects arrangement | DSP load display |
-|---|---|---|
-| **core** | Stock effects | Unavailable |
-| **inserts** | Effects on individual tracks | Included |
-| **bus** | Shared delay and reverb, plus FX1 inserts | Included |
-
-All three reserve memory for the added features, leaving 12,895 sample and
-recorder pages compared with 14,602 in stock OS. Core has no room for the
-DSP portion of LOAD METER.
-
-Test history belongs to a particular image and setup. Read the status on
-each remix page; a module tested on hardware does not establish that the
-whole remix has been tested.
-
-Continue to [Build and install](web-builder.md), or
-[create your own remix](own-remix.md) from the available modules.
+All three reserve memory for the added features: 12,895 sample and recorder
+pages against 14,602 in stock OS. Test history belongs to one image and
+setup, and the status is on each remix page. A hardware test of one module
+covers that module.

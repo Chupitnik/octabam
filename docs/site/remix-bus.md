@@ -4,12 +4,10 @@
 
 *Bus Delay, the bus effect on FX1*
 
-A remix of Octatrack OS 1.40C, built from your own copy of it, that adds a
-**delay and reverb bus** with a send from every track, three new FX1
-effects, and the core modules. It is bottleservice's bus with the core set
-added; the USB module uses LAYOUT MAIN CUE and INPUTS OFF here. These USB
-settings take effect when the image is built; on-device configuration is
-not implemented in this version.
+Octabam Bus adds the core features, a **delay and reverb bus** with a send
+from every track, and three new FX1 effects to Octatrack OS 1.40C. The USB
+module uses LAYOUT MAIN CUE and INPUTS OFF here; these are build settings,
+and on-device configuration is not implemented in this version.
 
 ## The Bus
 
@@ -63,27 +61,6 @@ effect (FX2 LOCK).
 The FX1 chooser lists NONE and these three. The 13 stock effects not listed
 give up their DSP code to the bus.
 
-## The Modules
-
-Every module in the image, credited to its author:
-
-??? note "Full module list and authors"
-
-    --8<-- "reference/_remix-octabam-bus.md"
-
-## Memory Use
-
-| Resource | Stock OS | Octabam Bus |
-|---|---|---|
-| Sample and recorder memory | 14,602 pages | 12,895 pages (platform reserve) |
-| Free DSP words (payload A / B) | — | 44 / 605 |
-
-## Where It Has Run
-
-Port gates only: `make check REMIX=octabam-bus` and the reach round. Not on
-a unit. bottleservice, the same bus without the core additions, ran on Sam's
-MKII (images A0–A6; the changelog).
-
 ## Prepare an Existing Project
 
 For an existing project, assign the bus effects and update its saved effect
@@ -114,3 +91,24 @@ For stock OS recovery, follow [Safety and recovery](safety.md).
 
 If the unit misbehaves, the failure register lists what has gone wrong and
 why: https://github.com/sambanks/octabam/blob/main/docs/contributing/FAILURE_MODES.md
+
+## The Modules
+
+Every module in the image, credited to its author:
+
+??? note "Full module list and authors"
+
+    --8<-- "reference/_remix-octabam-bus.md"
+
+## Memory Use
+
+| Resource | Stock OS | Octabam Bus |
+|---|---|---|
+| Sample and recorder memory | 14,602 pages | 12,895 pages (platform reserve) |
+| Free DSP words (payload A / B) | — | 44 / 605 |
+
+## Where It Has Run
+
+Port gates only: `make check REMIX=octabam-bus` and the reach round. Not on
+a unit. bottleservice, the same bus without the core additions, ran on Sam's
+MKII (images A0–A6; the changelog).
