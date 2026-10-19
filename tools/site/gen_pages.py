@@ -240,6 +240,8 @@ def module_page(m, mods, official) -> str:
     fragment = OUT.parent / pathlib.Path("usage") / f"{m.name}.md"
     lines = ["---", "not_in_nav: true", "---", "",
              f"# {_label(m)}", ""]
+    if not m.is_stock:
+        lines += [f"By {_author(m)}", ""]
     lines += hero(m)
     if fragment.is_file():
         lines += [f'--8<-- "usage/{m.name}.md"', ""]
