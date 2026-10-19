@@ -34,10 +34,14 @@ CLIENTS = (
                             "fromcs1", "partclear")),
     ("PERSISTENT BUFFERS", "pbf", ("loadall_post", "loadmask_post", "pstore_pre",
                                "preload_post")),
+    # No side file: partclear holds its per-track state and the partsaved that ends
+    # the clear lets it go (stock Part Clear tail-jumps into Part Save).
+    ("VARISPEED", "vs", ("partsaved", "partclear")),
 )
 
 
-# A client's number in the refusal registry (store_refuse) and in ans_tab.
+# A client's number in the refusal registry (store_refuse) and in ans_tab: only the
+# clients that keep a side file (VARISPEED keeps none and has no entry).
 CLIENT_IDS = {"PLOCKS P2": 0, "KITS": 1, "MIDI SCENES": 2, "PERSISTENT BUFFERS": 3}
 
 
@@ -47,7 +51,8 @@ def store_inc(modules, remix):
            'nm_plk: .asciz "P2LK%02d.WORK"', 'nm_kits: .asciz "KITS.WORK"',
            'nm_scn: .asciz "SCENES.WORK"', 'nm_pbf: .asciz "BUFFERS/REC%d.WAV"',
            ".balign 2", "ans_tab:"]
-    for key, _prefix, _events in sorted(CLIENTS, key=lambda c: CLIENT_IDS[c[0]]):
+    for key, _prefix, _events in sorted((c for c in CLIENTS if c[0] in CLIENT_IDS),
+                                        key=lambda c: CLIENT_IDS[c[0]]):
         pre = {k: p for k, p, _e in CLIENTS}[key]
         out.append(f"        .long   {pre}_st_answer" if key in modules else "        .long   0")
     for ev in EVENTS:
