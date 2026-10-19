@@ -482,6 +482,32 @@ def check(selected) -> list[str]:
              if (getattr(m, "claims", None) is not None
                  and m.claims.owns_fx2_buffers)
              or (m.dsp is not None and m.dsp.ybase is not YBase.NEVER)]
+    # A module that declares data words inside an FX2 slot of the shared window
+    # meets a buffered effect there just as one that owns FX2 buffers does:
+    # SIDECHAIN_COMPRESSOR's cross-core window is the tail of T7's and T3's FX2
+    # slot (Y:$33dfe.. / $3bdfe..), and an effect that fills its slot (MINIVERB,
+    # GATE VERB to +$3EF7, WAVE) on T3 or T7 writes it -- heard on hardware (the
+    # author's MKI, 18 Oct 2026: an empty T7 with MINIVERB plays the other tracks).
+    # _outside_extent below lets every effect that stops short of the words through.
+    from remix import stock as _slots
+    from remix.dsp_ranges import payloads as _pls
+
+    def _shared_spans(m):
+        c = getattr(m, "claims", None)
+        out = []
+        for r in (c.dsp_ranges if c is not None else ()):
+            for pl in sorted(_pls(m)):
+                dom, s, e = r.resolve(pl)
+                if dom == "shared":
+                    out.append((s, e))
+        return out
+
+    fixed += [m for m in selected
+              if m not in fixed
+              and getattr(m, "claims", None) is not None
+              and not m.claims.owns_fx2_buffers
+              and any(s < base + 0x4000 and base < e
+                      for s, e in _shared_spans(m) for base in _slots.SLOT_BASES)]
     # An FX1-ONLY allocator reader (Claims.fx1_only) is exempt: on an FX2
     # slot it writes nothing, and on FX1 the allocator tops out at 0x3fff,
     # below every buffer a module of ours pins. Its render gate proves
@@ -504,16 +530,16 @@ def check(selected) -> list[str]:
         c = getattr(b, "claims", None)
         if c is None or c.owns_fx2_buffers or not c.dsp_ranges:
             return False
-        if any(r.half_relative for r in c.dsp_ranges):
-            return False
         from remix import stock
         ext = stock.SLOT_EXTENT.get(a.key)
         if ext is None and a.claims.buffer_words:
             ext = a.claims.buffer_words - 1       # a module's own declared buffer
         if ext is None:
             return False
-        return not any(r.start < base + ext + 1 and r.start + r.length > base
-                       for r in c.dsp_ranges for base in stock.SLOT_BASES)
+        # Each range where it lands on each payload the module runs on (a
+        # half-relative one differs per core); only the shared window has slots.
+        return not any(s < base + ext + 1 and e > base
+                       for s, e in _shared_spans(b) for base in stock.SLOT_BASES)
 
     for a in stocked:
         for b in fixed:

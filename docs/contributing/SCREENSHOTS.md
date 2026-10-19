@@ -59,7 +59,9 @@ Groups and what each captures, from the `shot(...)` calls:
 | `bus` | `octabam-bus` | fx2-lock, tempo-bus, load-meter, memory, usb, and the DELAY SERVER, SEND and REVERB SERVER pages |
 | `extras` | one test remix per module (character-txtr, testgen, sidechain-compressor, miniverb, tapeecho, vocoder, wave) | setup and main page of each |
 | `machines` | `analog-bassdrum`, `octatrick` | analog-bassdrum, synth, direct-jump |
+| `midi-scales` | `midi-scales` | midi-scales (OFF, Major, Dorian, Mixolydian) |
 | `probes` | `cfmeter` | CF METER |
+| `utilities` | `buffer-saver` | buffer-saver (a one-second take, then FUNC + PROJ: the SAVE SAMPLES? question) |
 
 The project is `--project`, `OT_PROJECT`, or the path in
 `~/.octabam_project`. The tool copies it to `out/manual-captures/<remix>/project`
@@ -121,3 +123,6 @@ mkdocs build --strict --config-file docs/site/mkdocs.yml
 ```
 
 Name the groups, project and remix in the PR body.
+
+The `midi-scales` group uses a sample-free fixture starting on audio track 1,
+with MIDI KEY OFF. Pass that local fixture with `--project`.

@@ -19,7 +19,8 @@ The full text before this rewrite: `git show 666b6154:CHANGELOG.md`.
 ## Unreleased
 
 - PLOCKS: releasing a held trig after editing an FX page-two lock keeps the new lock; a later bare trig tap still clears it. The editor now mirrors the native edited flag and pending-tap reset. Hardware tested by radiohagen on an Octatrack MKII (Core, 17 Oct 2026; source `b6a9d17`, local build label `OCTABAMP4`): hold/edit/release/rehold, FX SETUP display and stock-like hold timing checks passed. Numeric timing and Bus/Inserts checks remain emulator evidence.
-
+- BUFFER SAVER (`modules/buffer-saver`, Chupitnik): SAVE PROJECT (PROJECT > SAVE and FUNC + PROJ) asks SAVE SAMPLES? when a recorder buffer holds a take not yet saved. YES saves each such buffer under stock's name `R<n>-YYMMDD-HHMM` (`-2`, `-3` … when taken, never an overwrite), assigned to itself through stock's own save-and-assign (SAVE ALL RECORDINGS' mode 2), then saves the project; NO saves as stock. `remixes/test/buffer-saver`; gate `verify_buffer_saver` (port). On a unit, images AUTOSAVE1 and AUTOSAVE2 below.
+- VOCODER 0.2 (`modules/vocoder`, Ignorato, #784): page 1 NOTE, BEND, GEND, WHSP, DRY, CONS; page 2 MODE, SCAL, GLDE, RANG, KEY; LEVL removed (the track's AMP sets the level). BEND is ±12 semitones on NOTE (RANG: 6, 12 or 24); GEND scales the formants; WHSP blends the carrier to white noise; SCAL and KEY snap NOTE to a scale; GLDE glides; GEND, WHSP, DRY and CONS follow their knobs over about 8 ms. Value 0 of each new select renders bit for bit as 0.1. VOCODER now runs on FX2 of T2, T4, T6 and T8 (0.1: T2, T3, T6, T7); on T3 and T7 it passes dry. A Part saved under 0.1 needs `tools/hw/ot_project.py stamp-defaults <project> vocoder` before it plays. `remixes/test/vocoder-usb` added. Heard on Ignorato's MKII (OCTABAM27, 18 Oct 2026).
 - Arena: PURGE SAMPLES froze the unit in every remix with a DRAM reservation. `tools/remix/arena.py` moved `cmpal #0x40a955e0` at `0x400254f8` with the arena base, but it ends PURGE's walk over the 16 banks (their end is the stock base only by layout), so the walk ran off the end of RAM. That site stays stock now (27 words rewritten, was 28), and `pokes()` asserts it is never listed. Seen on Chupitnik's MKII (image AUTOSAVE1); the port: stock and the fixed image leave the walk at `0x40025502`, the old image ran on to `0x69f72010`; fixed on the unit (AUTOSAVE2, PURGE finishes, 16 Oct).
 - Removed REPITCH_REPEAT98_KYOTI (`modules/repitch-repeat98-kyoti/`, its submodule mount and `remixes/test/repitch-repeat98-kyoti/`) at its author's request; `octabam-inserts` no longer carries it. Its ColdFire core started from repeat98's REPITCH, and its author is rewriting it without that code.
 - GATE VERB (`modules/gateverb`): a gated plate reverb for FX2 on PLATE REV's id, built on the reverb stage of Mutable Instruments Clouds (Emilie Gillet), ported to fixed point. Six knobs: AMNT GAIN TIME DIFF TONE GATE (the gate is new: hold 52 to 784 ms after the input falls quiet, then a 3 ms close; the tank keeps ringing). One FX2 slot per instance; in `octabam-inserts`. Under `dsp_host` only: a float model agrees to 58 dB (63 dB with the gate), the gate closes to exact silence, no write outside its 16,120-word ring. Not heard, not on a unit.
@@ -114,6 +115,15 @@ Docs
 - `docs/contributing/TESTING.md`: every gate, how to write one, what it costs (29 Sep).
 - ColdFire load on a unit: Bryan T's CF METER takes (4 Oct; `docs/firmware/ARCHITECTURE.md` section 6): ~16.5 µs per playing voice at CPI ~4.4 against the port, no first-voice premium (the morning's +37 µs retracted the same evening), the USB stack ~14 µs idle / ~25 µs playing, no crossbar contention; OUT TRACKS MAIN CUE costs 27–50 µs of frame interrupt over OUT MAIN CUE, most of it with no host connected; TSTR and the stock DELAY not measurable; interrupt levels from the ICR writes in `KERNEL.md`.
 - Removed: `PLAN.md`, `docs/TIMESTRETCH_PIPELINE.md` (27 Sep).
+
+## AUTOSAVE1 and AUTOSAVE2 — 15-16 Oct 2026 (`rec-buffer-autosave`, now `buffer-saver`, Chupitnik's builds)
+
+On Chupitnik's MKII, each flashed from the card, under the module's first
+name REC BUFFER AUTOSAVE (`make image REMIX=rec-buffer-autosave BUILD=N
+VERSION=AUTOSAVEN`). The code is BUFFER SAVER's; the rename changed no
+byte of behaviour.
+- AUTOSAVE1 (BUILD 1): after a take, FUNC + PROJ asks SAVE SAMPLES?; YES saved the take with the real date and time and assigned it to its buffer; PROJECT > SAVE with two buffers saved both; an immediate re-save did not ask; a reload brought the takes back; NO saved as stock. Fault: PURGE SAMPLES froze the unit. It was not this module: the build moved the purge's end-of-banks compare (`0x400254f8`) with the arena base, in every remix with a DRAM reservation (fixed separately, `tools/remix/arena.py`).
+- AUTOSAVE2 (BUILD 2): AUTOSAVE1 plus that arena fix. PURGE SAMPLES finishes ("REMOVED 0 SAMPLES" in that project: PURGE clears unused slots and deletes no card file, as stock); the autosave checks again, all fine (16 Oct).
 
 ## THR1 to THR9 — 11-14 Oct 2026 (`rec-threshold`, Chupitnik's builds)
 
