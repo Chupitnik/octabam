@@ -60,6 +60,7 @@ Groups and what each captures, from the `shot(...)` calls:
 | `machines` | `analog-bassdrum`, `octatrick` | analog-bassdrum, synth, direct-jump |
 | `midi-scales` | `midi-scales` | midi-scales (OFF, Major, Dorian, Mixolydian) |
 | `probes` | `cfmeter` | CF METER |
+| `utilities` | `buffer-saver` | buffer-saver (a one-second take, then FUNC + PROJ: the SAVE SAMPLES? question) |
 
 The project is `--project`, `OT_PROJECT`, or the path in
 `~/.octabam_project`. The tool copies it to `out/manual-captures/<remix>/project`
