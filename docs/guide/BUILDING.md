@@ -18,10 +18,10 @@ remix name.
 ## 0. What you need
 
 - A Mac with the Xcode Command Line Tools (`xcode-select --install`:
-  `git`, `make`, a C compiler) and the m68k toolchain
-  (`scripts/m68k-toolchain.sh`), or Linux / WSL2 (section 1a below).
+  `git`, `make`, a C compiler) and [Homebrew](https://brew.sh), or Linux /
+  WSL2 (section 1a below).
 - `python3` (3.10+; the build is stdlib only).
-- `cmake` and [uv](https://docs.astral.sh/uv/).
+- `cmake` and [uv](https://docs.astral.sh/uv/): `make setup-mac` installs both; `make setup-linux` installs cmake, and uv has an install line in section 1a.
   uv provisions `.venv` (`make emu-setup`: `unicorn`, `textual`,
   `sounddevice`) for `make remix` and the label gates in `make check`.
 - An Octatrack MKI or MKII on OS 1.40C. Elektron's MKI and MKII download
@@ -51,8 +51,11 @@ make emu-setup
 `modules/direct-jump` and `modules/tuner`) at the pinned commits. If you cloned without
 it: `git submodule update --init`.
 
-`make setup` requires `m68k-elf-gcc` on PATH (section 1a builds it with
-`scripts/m68k-toolchain.sh`), checks out three pinned vendored tools (`vendor/`), applies the
+`make setup-mac` (Homebrew: `binwalk`, `radare2`, `m68k-elf-gcc`, `cmake`,
+`uv`) or `make setup-linux` (apt packages and `scripts/m68k-toolchain.sh`,
+section 1a) installs the system tools and then runs `make setup`;
+`make setup-windows` points at WSL2. `make setup` alone requires
+`m68k-elf-gcc` on PATH, checks out three pinned vendored tools (`vendor/`), applies the
 local patches and builds them. Re-running it is safe. It ends with
 `setup complete`. `make emu-setup` runs `uv sync --extra emu` into
 `.venv`.
@@ -71,7 +74,7 @@ carry CRLF endings bash chokes on. Reach the tree from Windows at
 `\\wsl$\Ubuntu\home\<user>\octabam` (to play rendered wavs, or to copy a
 built image to the card from Explorer). VS Code: the **WSL** extension.
 
-Inside the shell, before `make setup`:
+`make setup-linux` runs the apt install and the toolchain build below, then `make setup`. The steps by hand, before `make setup`:
 
 ```bash
 sudo apt update

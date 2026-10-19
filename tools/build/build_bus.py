@@ -1076,7 +1076,7 @@ def main():
                  f"(a DRAM unit in the remix); there is none")
     if _all_units and not _toolchain:
         sys.exit("linked units need m68k-elf-as/ld/objcopy/nm -- run `make setup` "
-                 "(scripts/m68k-toolchain.sh builds it)")
+                 "(make setup-mac or make setup-linux installs it)")
     for _m, _u in _units:
         _work = pathlib.Path("out/linked") / _m.name / _u.label
         _work.mkdir(parents=True, exist_ok=True)

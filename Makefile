@@ -56,8 +56,16 @@ HOST_ARCH := $(shell if [ "$$(uname -s)" = Darwin ] && [ "$$(sysctl -n hw.option
 # ---------------------------------------------------------------- toolchain --
 
 .PHONY: setup
-setup: ## Install/build the toolchain (idempotent)
+setup: ## Build the vendored tools (idempotent); needs the system tools from setup-mac or setup-linux
 	scripts/setup.sh
+
+.PHONY: setup-mac setup-linux setup-windows
+setup-mac: ## macOS: brew install the system tools, then make setup
+	scripts/setup-mac.sh
+setup-linux: ## Debian/Ubuntu/WSL2: apt install the system tools, build the m68k-elf toolchain, then make setup
+	scripts/setup-linux.sh
+setup-windows: ## Native Windows is not supported: WSL2, then make setup-linux
+	scripts/setup-windows.sh
 
 .PHONY: os
 os: ## Download the official Elektron OS (you supply your own copy)

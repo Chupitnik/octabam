@@ -38,8 +38,8 @@ The licence is MIT.
 
 [docs/guide/BUILDING.md](docs/guide/BUILDING.md) has every step. Section 0 is what
 to install first: on macOS the Xcode Command Line Tools
-(`xcode-select --install`), Python 3.10+, `cmake` and `uv`; on Linux
-`scripts/m68k-toolchain.sh` builds the ColdFire cross-compiler. Then `make setup`, `make emu-setup`,
+(`xcode-select --install`) and Homebrew, then `make setup-mac`; on Linux
+or WSL2 `make setup-linux`. Then `make emu-setup`,
 `make os && make recon`, `make image REMIX=<name> BUILD=1`, and the flash
 from the card (section 5).
 

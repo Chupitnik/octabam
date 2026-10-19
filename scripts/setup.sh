@@ -15,10 +15,10 @@ refuse_shared_vendor
 echo "== 1) System tools =="
 # The m68k/ColdFire cross-toolchain: DRAM runtimes and units are compiled from
 # source at build time, and every pinned ColdFire cave with a `.s` source is
-# re-assembled and compared against its bytes. Build it with
-# scripts/m68k-toolchain.sh when absent.
+# re-assembled and compared against its bytes. Installed by make setup-mac
+# (brew) and make setup-linux (scripts/m68k-toolchain.sh).
 command -v m68k-elf-gcc >/dev/null 2>&1 \
-  || { echo "   [!] m68k-elf-gcc not on PATH -- run scripts/m68k-toolchain.sh and add its PREFIX/bin to PATH"; exit 1; }
+  || { echo "   [!] m68k-elf-gcc not on PATH -- run make setup-mac or make setup-linux"; exit 1; }
 for t in binwalk r2; do
   command -v "$t" >/dev/null 2>&1 || echo "   $t not installed (optional: make recon's binwalk pass, make disasm)"
 done

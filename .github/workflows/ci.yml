@@ -102,18 +102,20 @@ jobs:
         with:
           path: ~/.local/m68k-elf
           key: m68k-elf-${{ runner.os }}-${{ hashFiles('scripts/m68k-toolchain.sh') }}
+      # apt packages, the m68k toolchain (a no-op when restored), then setup.sh
       - run: |
-          sudo apt-get update
-          sudo apt-get install -y libgmp-dev libmpfr-dev libmpc-dev libisl-dev zlib1g-dev libzstd-dev pkgconf texinfo xxd
-          scripts/m68k-toolchain.sh
           echo "$HOME/.local/m68k-elf/bin" >> "$GITHUB_PATH"
-      # saved on failure too: a later step failing must not cost the build again
+          scripts/setup-linux.sh
+      # saved when the toolchain is complete (libgcc is its last install step),
+      # also after a later failure; a partial tree would be cached under the key for good
+      - id: m68k-done
+        if: always()
+        run: find ~/.local/m68k-elf -name libgcc.a 2>/dev/null | grep -q . && echo complete=true >> "$GITHUB_OUTPUT" || true
       - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        if: always() && steps.m68k.outputs.cache-hit != 'true'
+        if: always() && steps.m68k.outputs.cache-hit != 'true' && steps.m68k-done.outputs.complete == 'true'
         with:
           path: ~/.local/m68k-elf
           key: m68k-elf-${{ runner.os }}-${{ hashFiles('scripts/m68k-toolchain.sh') }}
-      - run: make setup
       - run: make os
       - run: make recon
       - run: pip install uv && make emu-setup
