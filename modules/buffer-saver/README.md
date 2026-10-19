@@ -33,6 +33,19 @@ When you sample into a record buffer it is not automatically saved to the CF and
 - A buffer still recording, or armed, is left for the next save.
 - A take saved once is not offered again until the buffer records again.
   Loading a project clears the list.
+- **RELOAD** discards everything since the saved state, the takes in the
+  buffers included (port, 19 Oct 2026: the buffer's length went to 0), and
+  goes through the same LOAD PROJECT case, so the list is cleared and the
+  next save does not ask. Save with YES before a RELOAD to keep a take.
+- **SYNC TO CARD** writes the working state, not the saved one, and does
+  not save samples: the module does not ask, the takes stay in their
+  buffers and on the list, and the next SAVE PROJECT offers them. For a
+  project never saved, stock's SYNC runs SAVE TO NEW's code, which asks
+  (read from the code, `0x4006384c`; not run).
+- **EXPORT TO SET** saves the project first by its own route, not through
+  SAVE or SAVE TO NEW, so the module most likely does not ask and unsaved
+  takes are not in the exported project (read from the code, `0x40063a0c`;
+  not run: it needs a second set). Save with YES first, then export.
 - After a power cycle nothing is offered: the recorder buffers do not
   survive a power-off on stock 1.40C, and the list of new takes starts
   empty at boot (it lives in the module's DRAM). Tried on the unit, 17 Oct
@@ -117,6 +130,15 @@ On a unit (Chupitnik's MKII, 16 Oct 2026, AUTOSAVE2):
   asked again, and saving the project without the samples worked. The
   failed write left `R5-…-0744.wav` cut at 256 KB and its `.ot` empty, with
   nothing pointing at them.
+
+The code as merged (#752), and this follow-up, also ran on the MKII, in
+Chupitnik's personal images PREMIX builds 2 to 4 (16-19 Oct 2026), next to
+REC THRESHOLD, USB and ATA WRITE GUARD (build 4 adds RND NAME). Build 2
+carried the merged head plus the hook move; builds 3 and 4 add SAVE TO
+NEW. The behaviour above held; the power-cycle case was tried there; on
+build 3, SAVE TO NEW asked and the new project had the take. Between
+AUTOSAVE2 and the merged head only the name, the docs, the gate and the
+screenshot changed.
 
 ## vs PERSISTENT BUFFERS
 
