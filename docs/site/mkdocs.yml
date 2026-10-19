@@ -25,10 +25,11 @@ theme:
     dark: github-dark
 nav:
   - Getting Started:
-      - A love letter to the Octatrack: index.md
+      - Overview: index.md
       - Choose a Remix: choosing.md
       - Build and Install: web-builder.md
       - Feature Directory: reference/modules.md
+      - About: about.md
   - Effects:
       - Send: reference/modules/send.md
       - Delay Server: reference/modules/busdelay.md
