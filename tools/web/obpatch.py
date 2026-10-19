@@ -140,6 +140,12 @@ def _walk(patch):
     return raw, i, stock_sha, out_sha, n_out
 
 
+def header(patch):
+    """(stock sha256, output sha256, output length) without the stock input."""
+    _, _, stock_sha, out_sha, n_out = _walk(patch)
+    return stock_sha.hex(), out_sha.hex(), n_out
+
+
 def apply(stock, patch):
     raw, i, stock_sha, out_sha, n_out = _walk(patch)
     if hashlib.sha256(stock).digest() != stock_sha:

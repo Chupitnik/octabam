@@ -19,6 +19,7 @@ out; `--dev` builds into <out> only.
 """
 import argparse
 import datetime
+import hashlib
 import json
 import pathlib
 import shutil
@@ -81,7 +82,8 @@ def main():
         patch = obpatch.make(stock, (ref / "mainos_bus.bin").read_bytes())
         (out / "patches" / f"{remix}.obp").write_bytes(patch)
         rows.append({"name": remix, "title": remix, "version": version, "imageName": name,
-                     "patch": f"patches/{remix}.obp", "patchBytes": len(patch)})
+                     "patch": f"patches/{remix}.obp", "patchBytes": len(patch),
+                     "sha256": hashlib.sha256(patch).hexdigest()})
         print(f"   patch {len(patch):,} bytes")
 
     manifest = {"commit": commit, "dev": dirty or behind, "build": args.build,
