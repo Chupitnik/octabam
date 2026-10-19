@@ -13,7 +13,7 @@ Remixes reached: <!-- every remix that carries a changed module -->
 
 ## Gates (on a tree rebased onto current main)
 
-<!-- Same-repo PR: link the `Gates — make reach` run and list each gate's result from its log. Fork PR: `make reach` prints the list for this diff; paste each command with its result. -->
+<!-- Link the `Gates — make reach` run and list each gate's result from its log. -->
 
 CI run:
 

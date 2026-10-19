@@ -639,22 +639,21 @@ project loads (`verify_set`, `verify_tempo_bus`, `verify_mode_defaults`,
 `.github/workflows/ci.yml` runs on every PR, on `main` and by hand. Each job
 is one `make` target (`make ci` runs them all locally, unfiltered). All jobs
 but `Gates — make reach` need no Elektron bytes; that job downloads the 1.40C
-into the runner each run (section 6) and runs only for pushes to `main` and
-PRs from this repository:
+into the runner each run (section 6) and runs for pushes to `main` and every
+PR; a first-time contributor's run waits for maintainer approval:
 
 | job | target | proves |
 |---|---|---|
 | 🔍 Classify Changes | `tools/verify/ci_paths.py` on the diff | each job below runs only when the diff touches its inputs (the map is `JOB_PREFIXES` there); a skipped job is a grey check, not a pass. No usable diff (a manual run) and workflow, Makefile and `scripts/` changes run everything; `make ci` locally still runs everything |
 | 🧪 Gates — make reach | `make reach RUN=1 KEEP=1` | the gates the diff reaches, on the stock 1.40C fetched into the runner (Ubuntu) |
-| 📋 Gates — Listed (Fork PRs) | `make reach` (dry run) | fork PRs get no firmware: the diff classifies, the branch is rebased, the gates are listed |
 | ✅ Acceptance Runner Tests | `make test-acceptance` | the runner refuses skipped, failed, incomplete and over-budget evidence; `reach` routes as documented; the shard runner covers the recipe |
 | 🎛️ DSP Toolchain — dsp56300 | `make ci-dsp` | the vendored DSP emulator at its pin takes our patch, builds, passes upstream's runner; `dsp_asm` emits the one-word displaced move |
 | 🔌 ColdFire Port Unit Tests | `make ci-emu` | `ot_emu` builds on both hosts (the fork unshare has a macOS and a Linux path) and passes `emac` and `periph` |
 | 📚 Docs and Links | `make verify-docs` | the rendered tables are current, every remix has a README, every link between tracked files resolves |
 
 **A green CI run says nothing about a remix unless `Gates — make reach` ran.**
-Building, booting and playing one needs 1.40C; a fork PR's gates run on the
-contributor's machine and their results go in the PR body.
+Building, booting and playing one needs 1.40C, which that job fetches into
+the runner.
 
 ## 12. What none of this can see
 

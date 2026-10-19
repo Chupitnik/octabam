@@ -2,7 +2,9 @@
 # Elektron's site (scripts/fetch-os.sh, zip hash pinned) into the runner's
 # working tree on every run and runs `make reach RUN=1 KEEP=1`; the bytes are
 # not cached, not uploaded as an artifact and not printed. It runs for pushes
-# to main and for pull requests from this repository, not for fork PRs.
+# to main and for every pull request, fork PRs included: a fork PR's code runs
+# with the firmware on the runner's disk, and the repository's approval policy
+# for fork PR workflows (first_time_contributors) decides who is held first.
 # Each job is one make target, so a red job reproduces with the same command.
 # `classify` gates each job on whether the diff touches its inputs
 # (tools/verify/ci_paths.py holds the map); it errs toward running: a
@@ -54,44 +56,13 @@ jobs:
           fi
           python3 tools/verify/ci_paths.py --base "$base" --github-output >> "$GITHUB_OUTPUT"
 
-  reach:
-    # The gates this PR reaches, from its diff against the base branch
-    # (tools/verify/reach.py), printed and not run. For fork PRs, which do
-    # not get the firmware; the PR body lists each with its result from a
-    # local run.
-    name: 📋 Gates — Listed (Fork PRs)
-    needs: classify
-    if: >-
-      github.event_name == 'pull_request'
-      && needs.classify.outputs.reach == 'true'
-      && github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-          submodules: true
-
-      - name: 🐍 Setup Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: '3.12'
-
-      - name: 📋 List Gates
-        run: make reach BASE=origin/${{ github.base_ref }}
-
   gates:
     # make reach RUN=1 KEEP=1 against the stock 1.40C fetched into this
     # runner. No cache or upload step touches downloads/ or out/.
     name: 🧪 Gates — make reach
     needs: classify
     if: >-
-      (github.event_name == 'push'
-       || (github.event_name == 'pull_request'
-           && github.event.pull_request.head.repo.full_name == github.repository))
+      (github.event_name == 'push' || github.event_name == 'pull_request')
       && needs.classify.outputs.reach == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
