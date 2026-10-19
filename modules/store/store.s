@@ -455,7 +455,40 @@ sc_open:
 8:      movel   %sp@+,%d2
         rts
 sc_pass:
-        movel   ev_ctl,%d0              | KITS' list scroll, else stock's dispatch
+        | LEVEL (control 6) + COPY PROJECT's LISTPOP only (M_CBS == name_fp).
+        | Same gate kits_level uses for its own CBTAB. Other stock lists
+        | (BRAIN, …) stay on stock's dispatch / kits_level.
+        moveq   #6,%d0
+        cmpl    %sp@(4),%d0
+        bne.s   sc_chain
+        tstl    M_OBJ
+        beq.s   sc_chain
+        movel   cp_cbs,%d0
+        beq.s   sc_chain
+        movel   M_CBS,%d1
+        cmpl    %d0,%d1
+        bne.s   sc_chain
+        movel   %d2,%sp@-
+        movel   %sp@(12),%d2
+        beq.s   8f
+        bpl.s   2f
+        negl    %d2
+1:      pea     M_STATE
+        jsr     M_UP
+        addql   #4,%sp
+        subql   #1,%d2
+        bne.s   1b
+        bra.s   3f
+2:      pea     M_STATE
+        jsr     M_DOWN
+        addql   #4,%sp
+        subql   #1,%d2
+        bne.s   2b
+3:      jsr     M_REDRAW
+8:      movel   %sp@+,%d2
+        rts
+sc_chain:
+        movel   ev_ctl,%d0              | KITS' extras, else stock's dispatch
         beq.s   1f
         moveal  %d0,%a0
         jmp     %a0@

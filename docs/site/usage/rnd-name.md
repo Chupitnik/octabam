@@ -13,6 +13,7 @@ build the test remix `rnd-name`.
 |---|---|
 | NAME THE NEW PROJECT | a date `YYMMDD ` and two words, for example `261014 FOGBED` |
 | SAVE PROJECT AS, CHOOSE NEW PROJECT NAME | a date `YYMMDD ` and two words |
+| COPY PROJECT (with COPY PROJECT in the remix) | a date `YYMMDD ` and two words |
 | SAVE SAMPLE AS | two words, no date |
 | NAME THE NEW DIR, NAME THE NEW SET | two words |
 | KITS > SAVE KIT | one short word (7 characters at most) |
@@ -22,5 +23,5 @@ build the test remix `rnd-name`.
   chord runs. The date comes from the clock chip.
 - Pressing the chord again changes the words.
 - Measured on the port: FUNC+CUE on CREATE, SAVE PROJECT AS, and CHOOSE
-  NEW PROJECT NAME (`verify_rnd_name`). Sample, directory, set and Kit
-  paths are not gated under the port.
+  NEW PROJECT NAME (`verify_rnd_name`). Sample, directory, set, Kit and
+  COPY PROJECT paths are not gated under the port.

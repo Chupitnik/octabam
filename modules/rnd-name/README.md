@@ -9,6 +9,7 @@ name from two 64-word pools (4096 joins).
 |--------|----------|
 | NAME THE NEW PROJECT | `YYMMDD ` + two pool words (e.g. `261014 FOGBED`) |
 | SAVE PROJECT AS… / CHOOSE NEW PROJECT NAME | `YYMMDD ` + two pool words |
+| COPY PROJECT (with COPY PROJECT in the remix) | `YYMMDD ` + two pool words |
 | SAVE SAMPLE AS… | two pool words (no date) |
 | NAME THE NEW DIR / NAME THE NEW SET | two pool words |
 | KITS → SAVE KIT (name editor) | one short pool word (7-char max) |
@@ -19,6 +20,11 @@ FUNC+REC / PLAY / STOP (PASTE / CLEAR / COPY NAME) stay.
 
 Date is from the DS1390 (same fields as sample timestamps). Fill length
 follows the editor’s `ED_MAX`. Entropy: LCG seeded from tempo/clock words.
+
+**Gating:** date vs words-only is decided only from the name-editor
+done-callback in `CB_SLOT` (`0x460e761a`), never the window title. The
+date branch is CREATE `0x400644f0`, SAVEAS `0x40063d30`, CHOOSE
+`0x40063b00`, and (when linked) COPY PROJECT’s `cp_named`.
 
 ## Measured / inferred
 
@@ -34,7 +40,8 @@ follows the editor’s `ED_MAX`. Entropy: LCG seeded from tempo/clock words.
 - **Inferred:** KITS SAVE KIT is any name-editor callback in the DRAM
   arena (`0x40a00000..0x4f000000`); falsifier: another DRAM module opens
   this editor with a different done-cb and gets an unwanted fill.
-- **Not gated under the port:** sample / new dir / set / kits chord paths.
+- **Not gated under the port:** sample / new dir / set / kits / COPY PROJECT
+  chord paths.
 
 ## Remix
 

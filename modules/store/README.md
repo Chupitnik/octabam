@@ -102,3 +102,7 @@ reopening on another encoder turn. `verify_plocksp2` exercises the same
 information, choices and cancellation with a refused lock file, capturing
 the LCD for review. Not covered: a list opened over another window, the
 new prompt on a unit.
+
+With COPY PROJECT in the remix, LEVEL (control 6) scrolls that module's
+project LISTPOP only (`M_CBS == name_fp`, the same gate `kits_level` uses
+for KITS' own lists). Other stock LISTPOPs are left to stock / `kits_level`.
