@@ -253,9 +253,10 @@ rnd_rng:
         rts
 
 | Cold seed: tempo ^ clock ^ RTC h:m:s ^ K (seconds change per use).
+| Preserves a0 — rnd_fill keeps the buffer cursor there across rnd_rng.
 rnd_seed:
-        lea     %sp@(-8),%sp
-        moveml  %d2/%a2,%sp@
+        lea     %sp@(-12),%sp
+        moveml  %d2/%a0/%a2,%sp@
         move.l  TEMPO24,%d2
         move.l  CLOCKEST,%d0
         eor.l   %d0,%d2
@@ -289,8 +290,8 @@ rnd_seed:
         moveq   #1,%d2
 0:
         move.l  %d2,%d0
-        moveml  %sp@,%d2/%a2
-        lea     %sp@(8),%sp
+        moveml  %sp@,%d2/%a0/%a2
+        lea     %sp@(12),%sp
         rts
 
         .data

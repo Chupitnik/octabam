@@ -7,7 +7,7 @@ name from two 64-word pools (4096 joins).
 
 | Editor | FUNC+CUE |
 |--------|----------|
-| NAME THE NEW PROJECT | `YYMMDD ` + two pool words (e.g. `261014 SHARPSCENE`) |
+| NAME THE NEW PROJECT | `YYMMDD ` + two pool words (e.g. `261014 SWEEPPAD`) |
 | SAVE PROJECT AS… / CHOOSE NEW PROJECT NAME | `YYMMDD ` + two pool words |
 | COPY PROJECT (with COPY PROJECT in the remix) | `YYMMDD ` + two pool words |
 | SAVE SAMPLE AS… | two pool words (no date) |
