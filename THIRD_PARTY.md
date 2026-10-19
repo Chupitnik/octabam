@@ -56,7 +56,7 @@ the laws (`modules/modulation/README.md` "Sources"):
 | `modules/midi-scales` (MIDI SCALES) | https://github.com/radiohagen/octatrack-modules (one submodule; pinned to `ffc10885`) | MIT (the repository's LICENSE file, Copyright (c) 2026 Sam Banks) |
 | `modules/direct-jump-kyoti`, `modules/reload-from-project`, `modules/sidechain-compressor` (DIRECT_JUMP_KYOTI, RELOAD_FROM_PROJECT, SIDECHAIN_COMPRESSOR) | https://github.com/Zac-Kyoti/octatrack-kyoti-fw (one repository, eight submodule mounts; DIRECT_JUMP_KYOTI pinned to `329b801`, RELOAD_FROM_PROJECT to `223ac58`; SIDECHAIN_COMPRESSOR to `8e00275`) | MIT, Zac-Kyoti and the OT Kyoti FW contributors 2026 |
 | `modules/batch-bugfixes`, `modules/quantize-live-rec-toggle`, `modules/erase-empty-trigless-locks` (BATCH_BUGFIXES, QUANTIZE_LIVE_REC_TOGGLE, ERASE_EMPTY_TRIGLESS_LOCKS) | https://github.com/Zac-Kyoti/octatrack-kyoti-fw (three mounts, pinned to `77f132f`) | MIT, Zac-Kyoti and the OT Kyoti FW contributors 2026 |
-| `modules/mute-modes` (MUTE_MODES) | https://github.com/Zac-Kyoti/octatrack-kyoti-fw (one mount; fork `sambanks/octatrack-kyoti-fw` at `bf5bfc0`, pending Zac-Kyoti/octatrack-kyoti-fw#1) | MIT, Zac-Kyoti and the OT Kyoti FW contributors 2026 |
+| `modules/mute-modes` (MUTE_MODES) | https://github.com/Zac-Kyoti/octatrack-kyoti-fw (one mount, pinned to `8e00275`) | MIT, Zac-Kyoti and the OT Kyoti FW contributors 2026 |
 | `modules/rec-trig-mute` (REC_TRIG_MUTE) | https://github.com/Zac-Kyoti/octatrack-kyoti-fw (one mount, pinned to `0bc14c7`) | MIT, Zac-Kyoti and the OT Kyoti FW contributors 2026 |
 
 `modules/kits-reload`, `modules/scenes-kits`, `modules/cc-map`,
