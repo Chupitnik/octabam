@@ -7,15 +7,17 @@ take can run until you stop it, up to 60 minutes. Each source lands as its
 own file in `<set>/AUDIO/STEMS/<project>/YYMMDD-HHMM/` at 44,100 Hz:
 `T1.wav` to `T8.wav`, `MAIN.wav`, `CUE.wav`, and the inputs as `AB.wav` and
 `CD.wav` (stereo) or `A.wav` to `D.wav` (mono). `<project>` is the live
-project name, or `UNTITLED` when none is loaded. A track's file is its share of MAIN: the
-track's audio times the gain the mix gives it, so the level, MAIN LEVEL,
-the scenes and the crossfader are in it. At every boot the eight tracks
-are on, MAIN, CUE and the inputs off, both input pairs stereo, and the
-width 16 bits; the menu changes each. STEMS opens with UP + REC (no MAIN
-MENU row) so stock menus stay stock and BRAIN can own the root's fifth
-slot. The port has run
-every source, both widths and the menu key by key on the MKII and MKI
-panels (STEM_REC.md sections 15, 16 and 18).
+project name, or `UNTITLED` when none is loaded. Takes already under
+`<set>/AUDIO/YYMMDD-HHMM/` (the layout before this nesting) stay where
+they are; only new takes use `AUDIO/STEMS/<project>/`. A track's file is
+its share of MAIN: the track's audio times the gain the mix gives it, so
+the level, MAIN LEVEL, the scenes and the crossfader are in it. At every
+boot the eight tracks are on, MAIN, CUE and the inputs off, both input
+pairs stereo, and the width 16 bits; the menu changes each. STEMS opens
+with UP + REC (no MAIN MENU row) so stock menus stay stock and BRAIN can
+own the root's fifth slot. The port has run every source, both widths and
+the menu key by key on the MKII and MKI panels (STEM_REC.md sections 15,
+16 and 18).
 
 - The design: `git show 4d2d6456:docs/superpowers/specs/2026-09-22-stem-rec-streaming-design.md`,
   over the proof of concept's `git show 4d2d6456:docs/superpowers/specs/2026-09-10-stem-rec-poc-design.md`.
@@ -246,6 +248,14 @@ timestamps with (7.58 ns a count).
 ## Limits
 
 - The choices reset at every boot. Nothing is saved.
+- **Project name length.** The live name at `0x100f8378` sits in a 0x104-byte
+  firmware buffer (`emu_card.FW_PROJECT_NAME`; the port writes at most 0x100
+  characters). STEM REC's path buffers are `PATH_MAX` = 256. The set-path
+  copy leaves 72 bytes for `/AUDIO/STEMS/<project>/YYMMDD-HHMM/T8.wav`, so
+  `<project>` may be at most 40 characters
+  (`72 − len("/AUDIO/STEMS/") − 1 − 11 − 7`). A longer live name fails with
+  `PATH FAILED`. With a 40-character project and a set path at that bound,
+  the full file path is 256 bytes including the NUL.
 - At most 60 minutes.
 - **T8's row shows the next take, not the one recording.** A take keeps
   the sources it started with. If MASTER TRACK changes while a take

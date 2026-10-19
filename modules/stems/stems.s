@@ -45,7 +45,8 @@
         .equ    TASK_SLEEP_US, 10000        | one pass; MICROSECONDS, not ticks       (Task 5)
         .equ    FS_EXISTS_PTR, 0x46c823fa   | -> exists(path): 0 no, 1 file, 2 folder (6.11, 8.0)
         .equ    SET_PATH,      0x100f8480   | the current set's path, a C string in place (Task 6)
-        .equ    PROJ_NAME,     0x100f8378   | the current project's name; empty -> UNTITLED (5.8)
+        .equ    PROJ_NAME,     0x100f8378   | the current project's name; empty -> UNTITLED
+                                            | (STEM_REC.md section 5.8)
         .equ    CLK_READ,      0x4001c4d8   | (field) -> one BCD byte in d0; BLOCKS   (Task 6)
         .equ    BCD2BIN,       0x4001c31c   | (bcd) -> binary                          (Task 6)
         .equ    NAME_FMT,      0x400b77bb   | "%02d%02d%02d-%02d%02d"                  (Task 6)
@@ -100,6 +101,11 @@
         .equ    STACK_SIZE,    0x2000       | = DramRegion stems_stack
         .equ    TASK_PRIO,     1
         .equ    PATH_MAX,      256
+        | Longest <project> that always fits after a max-length set copy:
+        | PATH_MAX-72 leaves 72 for /AUDIO/STEMS/<p>/YYMMDD-HHMM/T8.wav;
+        | 72 - 13 - 1 - 11 - 7 = 40. The firmware name buffer is 0x104 bytes
+        | (emu_card.FW_PROJECT_NAME); a longer live name fails PATH.
+        .equ    PROJ_NAME_MAX, 40
         .equ    ERR_OVERFLOW,  1
         .equ    ERR_PATH,      2
         .equ    ERR_OPEN,      3
@@ -2292,13 +2298,31 @@ stems_make_name:
         rts
 
 | ---- the project name for the take path: PROJ_NAME, or UNTITLED --------
-| (STEM_REC.md 5.8). a0 = the C string to use. Does not touch d0.
+| (STEM_REC.md section 5.8). a0 = the C string to use. Does not touch d0.
 stems_project:
         lea     PROJ_NAME,%a0
         tst.b   (%a0)
         bne.s   .Lpj_out
         lea     untitled,%a0
 .Lpj_out:
+        rts
+
+| ---- d0 = 0 if a0's string fits PROJ_NAME_MAX, else -1. Preserves a0. --
+stems_proj_ok:
+        move.l  %a0,-(%sp)
+        moveq   #0,%d0
+.Lpo_loop:
+        tst.b   (%a0)+
+        beq.s   .Lpo_ok
+        addq.l  #1,%d0
+        cmpi.l  #PROJ_NAME_MAX,%d0
+        bls.s   .Lpo_loop
+        movea.l (%sp)+,%a0
+        moveq   #-1,%d0
+        rts
+.Lpo_ok:
+        movea.l (%sp)+,%a0
+        moveq   #0,%d0
         rts
 
 | ---- mkdir path in stems_fpath if absent; fail if a file is there ------
@@ -2363,6 +2387,9 @@ stems_ensure_parents:
 .Lep_set2_end:
         clr.b   (%a1)
         bsr.w   stems_project
+        bsr.w   stems_proj_ok
+        tst.l   %d0
+        bmi.s   .Lep_fail
         move.l  %a0,-(%sp)
         pea     fmt_proj
         move.l  %a1,-(%sp)
@@ -2375,7 +2402,7 @@ stems_ensure_parents:
         rts
 
 | ---- the folder path: <set>/AUDIO/STEMS/<project>/<name> --------------
-| set = SET_PATH; project = PROJ_NAME or UNTITLED (STEM_REC.md 5.8).
+| set = SET_PATH; project = PROJ_NAME or UNTITLED (STEM_REC.md section 5.8).
 | d0 = 0, or -1 (empty, or too long).
 stems_make_folder:
         lea     SET_PATH,%a0
@@ -2394,6 +2421,9 @@ stems_make_folder:
         sub.l   #stems_path,%d0
         beq.s   .Lp_fail            | an empty set path: no set mounted
         bsr.w   stems_project
+        bsr.w   stems_proj_ok
+        tst.l   %d0
+        bmi.s   .Lp_fail
         pea     stems_name          | second %s: the take
         move.l  %a0,-(%sp)          | first %s: the project
         pea     fmt_dir

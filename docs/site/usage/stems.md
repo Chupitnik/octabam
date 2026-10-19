@@ -5,7 +5,8 @@ source lands as its own WAV file at 44,100 Hz under
 `AUDIO/STEMS/<project>/YYMMDD-HHMM/`: `T1.wav` to `T8.wav`, `MAIN.wav`,
 `CUE.wav`, and the inputs as `AB.wav` and `CD.wav` (stereo) or `A.wav` to
 `D.wav` (mono). `<project>` is the loaded project's name, or `UNTITLED`
-when none is loaded.
+when none is loaded. Takes already under `AUDIO/YYMMDD-HHMM/` stay there;
+only new takes use this layout.
 
 A track's file is its share of MAIN: the track's audio times the gain the
 mix gives it, so the level, MAIN LEVEL, the scenes and the crossfader are
