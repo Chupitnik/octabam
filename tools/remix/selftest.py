@@ -924,6 +924,7 @@ def main():
              "usb-out-tracks-main-cue": ("PLATE REV",),   # USB's inject is placed in its words (the remix lists 13)
              "transient": ("PLATE REV",),   # TRANSIENT runs in its words; the other 13 stay
              "lofi2": ("PLATE REV", "SPRING REV"),   # LOFI2's 1,372 words with its table; PLATE alone is 594
+             "bbd": ("PLATE REV", "SPRING REV"),   # BBD's 1,112 words from PLATE's start, clear of the SPRING words DARK calls
              "testgen": ("PLATE REV",),     # TESTGEN runs in its words; the other 13 stay
              "vocoder": ("PLATE REV", "DJ EQ"),   # VOCODER runs in PLATE's words; DJ EQ out so the tables sit in X
              "vocoder-usb": ("PLATE REV", "DJ EQ"),   # the vocoder remix + USB MIDI and USB AUDIO (ColdFire, no DSP words)

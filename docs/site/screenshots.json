@@ -697,6 +697,22 @@
       "firmware_sha256": "3dd6d81365bca25e2346e057a6481410c1f413f788b1ea272218ae6f14d08592"
     }
   },
+  "bbd": {
+    "setup": {
+      "image": "bbd/setup.png",
+      "caption": "BBD: effect selection and setup parameters.",
+      "remix": "bbd",
+      "source": "emulator panel UART",
+      "firmware_sha256": "4fb5486c2ac5fef6bca4e388c4882a79c9a3d21c3b42f063dd31260ecea3f927"
+    },
+    "main": {
+      "image": "bbd/main.png",
+      "caption": "BBD: main parameter page.",
+      "remix": "bbd",
+      "source": "emulator panel UART",
+      "firmware_sha256": "4fb5486c2ac5fef6bca4e388c4882a79c9a3d21c3b42f063dd31260ecea3f927"
+    }
+  },
   "blackpyramids-303": {
     "source": {
       "image": "blackpyramids-303/source.png",

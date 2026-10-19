@@ -129,7 +129,8 @@ def redefined(obj, defs) -> list[str]:
     name that comes back as a section symbol, or as an absolute with
     another value, is the source's own."""
     want = dict(defs)
-    rows = [l.split() for l in _run(["m68k-elf-nm", obj], ROOT).splitlines()]
+    # resolved here: the caller's path is relative to its own cwd, which may not be ROOT
+    rows = [l.split() for l in _run(["m68k-elf-nm", pathlib.Path(obj).resolve()], ROOT).splitlines()]
     return sorted(f[2] for f in rows if len(f) == 3 and f[2] in want
                   and (f[1] not in ("a", "A") or int(f[0], 16) != want[f[2]] & 0xFFFFFFFF))
 
