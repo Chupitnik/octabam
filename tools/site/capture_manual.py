@@ -217,6 +217,21 @@ def capture_synth(p,r):
     shot(p,'direct-jump','settings','CHAIN AFTER set to DIRECT in sequencer settings.',r)
 
 
+def capture_varispeed(p,r):
+    # Track 1 to FLEX (the machine list on SRC SETUP), TSTR to VARI: a 5-position
+    # select, so a long turn of encoder E lands on the last position.
+    press(p,'t1')
+    p.chord('func','pg_playback')
+    press(p,'down')
+    press(p,'yes')
+    enc(p,4,40)
+    shot(p,'varispeed','setup','SRC SETUP on a FLEX track: TSTR set to VARI.',r)
+    close(p)
+    press(p,'pg_playback')
+    enc(p,0,3)  # one detent a ratio: 1/1 -> 5/4 -> 4/3 -> 3/2
+    shot(p,'varispeed','quan','The SRC page of a VARI track: PTCH is QUAN, here 3/2.',r)
+
+
 def press_encoder(p, n):
     # Encoder push switches are panel matrix row 0x27, A-F = bits 0-5.
     p.proc.command(f'key 0x27 {1 << n:#x}', 'ok');p.run(40)
@@ -302,7 +317,7 @@ def prepare(remix,project,assignments):
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('groups',nargs='+',choices=['core','plocks','features','inserts','bus','extras','machines','probes','midi-scales','midi-loopback','utilities'])
+    ap.add_argument('groups',nargs='+',choices=['core','plocks','features','inserts','bus','extras','machines','probes','midi-scales','midi-loopback','utilities','varispeed'])
     cfg=Path.home()/'.octabam_project'
     ap.add_argument('--project',default=os.environ.get('OT_PROJECT') or (cfg.read_text().strip() if cfg.is_file() else ''))
     a=ap.parse_args();OUT.mkdir(parents=True,exist_ok=True)
@@ -324,6 +339,7 @@ def main():
         elif group=='machines':jobs=[('analog-bassdrum',capture_analog,[]),('octatrick',capture_synth,[])]
         elif group=='probes':jobs=[('cfmeter',capture_fx,[(8,'fx2','CF METER')])]
         elif group=='utilities':jobs=[('buffer-saver',capture_buffer_saver,[])]
+        elif group=='varispeed':jobs=[('varispeed',capture_varispeed,[])]
         else:
             jobs=[(r,capture_fx,[(2,'fx1' if r in ('character-txtr','testgen') else 'fx2',k)]) for r,k in [('character-txtr','CHARACTER TXTR'),('testgen','TESTGEN'),('sidechain-compressor','SIDECHAIN_COMPRESSOR'),('miniverb','MINIVERB'),('tapeecho','TAPE ECHO'),('vocoder','VOCODER'),('wave','WAVE')]]
         for remix,fn,assignments in jobs:

@@ -696,5 +696,21 @@
       "source": "emulator panel UART; composed-plane pixel equality checked",
       "firmware_sha256": "3dd6d81365bca25e2346e057a6481410c1f413f788b1ea272218ae6f14d08592"
     }
+  },
+  "varispeed": {
+    "setup": {
+      "image": "varispeed/setup.png",
+      "caption": "SRC SETUP on a FLEX track: TSTR set to VARI.",
+      "remix": "varispeed",
+      "source": "emulator panel UART",
+      "firmware_sha256": "599149763f7d1d7011a7079466d234ba006a90068f31d882f54082c1e78ea4ff"
+    },
+    "quan": {
+      "image": "varispeed/quan.png",
+      "caption": "The SRC page of a VARI track: PTCH is QUAN, here 3/2.",
+      "remix": "varispeed",
+      "source": "emulator panel UART",
+      "firmware_sha256": "599149763f7d1d7011a7079466d234ba006a90068f31d882f54082c1e78ea4ff"
+    }
   }
 }
