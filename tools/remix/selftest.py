@@ -458,6 +458,19 @@ def main():
         bad += 1
         print(f"  [FAIL] stock instance buffer: LOAD METER clashes with {_lm_hits}; SEND does not with {_send_hits}")
 
+    # SIDECHAIN_COMPRESSOR's cross-core window (half-relative: the tail of T7's and
+    # T3's FX2 slot) against each buffered effect's extent: every stock one stops
+    # short of it (DARK REV at +$3DA2); MINIVERB, GATE VERB and WAVE do not.
+    _sc = registry.by_key("SIDECHAIN_COMPRESSOR")
+    _sc_hits = sorted(k for k in _buf + ["MINIVERB", "GATE VERB", "WAVE"]
+                      if any("stock instance buffer" in x
+                             for x in ledger.check([_sc, registry.by_key(k)])))
+    if _sc_hits == ["GATE VERB", "MINIVERB", "WAVE"]:
+        print("  [PASS] SIDECHAIN_COMPRESSOR's window clashes with MINIVERB, GATE VERB and WAVE, with no stock effect")
+    else:
+        bad += 1
+        print(f"  [FAIL] stock instance buffer: SIDECHAIN_COMPRESSOR's window clashes with {_sc_hits}")
+
     try:
         Param(b"SIXSIX")
         bad += 1
