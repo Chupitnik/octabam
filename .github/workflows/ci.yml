@@ -83,7 +83,7 @@ jobs:
        || (github.event_name == 'pull_request'
            && github.event.pull_request.head.repo.full_name == github.repository))
       && needs.classify.outputs.reach == 'true'
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
       OS_HASH_STRICT: '1'
@@ -96,6 +96,9 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
+      # setup.sh installs binwalk, radare2 and m68k-elf-gcc with brew; the
+      # runner image carries Linuxbrew, off PATH.
+      - run: echo /home/linuxbrew/.linuxbrew/bin >> "$GITHUB_PATH"
       - run: make setup
       - run: make os
       - run: make recon
