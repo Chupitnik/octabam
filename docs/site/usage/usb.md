@@ -28,9 +28,9 @@ channels. With the defaults it is 20: channels 1 to 16 are the tracks, 17 and
 the stereo sum.
 
 IN needs at least one of TRACKS, MAIN, CUE or MASTER switched on, because the
-computer's stream is timed from the Octatrack's output. With none on, the
-source starts the unit with IN OFF; that was not checked on a unit. IN is
-served at USB high speed only.
+computer's stream is timed from the Octatrack's output. If none is on,
+changing IN shows **IN NEEDS AN OUTPUT STREAM** and IN stays OFF. IN is served
+at USB high speed only.
 
 ### Changing a setting
 
@@ -47,6 +47,16 @@ served at USB high speed only.
 
 A remix can fix a setting. `octabam-core` fixes IN at OFF; `octabam-bus` and
 `octabam-inserts` set it to OFF without fixing it.
+
+### Without BRAIN
+
+A remix built without BRAIN has no settings menu and no `BRAIN/card.work`.
+USB uses the values the image was built with: the defaults above, changed by
+the remix's `settings=` (for example
+`settings={("octabam.usb", "TRACKS"): "POST"}`). To change one, change the
+remix and rebuild; `python3 tools/remix/brain.py resolve <remix>` prints each
+setting and where its value came from. This was read from the source and not
+run on a unit.
 
 ## USB MIDI
 
