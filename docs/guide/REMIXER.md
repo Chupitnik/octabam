@@ -283,8 +283,9 @@ REMIX = Remix(
   refused by name; `make modules` prints the pairwise matrix.
 - `settings` fixes or re-defaults a module's settings for this image:
   `(store id, setting name) -> value` or `Pin(value)`. A module whose
-  setting chooses its code (USB's `LAYOUT`, its `INPUTS`) builds that code:
-  `settings={("octabam.usb", "LAYOUT"): Pin("MASTER")}`.
+  setting chooses its code builds that code; a run-time setting (USB's
+  `TRACKS`, `MAIN`, `CUE`, `MASTER`, `IN`, `MIDI`) is changed on the unit unless
+  the remix pins it: `settings={("octabam.usb", "IN"): Pin("OFF")}`.
   `python3 tools/remix/brain.py resolve mine` prints every setting and the
   layer its value came from; the build report prints the same.
 - `defaults` replaces a knob's default in this image:

@@ -4,8 +4,8 @@ A remix of Octatrack OS 1.40C, built from your own copy of it, that adds a
 **delay and reverb bus** with a send from every track, three new FX1
 effects, and the [core modules](../octabam-inserts/README.md#the-core-modules)
 (KITS, scene and parameter locks on page 2, USB MIDI and USB audio, BRAIN and
-the rest). It is bottleservice's bus with the core set added; USB AUDIO OUT
-is MAIN CUE here. Runs on an MKII; see [Where it has run](#where-it-has-run).
+the rest). It is bottleservice's bus with the core set added; the USB settings
+are at their defaults here (TRACKS PRE, MAIN, CUE, MIDI on). Runs on an MKII; see [Where it has run](#where-it-has-run).
 
 ## The bus
 
