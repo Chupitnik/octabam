@@ -87,8 +87,10 @@ HOW A PATH IS PLACED (28 Sep 2026; before, by directory):
 
 It refuses a tree that is not rebased onto the base (the base must be an
 ancestor of HEAD): gates run before a rebase are not a result (PR #396).
-CI runs the dry form on every pull request so the expected local gates are
-in the job log; it has no firmware, so it runs none of them.
+CI runs `--run` for pushes to main and pull requests from this repository
+(the `gates` job fetches the 1.40C into the runner each run) and the dry form
+for pull requests from forks, which get no firmware, so the expected local
+gates are in the job log.
 
 Two or more remixes to check are printed as one `make check-shared
 REMIXES="..."` (once) and a `make check-remix REMIX=<r>` each; one remix

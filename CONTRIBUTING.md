@@ -228,7 +228,9 @@ the `make check` lines separately and names the accept line as blocked.
 A remix with a DSP module that declares no `dear` makes `make accept`
 report `blocked` with the module's name; say so in the PR. List each
 command and its result in the PR body (`make reach`'s output is the list;
-the PR template asks for it).
+the PR template asks for it). A PR from a branch in this repository also runs
+`make reach RUN=1 KEEP=1` in CI on a runner that downloads the 1.40C for that
+run; a PR from a fork does not, so its gates are the local run.
 
 A change that alters what a remix does — its modules, effects, menus,
 costs (memory pages, DSP words) or proof status — updates the

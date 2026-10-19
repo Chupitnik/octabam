@@ -1,8 +1,10 @@
-# The checks that run without Elektron bytes: no stock OS, no project, no
-# hardware. The gates that need the operator's own 1.40C (make check,
-# make accept, refhash) run locally; `make reach` lists the ones a change
-# reaches and CONTRIBUTING.md is the contract. Each job is one make target,
-# so a red job reproduces with the same command. `classify` gates each job
+# Most jobs run without Elektron bytes. `gates` downloads the 1.40C from
+# Elektron's site (scripts/fetch-os.sh, zip hash pinned) into the runner's
+# working tree on every run and runs `make reach RUN=1 KEEP=1`; the bytes are
+# not cached, not uploaded as an artifact and not printed. It runs for pushes
+# to main and for pull requests from this repository, not for fork PRs.
+# Each job is one make target, so a red job reproduces with the same
+# command. `classify` gates each job
 # on whether the diff touches its inputs (tools/verify/ci_paths.py holds
 # the map); it errs toward running: a workflow, Makefile or scripts change
 # runs everything, and `make ci` locally still runs everything.
@@ -49,11 +51,15 @@ jobs:
 
   reach:
     # The gates this PR reaches, from its diff against the base branch
-    # (tools/verify/reach.py). CI has no firmware, so this prints them and
-    # runs none; the PR body lists each with its result from a local run.
-    name: gates the PR reaches
+    # (tools/verify/reach.py), printed and not run. For fork PRs, which do
+    # not get the firmware; the PR body lists each with its result from a
+    # local run.
+    name: gates the PR reaches (listed)
     needs: classify
-    if: github.event_name == 'pull_request' && needs.classify.outputs.reach == 'true'
+    if: >-
+      github.event_name == 'pull_request'
+      && needs.classify.outputs.reach == 'true'
+      && github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -66,6 +72,43 @@ jobs:
         with:
           python-version: '3.12'
       - run: make reach BASE=origin/${{ github.base_ref }}
+
+  gates:
+    # make reach RUN=1 KEEP=1 against the stock 1.40C fetched into this
+    # runner. No cache or upload step touches downloads/ or out/.
+    name: gates (make reach RUN=1)
+    needs: classify
+    if: >-
+      (github.event_name == 'push'
+       || (github.event_name == 'pull_request'
+           && github.event.pull_request.head.repo.full_name == github.repository))
+      && needs.classify.outputs.reach == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 120
+    env:
+      OS_HASH_STRICT: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          submodules: true
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - run: make setup
+      - run: make os
+      - run: make recon
+      - run: pip install uv && make emu-setup
+      - run: make emu-cf
+      - name: make reach
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="origin/${{ github.base_ref }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+          make reach RUN=1 KEEP=1 BASE="$base"
 
   acceptance-runner:
     name: acceptance runner tests (${{ matrix.os }})

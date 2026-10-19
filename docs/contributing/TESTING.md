@@ -15,7 +15,7 @@ make test-acceptance             the runner's, the classifier's and the shard ru
                                  (container corpus, settings, lock file, ot_brain round trip; no firmware)
 make identity                    which remixes' images this branch moved, byte for byte
 scripts/refhash.sh check         a build change produced bit-identical artifacts and reports
-make ci                          what GitHub Actions runs (no firmware, so no remix)
+make ci                          the CI jobs that need no firmware; the `gates` job also runs `make reach RUN=1 KEEP=1` on a runner that fetches the 1.40C each run
 ```
 
 ## 1. The instruments
