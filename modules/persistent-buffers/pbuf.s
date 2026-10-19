@@ -16,7 +16,7 @@
 
         .set    F_OPEN,     0x40016864
         .set    F_CLOSE,    0x4001677c
-        .set    SLOT_LOAD,  0x40093980      | (slot, keep_trim) STORAGE.md §2
+        .set    SLOT_LOAD,  0x40093980      | (slot, keep_trim) STORAGE.md section 2
         .set    POST_LOAD,  0x40099148      | (0, slot)
         .set    REARM,      0x40093468      | (-1) re-arm voices
         .set    REFRESH,    0x4009da20      | (-1) refresh
@@ -39,19 +39,15 @@ pbf_st_answer:
         rts
 
 | ------------------------------------------------------------------ save
+| Mkdir only when a non-empty slot will be written. An empty PROJECT SAVE
+| used to call FS_MKDIR unconditionally; under the port that path hits
+| unimplemented opcode 4ac8 (tas) and never returns. Lazy mkdir keeps the
+| empty smoke green and avoids creating BUFFERS/ when nothing is saved.
 pbf_st_pstore_pre:
         lea     %sp@(-40),%sp
         movem.l %d2-%d7/%a2-%a5,%sp@
-        | Ensure <project>/BUFFERS exists (idempotent if already there).
-        moveq   #0,%d0
-        lea     FMT_DIR,%a0
-        lea     PATH,%a1
-        jsr     store_path
-        moveal  FS_MKDIR,%a0
-        pea     PATH
-        jsr     %a0@
-        addql   #4,%sp
         clrl    IDX
+        clrl    MADE_DIR
 sv_loop:
         movel   #128,%d3
         addl    IDX,%d3
@@ -63,6 +59,19 @@ sv_loop:
         cmpl    #MAX_FRAMES,%d5
         bhi.w   sv_next
         movel   %d5,FRAMES
+        tstl    MADE_DIR
+        bne.s   sv_have_dir
+        moveq   #0,%d0
+        lea     FMT_DIR,%a0
+        lea     PATH,%a1
+        jsr     store_path
+        moveal  FS_MKDIR,%a0
+        pea     PATH
+        jsr     %a0@
+        addql   #4,%sp
+        moveq   #1,%d0
+        movel   %d0,MADE_DIR
+sv_have_dir:
         moveq   #1,%d0
         addl    IDX,%d0
         lea     FMT_ABS,%a0
@@ -94,7 +103,7 @@ sv_next:
         moveq   #7,%d0
         cmpl    IDX,%d0
         bcc.w   sv_loop
-        | One re-arm / refresh after the batch (STORAGE.md §2).
+        | One re-arm / refresh after the batch (STORAGE.md section 2).
         pea     -1
         jsr     REARM
         addql   #4,%sp
@@ -198,6 +207,7 @@ FMT_REL:  .asciz  "BUFFERS/REC%d.wav"
         .section .bss
         .align  4
 IDX:    .space  4
+MADE_DIR: .space 4
 SLOT:   .space  4
 FRAMES: .space  4
 PATH:   .space  260
