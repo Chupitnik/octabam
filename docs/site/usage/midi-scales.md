@@ -26,8 +26,8 @@ bank file. Before returning to stock, select OFF or an original Major/Minor
 choice and save, or retain a separate project backup. Audio-track Scale
 Quantizer is separate.
 
-This module works independently. Follow and Harmony combinations require
-their own integration checks.
+This module works independently. Combinations with other MIDI modules are
+not qualified.
 
 ## Verification Limits
 

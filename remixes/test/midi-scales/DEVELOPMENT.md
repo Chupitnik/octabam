@@ -2,7 +2,7 @@
 
 Selects MIDI SCALES and all fourteen stock effects, with fallback NONE.
 It adds seven-mode KEY selection to native MIDI ARP SETUP. It does not
-select Follow, Harmony, Loopback or any replacement effect.
+select any other MIDI module or any replacement effect.
 
 ```sh
 make check REMIX=midi-scales
@@ -37,4 +37,4 @@ project restored its original extended modes.
 The [hardware report](https://github.com/sambanks/octabam/pull/739#issuecomment-6223792844)
 records package hashes and the test scope. MKI, MIDI timing, exhaustive
 physical key/mode coverage, encoder-feel and arp stress tests, and
-Follow/Harmony integration remain unverified on hardware.
+combinations with other MIDI modules remain unverified on hardware.
