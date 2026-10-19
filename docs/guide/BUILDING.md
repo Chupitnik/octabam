@@ -21,7 +21,7 @@ remix name.
   `git`, `make`, a C compiler) and [Homebrew](https://brew.sh), or Linux /
   WSL2 (section 1a below).
 - `python3` (3.10+; the build is stdlib only).
-- `cmake` and [uv](https://docs.astral.sh/uv/): `brew install cmake uv`.
+- `cmake` and [uv](https://docs.astral.sh/uv/): `make setup-mac` installs both; `make setup-linux` installs cmake, and uv has an install line in section 1a.
   uv provisions `.venv` (`make emu-setup`: `unicorn`, `textual`,
   `sounddevice`) for `make remix` and the label gates in `make check`.
 - An Octatrack MKI or MKII on OS 1.40C. Elektron's MKI and MKII download
@@ -51,8 +51,11 @@ make emu-setup
 `modules/direct-jump` and `modules/tuner`) at the pinned commits. If you cloned without
 it: `git submodule update --init`.
 
-`make setup` installs `binwalk`, `radare2` and `m68k-elf-gcc` with
-Homebrew, checks out three pinned vendored tools (`vendor/`), applies the
+`make setup-mac` (Homebrew: `binwalk`, `radare2`, `m68k-elf-gcc`, `cmake`,
+`uv`) or `make setup-linux` (apt packages and `scripts/m68k-toolchain.sh`,
+section 1a) installs the system tools and then runs `make setup`;
+`make setup-windows` points at WSL2. `make setup` alone requires
+`m68k-elf-gcc` on PATH, checks out three pinned vendored tools (`vendor/`), applies the
 local patches and builds them. Re-running it is safe. It ends with
 `setup complete`. `make emu-setup` runs `uv sync --extra emu` into
 `.venv`.
@@ -71,7 +74,7 @@ carry CRLF endings bash chokes on. Reach the tree from Windows at
 `\\wsl$\Ubuntu\home\<user>\octabam` (to play rendered wavs, or to copy a
 built image to the card from Explorer). VS Code: the **WSL** extension.
 
-Inside the shell, before `make setup`:
+`make setup-linux` runs the apt install and the toolchain build below, then `make setup`. The steps by hand, before `make setup`:
 
 ```bash
 sudo apt update
@@ -83,9 +86,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh     # for make emu-setup / make 
 source $HOME/.local/bin/env
 ```
 
-- `binwalk` and `radare2` go in first: `scripts/setup.sh` installs them
-  with Homebrew when they are missing, and with them on PATH it skips
-  that branch.
+- `binwalk` and `radare2` are optional: `scripts/setup.sh` reports them
+  when missing and continues.
 - `binutils-m68k-linux-gnu` provides the only correct ColdFire
   disassembler here under a different name, hence the symlink.
   `scripts/disasm.sh emac` shells out to `m68k-elf-objdump`; without it
@@ -102,31 +104,20 @@ source $HOME/.local/bin/env
 **The m68k cross-toolchain.** The build needs `m68k-elf-gcc`, `as`,
 `ld`, `objcopy` and `nm`: every remix with linked ColdFire units (KITS,
 MIDI SCENES, the USB modules, every DRAM module) refuses without them, and
-`scripts/setup.sh` adds `m68k-elf-gcc` to its Homebrew list when it's
-missing, so on a machine without Homebrew `make setup` stops at `brew:
-command not found`.
+`scripts/setup.sh` stops when `m68k-elf-gcc` is not on PATH.
 
 **Build the bare-metal toolchain (recommended).** Module authors use
-Homebrew's `m68k-elf-binutils` and `m68k-elf-gcc`. The same toolchain
-builds from GNU's sources on Linux, with the formulae's configure flags:
-binutils 2.47 and GCC 16.1.0. This setup was verified on Ubuntu 26.04
-under WSL2 on 28 Sep 2026; allow about an hour with two compile jobs:
+`m68k-elf-binutils` and `m68k-elf-gcc` built from GNU's sources with
+binutils 2.47 and GCC 16.2.0. `scripts/m68k-toolchain.sh [PREFIX]` builds
+both (source hashes pinned; default PREFIX `$HOME/.local/m68k-elf`) and
+exits at once when PREFIX already has that gcc. The hand-built form of this
+setup was verified on Ubuntu 26.04 under WSL2 on 28 Sep 2026 with GCC 16.1.0
+and two compile jobs; allow about an hour on two jobs:
 
 ```bash
 sudo apt install -y libgmp-dev libmpfr-dev libmpc-dev libisl-dev zlib1g-dev libzstd-dev pkgconf texinfo
-# binutils-2.47.tar.xz and gcc-16.1.0.tar.xz from https://ftp.gnu.org/gnu/, each checked:
-#   gpgv --keyring ./gnu-keyring.gpg <file>.sig <file>
-mkdir build-binutils && cd build-binutils
-../binutils-2.47/configure --target=m68k-elf --prefix=/opt/m68k-elf --with-system-zlib --with-zstd --disable-nls
-make -j2 && sudo make install && cd ..
+scripts/m68k-toolchain.sh /opt/m68k-elf
 export PATH=/opt/m68k-elf/bin:$PATH
-mkdir build-gcc && cd build-gcc
-../gcc-16.1.0/configure --target=m68k-elf --prefix=/opt/m68k-elf --disable-nls --without-headers \
-  --with-as=/opt/m68k-elf/bin/m68k-elf-as --with-ld=/opt/m68k-elf/bin/m68k-elf-ld \
-  --enable-languages=c --with-system-zlib --with-zstd
-make -j2 all-gcc && sudo make install-gcc
-make -j2 all-target-libgcc && sudo make install-target-libgcc
-for f in /opt/m68k-elf/bin/m68k-elf-*; do sudo ln -sf "$f" /usr/local/bin/; done
 ```
 
 - `pkgconf` is needed: without `pkg-config`, binutils' configure stops on
@@ -155,9 +146,7 @@ for t in as ld objcopy nm objdump gcc; do
 done
 ```
 
-- ✅ With these on PATH, `make setup` runs without Homebrew: binwalk,
-  radare2 and `m68k-elf-gcc` are all present, so step 1 has nothing to
-  install.
+- ✅ With these on PATH, `make setup` step 1 finds `m68k-elf-gcc`.
 - ✅ They produce this repository's own pinned ColdFire bytes:
   `tools/build/label_fmt.py` re-assembles its twelve caves and matches,
   `tools/build/mode_names.py` passes, and the DRAM loader they build boots
@@ -237,7 +226,7 @@ its own gates). [docs/contributing/TESTING.md](../contributing/TESTING.md) says 
 each step proves. Measured on one machine, 27 Sep 2026, over the 25
 remixes of the day: 475 s for the shared half, 223 s per remix on average
 (`lofi-amf-fix` 51 s, `bottleservice` 1,143 s). Without `make emu-setup`
-(the `.venv`) the label gates (`verify_labels`, `verify_modenames`,
+(the `.venv`) the label gates (`verify_labels`, `verify_mode_names`,
 `verify_hidden`) report `[SKIP]`; without `make emu-cf` the set gates do;
 without a project in `OT_PROJECT` the set gates do too.
 

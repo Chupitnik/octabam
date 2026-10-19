@@ -2,7 +2,7 @@
 
 The page-2 editor marks a held trig as edited and clears native pending tap
 masks before committing a lock. This lets release distinguish an edit from
-a bare tap, preserving the lock just entered. `verify_plocksp2.py`
+a bare tap, preserving the lock just entered. `verify_plocks_p2.py`
 checks the held-step edit followed by release and subsequent bare-tap clearing.
 
 ### Stock Address Provenance
@@ -44,7 +44,7 @@ physical timing was not measured; Bus/Inserts were tested under the emulator.
 
 ## Release regression control
 
-On 17 October 2026, the full `verify_plocksp2.py` (including `tap_clear`)
+On 17 October 2026, the full `verify_plocks_p2.py` (including `tap_clear`)
 was run twice on Core, BUILD=P4, from runtime/test source
 `b6a9d17fff215cd3daf32b7b5e5f73d7ee0748b0`, based on upstream
 `c3f37e531f6b072b8197d93f173e063b55249363`. Both runs used the same
@@ -88,7 +88,7 @@ control. These results measure emulator behavior.
   (`0x40047a8a`) and inverts the value area (`0x40047ba0`). Names use the
   unchanged native text renderer. No lock leaves all widget flags unchanged.
 
-`verify_plocksp2.py` drives native panel inputs and decodes the panel UART
+`verify_plocks_p2.py` drives native panel inputs and decodes the panel UART
 on disposable cards. It first boots unmodified stock 1.40C and captures
 COMPRESSOR ATK page-one locks at 50, 51, 52 and 53. The FX2 PLATE REV and
 FX1 COMPRESSOR page-two visible dial/number region must match stock pixel for pixel after
@@ -119,7 +119,7 @@ therefore could not detect it.
 
 ### Broader Scenes gate limitation
 
-The unmodified `verify_scenesp2.py` expects DELAY SERVER's page-two MODE
+The unmodified `verify_scenes_p2.py` expects DELAY SERVER's page-two MODE
 and TIME layout. With the local Core fixture, both the candidate and the
 upstream PLOCKS control fail the same seven assertions (six frame values
 and the seeded editor value). Core contains stock DELAY, not DELAY SERVER.

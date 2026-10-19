@@ -16,7 +16,7 @@ trig restores the Part display.
 
 ## Measured
 
-Under the port, 2 Oct 2026, `tools/verify/verify_plocksp2.py` on
+Under the port, 2 Oct 2026, `tools/verify/verify_plocks_p2.py` on
 `plocks-p2` and on bottleservice with PLOCKS P2 added (Octakit, the bus, the FX1
 stations, SCENES P2 KITS), project OCTABAM89_setgate:
 
@@ -76,7 +76,7 @@ measured on the port or the unit.
 
 ## Gates
 
-- `tools/verify/verify_plocksp2.py`.
+- `tools/verify/verify_plocks_p2.py`.
 
 ## What stock does
 

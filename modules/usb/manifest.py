@@ -227,8 +227,8 @@ CLAIMS = Claims(sram=((0x80007c00, 0x80, "EP3 OUT dTDs"),
                       (0x80007f80, 0x40, "EP0 reply for vendor 0x56")))
 
 MIDI_GATES = (Gate("tools/verify/verify_usbmidi_rx.py", stage="image"),
-              Gate("tools/verify/verify_usbmidi_clock.py", stage="image"),
-              Gate("tools/verify/verify_usbmidi_replug.py", stage="image"))
+              Gate("tools/verify/verify_usb_midi_clock.py", stage="image"),
+              Gate("tools/verify/verify_usb_midi_replug.py", stage="image"))
 # MAIN/CUE aligned with the tracks (skips without a source project)
 GATE_ALIGN = Gate("tools/verify/verify_usb_align.py", remix_arg=False, venv=True, stage="image")
 # the stems against core 0's own MAIN, sample by sample, under the port (skips without a source project)

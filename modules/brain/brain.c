@@ -6,7 +6,7 @@
  * /BRAIN/card.work (or card.strd, by the pair rule of section 6.2) and
  * writes each valid default record over its effect's descriptor bytes
  * (P+0x5e). The choosers and the new-part initialiser read those bytes when
- * they run (tools/verify/verify_descdefaults.py).
+ * they run (tools/verify/verify_desc_defaults.py).
  *
  * A record with a mode writes into MODE DEFAULTS' view table (its
  * MODEDEF_TABLE, 0 when that module is not in the remix): the values of the

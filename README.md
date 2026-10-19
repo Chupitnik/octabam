@@ -38,8 +38,8 @@ The licence is MIT.
 
 [docs/guide/BUILDING.md](docs/guide/BUILDING.md) has every step. Section 0 is what
 to install first: on macOS the Xcode Command Line Tools
-(`xcode-select --install`), Homebrew, Python 3.10+ and
-`brew install cmake uv`. Then `make setup`, `make emu-setup`,
+(`xcode-select --install`) and Homebrew, then `make setup-mac`; on Linux
+or WSL2 `make setup-linux`. Then `make emu-setup`,
 `make os && make recon`, `make image REMIX=<name> BUILD=1`, and the flash
 from the card (section 5).
 
@@ -51,7 +51,7 @@ from the card (section 5).
 |---|---|---|---|
 | [**DELAY SERVER**](modules/busdelay/README.md) | [sambanks](https://github.com/sambanks) | Multi-mode delay: CLEAN / pitched GRAIN cloud / REVERSE, tape wow. | on hardware: Sam's MKII |
 | [**REVERB SERVER**](modules/busverb/README.md) | [sambanks](https://github.com/sambanks) | Eight-line FDN reverb: ROOM/PLATE/BIG, shimmer, gate, mid/side width. | on hardware: Sam's MKII |
-| [**FX2 LOCK**](modules/fx2-lock/README.md) | [sambanks](https://github.com/sambanks) | The FX2 chooser cannot change a track's effect: YES's key-table entry points at NO's close handler, so the select handler never runs. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); verify_fx2lock under the port, 4 Oct 2026 |
+| [**FX2 LOCK**](modules/fx2-lock/README.md) | [sambanks](https://github.com/sambanks) | The FX2 chooser cannot change a track's effect: YES's key-table entry points at NO's close handler, so the select handler never runs. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); verify_fx2_lock under the port, 4 Oct 2026 |
 | [**MODE DEFAULTS**](modules/mode-defaults/README.md) | [sambanks](https://github.com/sambanks) | A MODE turned on the panel re-defaults the knobs around it (the manifests' ModeViews), on FX1 and FX2. | on hardware: Sam's MKII (images 26/27, 15 Sep 2026) |
 | [**RIG HOSTS**](modules/rig-hosts/README.md) | [sambanks](https://github.com/sambanks) | A new part is born hosted: T1 FX2 = BusDelay, T5 = BusVerb, T8 = the stock DELAY, the rest SEND. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); a new project born hosted under the port |
 | [**SEND**](modules/send/README.md) | [sambanks](https://github.com/sambanks) | Bus client: DEL into the delay, REV into the reverb, from any track. The default effect. | on hardware: Sam's MKII |
@@ -144,17 +144,17 @@ from the card (section 5).
 | [**BUFFER SAVER**](modules/buffer-saver/README.md) | [Chupitnik](https://github.com/Chupitnik) | SAVE PROJECT offers to save unsaved recorder takes, each back into its own buffer, so they reload with the project. | on hardware: Chupitnik's MKII, 15-16 Oct 2026, AUTOSAVE1 and AUTOSAVE2 from the card (the module under its first name): after a take FUNC + PROJ and PROJECT > SAVE ask SAVE SAMPLES?; YES saves R<n>-YYMMDD-HHMM and assigns it to its buffer, two buffers in one save, an immediate re-save does not ask, a reload brings the takes back, NO saves as stock |
 | [**COPY PROJECT**](modules/copy-project/README.md) | [iliamurzinov](https://github.com/ilia-murzinov) | PROJECT > COPY PROJECT: duplicate a project folder on the card without loading it. | on hardware: flashed with CF card update and tested on author's MKII (17 Oct 2026); BUILD not recorded |
 | [**RELOAD_FROM_PROJECT**](modules/reload-from-project/README.md) | [Zac-Kyoti/octatrack-kyoti-fw](https://github.com/Zac-Kyoti/octatrack-kyoti-fw) | Reload one track's sequence from the card without stopping the transport: [PTN]+[TRACK n], or [BANK]+[TRACK n] to re-apply the Part. | on hardware: the author's MKI (standalone image), sequencer and metronome phase kept; 1 Oct 2026 from DRAM in an octabam image with all six KYOTI modules |
-| [**REMIX SWITCH**](modules/remix-switch/README.md) | [sanderlegit](https://github.com/sanderlegit) | MAIN MENU > BRAIN lists the raw OS images (.RMX) in /BRAIN/REMIXES/ and boots the one picked without writing the flash; remembers the choice across reboots. | on hardware: an MKII, 29 Sep 2026 (OCTABAM14 with BOOT TRACE): switched to its own image and to stock 1.40C, audio and play working; and with the park moved into the dead vector run (BSRETVEC) booted, played and switched away again -- 40 region words down to 18; `verify_remixswitch`. The list in BRAIN's pane and /BRAIN/REMIXES/ (8 Oct 2026), and the persisted selection (#743): under the port only |
+| [**REMIX SWITCH**](modules/remix-switch/README.md) | [sanderlegit](https://github.com/sanderlegit) | MAIN MENU > BRAIN lists the raw OS images (.RMX) in /BRAIN/REMIXES/ and boots the one picked without writing the flash; remembers the choice across reboots. | on hardware: an MKII, 29 Sep 2026 (OCTABAM14 with BOOT TRACE): switched to its own image and to stock 1.40C, audio and play working; and with the park moved into the dead vector run (BSRETVEC) booted, played and switched away again -- 40 region words down to 18; `verify_remix_switch`. The list in BRAIN's pane and /BRAIN/REMIXES/ (8 Oct 2026), and the persisted selection (#743): under the port only |
 | [**RND NAME**](modules/rnd-name/README.md) | [iliamurzinov](https://github.com/ilia-murzinov) | Project name editors: FUNC+CUE fills YYMMDD + random pool name. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); FUNC+CUE on CREATE / SAVE PROJECT AS / CHOOSE NEW PROJECT NAME under the port (verify_rnd_name); pools from unit |
 
 ### Reference
 
 | module | author | what it does | proof |
 |---|---|---|---|
-| [**BOOT TRACE**](modules/boot-trace/) | [sanderlegit](https://github.com/sanderlegit) | Probe: a MIDI note on MIDI OUT at each boot stage, the DSP upload's record echoes and any stall, for finding where a boot hangs. | on hardware: an MKII, 29 Sep 2026 (OCTABAM4-14); `verify_boottrace` |
+| [**BOOT TRACE**](modules/boot-trace/) | [sanderlegit](https://github.com/sanderlegit) | Probe: a MIDI note on MIDI OUT at each boot stage, the DSP upload's record echoes and any stall, for finding where a boot hangs. | on hardware: an MKII, 29 Sep 2026 (OCTABAM4-14); `verify_boot_trace` |
 | [**CF METER**](modules/cfmeter/README.md) | [sambanks](https://github.com/sambanks) | Probe: frame-interrupt duration and (with CF METER IDLE) idle time, plus core 0's frame spin count, ESAI underrun/overrun frames and frame period, printed as audio on T8's FX2. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); ColdFire half on image 92 (Sam's MKII, 3 Oct 2026: interrupt 123.1 us stopped, 213.5 us playing); the DSP slots and DBRN under the port only (4 Oct 2026) |
 | [**CF METER IDLE**](modules/cfmeter-idle/README.md) | [sambanks](https://github.com/sambanks) | Probe: main's idle loop timed, for CF METER's idle-time slot. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); boots and loads a project under the port (28 Sep 2026) |
-| [**LOAD METER**](modules/load-meter/README.md) | [sambanks](https://github.com/sambanks) | The frame interrupt's share of the ColdFire, each DSP core's busy time per frame and each effect call's cost, for BRAIN's OTOP screen. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); the window and both DSP cores' figures under the port (verify_loadmeter, verify_brain) |
+| [**LOAD METER**](modules/load-meter/README.md) | [sambanks](https://github.com/sambanks) | The frame interrupt's share of the ColdFire, each DSP core's busy time per frame and each effect call's cost, for BRAIN's OTOP screen. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); the window and both DSP cores' figures under the port (verify_load_meter, verify_brain) |
 | [**WAVE LOAD**](modules/waveload/README.md) | [sambanks](https://github.com/sambanks) | Probe: K 4-voice wave engines per frame interrupt (CF METER's BURN), for CF METER's duration readout. | on hardware: image 92, Sam's MKII, 3 Oct 2026: one 4-voice engine 69.2 us of the 362.8 us frame, clean beside four sample tracks |
 
 <!-- modules:end -->

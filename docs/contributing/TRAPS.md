@@ -110,7 +110,7 @@ BITS ARE ZERO.** A ramp step written as `sub x0,a / asr #6,a,a / teq y1,b`
 ("a step that rounds to 0 snaps the run value onto its target") never
 snapped: a1 was 0, a0 held the shifted-out remainder, Z stayed clear, and
 every ramp sat up to 63 LSB under its knob for good (26 Sep 2026, found
-by `make verify-onebus`: a host's send at 100 was not bit-identical to a
+by `make verify-one-bus`: a host's send at 100 was not bit-identical to a
 SEND's at 100). The same a0 remainder breaks `add x0,a / cmp x0,a / teq`
 (a 56-bit compare). Reload the step clean before testing it — `move a,x1 /
 move x1,a / tst a` — the one-word `move a,x1` drops a0. Sister of the
@@ -534,7 +534,7 @@ unseen page byte and, on core 1, compared the rotation tracker before
 position 0's advance — one step ahead for good on the unit (images 40–47,
 21 Sep 2026; `modules/send/README.md` "An FX1 slot is not a client"). A client keys its slot on r7, never
 on X:$213 (stale at proc time), and `dsp_host` places FX2 slots at
-0x6200 + 0x300·pos (`verify_twocore` had 0x200·pos until image 48).
+0x6200 + 0x300·pos (`verify_two_core` had 0x200·pos until image 48).
 
 <a name="trap-audio-block"></a>
 
@@ -596,7 +596,7 @@ mask a page word with `and #>$7f0000` before any shift, compare, select or
 `asr` then leaves a clean low word. After `and`, store from `a1`/`b1`
 (`move a1,x:`), not `move a,x:` (the A2-staleness trap above). The
 `dsp_host -pword k:off=hex` option writes a raw word after `-params`, and
-`verify_wave` / `verify_onebus` render dirty words.
+`verify_wave` / `verify_one_bus` render dirty words.
 
 <a name="trap-name-nul"></a>
 
@@ -670,7 +670,7 @@ dispatcher bumps r7 THREE times per track (the third unconditional, after
 FX2), so from position 1 on every r7 the harness used was wrong, and two
 modules that pinned a track by its r7 (the one-aux return on T8, the
 track-8 send refusal) matched in the harness and never on the unit — flash
-6's "the return never reaches T8", with `make verify-onebus` green on
+6's "the return never reaches T8", with `make verify-one-bus` green on
 exactly that property. Found 8 Sep 2026 by running the shipping image from
 the card under the ColdFire port (`git show 3ceba41:docs/history/COLDFIRE_PORT.md` O11). Any module
 logic keyed on a dispatcher fact (r7, r6, X:0x213, instance blocks) is
@@ -692,7 +692,7 @@ its new init zeroed 24 state slots with `move a,x:(r1)+`. It looked like the
 step-1 DSP hang and was found under the ColdFire port's last-PC ring in an
 hour; `dsp_host` cannot see it because it calls init and proc itself and
 never reads r1 between them. Proc may use r1 (the dispatcher reloads it
-after proc). `tools/verify/verify_initregs.py` refuses an init that writes
+after proc). `tools/verify/verify_init_regs.py` refuses an init that writes
 r1/n1/m1 and runs in `make check`. Zero through r5.
 
 <a name="trap-knob-publish"></a>
@@ -737,7 +737,7 @@ taps rewriting a compressor block that was correct. Found by a LEVEL bisect
 across the tracks (post-FX mute cleared it, pre-FX mute did not: the station
 made it from state), then reproduced in one run once the instance block was
 pre-filled with garbage. Rules: (1) init zeroes EVERY slot the sample loop
-reads before it writes — `tools/verify/verify_dirtystate.py` (in `make
+reads before it writes — `tools/verify/verify_dirty_state.py` (in `make
 verify`) renders each module from a garbage block on silence and refuses any
 output; (2) a channel-asymmetric failure in channel-symmetric code is a DATA
 asymmetry — go looking for what the instrument cannot see (DC, ultrasonics)
@@ -1057,7 +1057,7 @@ FX window after trig bookkeeping and edits, not just after a page redraw.
 
 `0x460d175c` points at a shared popup object used by MIXER, TEMPO and
 other dialogs too. Check its active pointer, open flag and SETUP geometry
-before calling the FX draw callback. `verify_plocksp2` now compares UART
+before calling the FX draw callback. `verify_plocks_p2` now compares UART
 LCD pixels with normal-value references, exercises reholding without a
 knob turn, and checks the other windows. A lock-byte assertion alone
 cannot establish that a user can see the edit.

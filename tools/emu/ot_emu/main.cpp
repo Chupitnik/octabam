@@ -831,7 +831,7 @@ namespace
 				// `call <addr> [<arg>...]` -> ok d0=<hex> | err <why>: a firmware
 				// routine run as main (Rtos::callAsMain, --call's), for a routine
 				// that cannot genuinely block. modules/remix-switch's osw_reupload
-				// (verify_remixswitch: park the DSP, then the stock upload).
+				// (verify_remix_switch: park the DSP, then the stock upload).
 				uint64_t addr = 0;
 				std::vector<uint32_t> args;
 				bool okArgs = w.size() >= 2 && parseNumber(w[1], addr) && addr <= 0xffffffffull;

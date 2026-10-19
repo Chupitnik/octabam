@@ -157,7 +157,7 @@ Two 32-entry pointer tables in X, indexed by the raw id, one load record
 menus index the same tables (`contributing/TRAPS.md`, "an FX2 id is also an FX1 id").
 The FX1 dispatcher keeps the id in r1 across the init call (`P:0x4c8..0x4d7`);
 an init that moves r1 sends the proc call through P:0 (`contributing/TRAPS.md`,
-`verify_initregs`).
+`verify_init_regs`).
 
 | id | init | process | effect |
 |---|---|---|---|

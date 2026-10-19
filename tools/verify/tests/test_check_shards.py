@@ -41,7 +41,7 @@ class ByGate(unittest.TestCase):
 
     def test_module_gates_are_one_job_each(self):
         names = [j[0] for j in self.jobs()]
-        self.assertIn("gate:verify_scenesp2", names)
+        self.assertIn("scenes-p2", names)
         self.assertEqual(len(names), len(set(names)))
 
     def test_every_job_carries_the_remix(self):
@@ -57,6 +57,17 @@ class ByGate(unittest.TestCase):
             check_shards.ROOT = real
         self.assertEqual(jobs[0][1][0][0], "echo")
         self.assertEqual(jobs[0][3], {"tools/verify/verify_labels.py"})
+
+
+class FailureExcerpt(unittest.TestCase):
+    def test_keeps_failure_lines_and_the_tail_once_each_in_order(self):
+        log = "\n".join([f"ok {i}" for i in range(100)] + ["  [FAIL] verify_x: boom"]
+                        + [f"ok {i}" for i in range(100, 200)] + ["make: *** [x] Error 2"])
+        out = check_shards.failure_excerpt(log, fails=5, tail=3)
+        self.assertEqual(out, ["  [FAIL] verify_x: boom", "ok 198", "ok 199", "make: *** [x] Error 2"])
+
+    def test_a_short_log_is_returned_whole(self):
+        self.assertEqual(check_shards.failure_excerpt("a\nb", tail=40), ["a", "b"])
 
 
 if __name__ == "__main__":

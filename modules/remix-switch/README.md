@@ -131,7 +131,7 @@ head's one `#>osw_ldr` reference is rewritten to wherever the tail landed
 
 That is safe only while nothing arms an interrupt in the run, and once code
 lives there the freeze that would announce one is gone -- so
-`tools/verify/verify_dspvectors.py` audits it on every build: the runs are
+`tools/verify/verify_dsp_vectors.py` audits it on every build: the runs are
 all self-jumps, no DMA whose vector is in one has DIE set, no ESAI control
 word has an interrupt enable, and the set of peripherals either payload
 configures is the audited one. ✅ Under the port every REMIX SWITCH check
@@ -180,7 +180,7 @@ exchange"; the hang was the DSP (above). Whether `60 02` is needed at all
 is not measured; it is harmless (the OS sends it at boot). An MKI's panel
 is sent nothing (untested on an MKI).
 
-## Measured ✅ (under the ColdFire port, `tools/verify/verify_remixswitch.py`)
+## Measured ✅ (under the ColdFire port, `tools/verify/verify_remix_switch.py`)
 
 - **The menu, the load and the reset sequence run from the panel.** Keys
   NO, PROJ (the MKII's MAIN MENU), DOWN ×4 (OS), YES, YES, YES on a card

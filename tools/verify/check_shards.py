@@ -213,6 +213,18 @@ def run_remix(shard, remix, logdir, deps=None):
     return res
 
 
+FAIL_LINE = re.compile(r"\[FAIL\]|FAILED|Traceback|Error\b|error:|\*\*\*", re.I)
+
+
+def failure_excerpt(text, fails=30, tail=40):
+    """What a failed job's log says about why: its failure lines (first `fails`)
+    and its last `tail` lines, in log order, each once."""
+    lines = text.splitlines()
+    keep = {i for i, l in enumerate(lines) if FAIL_LINE.search(l)}
+    keep = set(sorted(keep)[:fails]) | set(range(max(0, len(lines) - tail), len(lines)))
+    return [lines[i] for i in sorted(keep)]
+
+
 def make_text():
     return (ROOT / "Makefile").read_text()
 
@@ -282,13 +294,13 @@ def remix_jobs(remix_name, shard):
         return (name, cmds, env, set(scripts))
     jobs = [
         job("cycles", [["make", "cycles", f"REMIX={remix_name}"]]),
-        job("dirtystate", [[py, f"{V}/verify_dirtystate.py", remix_name]], f"{V}/verify_dirtystate.py"),
-        job("initregs", [[py, f"{V}/verify_initregs.py", remix_name]], f"{V}/verify_initregs.py"),
-        job("dram_boot", [[py, f"{V}/verify_dram_boot.py"]], f"{V}/verify_dram_boot.py"),
+        job("dirty-state", [[py, f"{V}/verify_dirty_state.py", remix_name]], f"{V}/verify_dirty_state.py"),
+        job("init-regs", [[py, f"{V}/verify_init_regs.py", remix_name]], f"{V}/verify_init_regs.py"),
+        job("dram-boot", [[py, f"{V}/verify_dram_boot.py"]], f"{V}/verify_dram_boot.py"),
     ]
-    for name in ("labels", "modenames", "hidden"):
+    for name in ("labels", "mode_names", "hidden"):
         # as the Makefile: SKIP without the .venv, and the job still stands for the script
-        jobs.append(job(name, [[str(venv), f"{V}/verify_{name}.py", remix_name]] if has_venv
+        jobs.append(job(name.replace("_", "-"), [[str(venv), f"{V}/verify_{name}.py", remix_name]] if has_venv
                         else [["echo", f"  [SKIP] {name}: no .venv (make emu-setup)"]], f"{V}/verify_{name}.py"))
     remix = registry.remix(remix_name)
     # once=False: a once-per-run gate runs in the shared half (module_gates
@@ -308,7 +320,7 @@ def remix_jobs(remix_name, shard):
         cmd = module_gates.command(g, remix_name, root=ROOT)
         cmd[0] = cmd[0] if g.venv else PY
         cmd[1] = str(g.script)
-        jobs.append(job(f"gate:{pathlib.Path(g.script).stem}", [cmd], f"{V}/module_gates.py"))
+        jobs.append(job(pathlib.Path(g.script).stem.removeprefix("verify_").replace("_", "-"), [cmd], f"{V}/module_gates.py"))
     jobs.append(job("menu", [[py, f"{V}/verify_menu.py"], [py, f"{V}/verify_replaces.py", "--image", remix_name]],
                     f"{V}/verify_menu.py", f"{V}/verify_replaces.py"))
     jobs.append(job("set", [[py, f"{V}/verify_set.py", remix_name]], f"{V}/verify_set.py"))
@@ -566,6 +578,13 @@ def main(argv=None):
               + (f"  (pass at {r['cached'].get('head', '?')}, {r['cached'].get('seconds', 0):.0f} s)" if r.get("cached") else ""))
         for s in r["skips"]:
             print(f"               {s}")
+    for remix in names:
+        r = results[remix]
+        if r["rc"]:
+            print(f"\ncheck_shards: {remix} failed (exit {r['rc']}); the failure lines and the last lines of "
+                  f"{r['log'].relative_to(ROOT)}:")
+            for l in failure_excerpt(r["log"].read_text(errors="replace")):
+                print(f"  | {l}")
     if a.rm:
         for s in shards:
             remove_shard(s)

@@ -20,7 +20,7 @@ image that declares ModeViews. A MODE over MIDI (CC MAP) is
 re-defaulted too: its cave calls CC_MODEDEF2 / CC_MODEDEF1 here after its
 write.
 
-Measured under the port (tools/verify/verify_modedefaults.py, in make
+Measured under the port (tools/verify/verify_mode_defaults.py, in make
 verify when OT_PROJECT is set): the FX2 editor called on T1 with MODE ->
 GRAIN leaves the GRAIN view's bytes in the live lane, page 1 and page 2;
 the FX1 editor likewise for a station. Not measured: the panel redraw on
@@ -67,5 +67,5 @@ MODULE = Module(
         Detour(0x4003ACF2, H("4eb940027e00"), "modedef", "fx1_hook",
                "FX1 page-2 editor: after the Part store, apply the mode's view", kind="jsr"),
     ),
-    gates=(Gate('tools/verify/verify_modedefaults.py'),),
+    gates=(Gate('tools/verify/verify_mode_defaults.py'),),
 )

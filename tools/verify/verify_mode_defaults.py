@@ -2,7 +2,7 @@
 """MODE DEFAULTS under the port: a page-2 editor call that lands on a MODE
 leaves that mode's view in the track's live lane.
 
-    python3 tools/verify/verify_modedefaults.py REMIX --project DIR
+    python3 tools/verify/verify_mode_defaults.py REMIX --project DIR
 
 Stages the project (T1's FX2 and T2's FX1 rewritten into every part of every
 bank: the emulated load applies bank A part 1), boots the remix's image in
@@ -71,7 +71,7 @@ def run_port(image, card, set_name, name, steps, midi, dump, log):
     text = log.read_text()
     calls = sum(1 for s in steps if ":call:" in s)
     if r.returncode or text.count("returned, d0") < calls:
-        sys.exit(f"verify_modedefaults: ot_emu did not complete the {calls} call(s) -- {log}")
+        sys.exit(f"verify_mode_defaults: ot_emu did not complete the {calls} call(s) -- {log}")
 
 
 def main():
@@ -84,14 +84,14 @@ def main():
     a = ap.parse_args()
     remix = registry.remix(a.remix)
     if "MODE DEFAULTS" not in remix.modules:
-        print(f"  [ -- ] verify_modedefaults: {a.remix} carries no MODE DEFAULTS"); return 0
+        print(f"  [ -- ] verify_mode_defaults: {a.remix} carries no MODE DEFAULTS"); return 0
     if not a.project:
-        print("  [SKIP] verify_modedefaults: no project (OT_PROJECT=<dir> or --project)"); return 0
+        print("  [SKIP] verify_mode_defaults: no project (OT_PROJECT=<dir> or --project)"); return 0
     if not EMU.is_file():
-        print("  [SKIP] verify_modedefaults: no port binary (make emu-cf)"); return 0
+        print("  [SKIP] verify_mode_defaults: no port binary (make emu-cf)"); return 0
     pdir = pathlib.Path(a.project).expanduser()
     if not (pdir / "project.work").is_file():
-        sys.exit(f"verify_modedefaults: {pdir} is not a project")
+        sys.exit(f"verify_mode_defaults: {pdir} is not a project")
     mods = registry.modules()
     OUT.mkdir(parents=True, exist_ok=True)
 
@@ -101,7 +101,7 @@ def main():
         r = subprocess.run([sys.executable, str(ROOT / "tools/build/build_bus.py")], env=env,
                            capture_output=True, text=True, cwd=ROOT)
         if r.returncode:
-            sys.exit(f"verify_modedefaults: building {a.remix} failed:\n{(r.stdout + r.stderr)[-1500:]}")
+            sys.exit(f"verify_mode_defaults: building {a.remix} failed:\n{(r.stdout + r.stderr)[-1500:]}")
         shutil.copy2(ROOT / "out/mainos_bus.bin", image)
 
     # The fixture: T1 FX2 = the first FX2 module with views, T2 FX1 = the
@@ -119,7 +119,7 @@ def main():
         if best:
             cases.append(best)
     if not cases:
-        print("  [ -- ] verify_modedefaults: no module with ModeViews in the remix"); return 0
+        print("  [ -- ] verify_mode_defaults: no module with ModeViews in the remix"); return 0
     copy = OUT / "project"
     if copy.exists():
         shutil.rmtree(copy)
@@ -136,7 +136,7 @@ def main():
     r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
                         "--tree", str(OUT / "tree"), "--out", str(card)], cwd=ROOT, capture_output=True, text=True)
     if r.returncode:
-        sys.exit(f"verify_modedefaults: stage_card failed:\n{r.stdout[-1000:]}{r.stderr[-1000:]}")
+        sys.exit(f"verify_mode_defaults: stage_card failed:\n{r.stdout[-1000:]}{r.stderr[-1000:]}")
 
     fails = 0
     # One boot for everything: each case's current-track pokes (both bytes,
@@ -222,7 +222,7 @@ def main():
                 okv = got == val
                 print(f"  [{'ok' if okv else 'FAIL'}]   slot {slot:2d} {m.params[slot].name.decode():4s} lane +{off:#04x} = {got:3d}  (view {val})")
                 fails += not okv
-    print(f"verify_modedefaults: {'FAIL' if fails else 'ok'} ({fails} failure(s))")
+    print(f"verify_mode_defaults: {'FAIL' if fails else 'ok'} ({fails} failure(s))")
     return 1 if fails else 0
 
 

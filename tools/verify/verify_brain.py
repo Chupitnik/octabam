@@ -7,7 +7,7 @@ Builds REMIX (default `octabam-bus`), stages
 the project with BRAIN/card.work and card.strd written by
 tools/hw/ot_brain.py, and under the port selects T2's effect through the
 FX2 chooser (SEND -> stock DELAY) and the FX1 chooser (SPECTRUM ->
-CHARACTER), as tools/verify/verify_descdefaults.py does. Each case reads
+CHARACTER), as tools/verify/verify_desc_defaults.py does. Each case reads
 the brain's counters after the load (brain_counts, by symbol) and the live
 lane at the end:
 
@@ -36,7 +36,7 @@ lane at the end:
                 holds T1's FX2 page; then OK, UP, YES on CLEAR FX DEFAULT: no
                 BusDelay record left
   mode          a GRAIN record for BusDelay (T1): the FX2 page-2 editor moves
-                MODE CLEAN -> GRAIN (verify_modedefaults' call) and MODE
+                MODE CLEAN -> GRAIN (verify_mode_defaults' call) and MODE
                 DEFAULTS lands GRAIN's view with the card's values for the
                 slots the view lists; a slot it does not list is skipped
 

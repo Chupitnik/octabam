@@ -43,13 +43,13 @@ RUNS = [("DIN", 25.0), ("USB", 50.0), ("USB", 37.5)]     # ms per tick asked; th
 
 def main():
     if not EMU.is_file():
-        print("  [SKIP] verify_usbmidi_clock: the port is not built (make emu-cf)")
+        print("  [SKIP] verify_usb_midi_clock: the port is not built (make emu-cf)")
         return 0
     if not IMAGE.is_file():
-        print("  [FAIL] verify_usbmidi_clock: no out/mainos_bus.bin (make bus)")
+        print("  [FAIL] verify_usb_midi_clock: no out/mainos_bus.bin (make bus)")
         return 1
     if "USB" not in registry.remix(os.environ.get("REMIX")).modules:
-        print("  [SKIP] verify_usbmidi_clock: the remix has no USB")
+        print("  [SKIP] verify_usb_midi_clock: the remix has no USB")
         return 0
     sock = f"/tmp/ot-usbclk-{os.getpid()}.sock"     # sun_path is 104 bytes on macOS
     emu = subprocess.Popen([str(EMU), "--image", str(IMAGE), "--interactive", "--usb-host", sock, "--main-level", "off"],
@@ -139,7 +139,7 @@ def main():
             emu.wait(timeout=30)
         except Exception:  # noqa: BLE001
             emu.kill()
-    print(f"verify_usbmidi_clock: {'OK' if not fails else str(len(fails)) + ' FAILED'}")
+    print(f"verify_usb_midi_clock: {'OK' if not fails else str(len(fails)) + ' FAILED'}")
     return 1 if fails else 0
 
 

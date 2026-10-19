@@ -72,7 +72,7 @@ CASES = {
     # NOT four instances: on one core the fourth sits at position 3, which is
     # track 8 on payload A, where the SEND is refused by design -- so a
     # four-instance one-core control is not the same layout.
-    # tools/verify/verify_onebus.py pins the refusal itself.
+    # tools/verify/verify_one_bus.py pins the refusal itself.
     "SSR  a sender on each core":               [("R", 0, R), ("S", 0, S_VRB), ("S", 1, S_VRB)],
 }
 # which instance's stream each case compares (the server being measured)

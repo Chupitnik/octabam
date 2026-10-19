@@ -202,10 +202,15 @@ is seen.
 
 ## Before you open a PR
 
-Rebase onto current main, then run the gates on the rebased tree. Gates
-run before the rebase are not a result: a branch that merges without a
-conflict can still fail on main (PR #396's stress fixture named a knob
-that #415 had renamed).
+Rebase onto current main. Gates run before the rebase are not a result: a
+branch that merges without a conflict can still fail on main (PR #396's
+stress fixture named a knob that #415 had renamed).
+
+CI's `Gates — make reach` job runs the `make reach RUN=1 KEEP=1` line below
+on every PR push, against the 1.40C it downloads for that run; link the run
+in the PR body. A first-time contributor's run waits for maintainer approval.
+The commands below are the same ones to run on your own machine, on a rebased
+tree, while you iterate.
 
 ```bash
 git fetch origin && git rebase origin/main
@@ -228,7 +233,9 @@ the `make check` lines separately and names the accept line as blocked.
 A remix with a DSP module that declares no `dear` makes `make accept`
 report `blocked` with the module's name; say so in the PR. List each
 command and its result in the PR body (`make reach`'s output is the list;
-the PR template asks for it).
+the PR template asks for it). Every PR also runs
+`make reach RUN=1 KEEP=1` in CI on a runner that downloads the 1.40C for that
+run.
 
 A change that alters what a remix does — its modules, effects, menus,
 costs (memory pages, DSP words) or proof status — updates the
@@ -256,11 +263,12 @@ check, and CI's `docs and links` job refuses a stale copy.
 
 ## What CI checks
 
-`.github/workflows/ci.yml` runs on every PR, on `main` and by hand, with
-no Elektron bytes. [TESTING.md section 11](docs/contributing/TESTING.md#11-what-github-actions-checks)
+`.github/workflows/ci.yml` runs on every PR, on `main` and by hand. Every
+job but `Gates — make reach` runs without Elektron bytes; that job fetches
+the 1.40C from Elektron's site into the runner on each run, with the zip hash
+pinned, and runs for pushes to `main` and every PR; a first-time contributor's run waits for maintainer approval. [TESTING.md section 11](docs/contributing/TESTING.md#11-what-github-actions-checks)
 lists each job and what it proves. **A green CI run says nothing about a
-remix**: building, booting and playing one needs 1.40C, which is why the
-gates above run on your machine. Actions are pinned to commit SHAs; a bump
+remix unless `Gates — make reach` ran.** Actions are pinned to commit SHAs; a bump
 is a PR that changes the SHA and the version comment beside it.
 
 ## Etiquette

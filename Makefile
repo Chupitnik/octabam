@@ -35,7 +35,7 @@ endef
 define need-port
 @test -x out/emu/ot_emu || { echo "  [FAIL] $@: the ColdFire port is not built (make emu-cf); its gates would SKIP"; exit 2; }
 endef
-# The project the set gates (verify_set, verify_modedefaults) run under the
+# The project the set gates (verify_set, verify_mode_defaults) run under the
 # port: OT_PROJECT=<dir> on the command line, else the path in
 # ~/.octabam_project (machine-local; card data never enters the repo).
 # Without either, the two gates SKIP.
@@ -56,8 +56,16 @@ HOST_ARCH := $(shell if [ "$$(uname -s)" = Darwin ] && [ "$$(sysctl -n hw.option
 # ---------------------------------------------------------------- toolchain --
 
 .PHONY: setup
-setup: ## Install/build the toolchain (idempotent)
+setup: ## Build the vendored tools (idempotent); needs the system tools from setup-mac or setup-linux
 	scripts/setup.sh
+
+.PHONY: setup-mac setup-linux setup-windows
+setup-mac: ## macOS: brew install the system tools, then make setup
+	scripts/setup-mac.sh
+setup-linux: ## Debian/Ubuntu/WSL2: apt install the system tools, build the m68k-elf toolchain, then make setup
+	scripts/setup-linux.sh
+setup-windows: ## Native Windows is not supported: WSL2, then make setup-linux
+	scripts/setup-windows.sh
 
 .PHONY: os
 os: ## Download the official Elektron OS (you supply your own copy)
@@ -148,9 +156,9 @@ render-rig: bus ## Render ALL EIGHT TRACKS on both cores (the real image, tracks
 	  $(if $(TRACKS),--tracks "$(TRACKS)",--tracks "T1=D,T2=S,T3=S,T4=S,T5=R,T6=S,T7=S,T8=S" --set T2:-VRB=100 --set T3:-DEL=100 --set T6:-VRB=100 --set T7:-DEL=80 --set T1:-VRB=100) \
 	  $(if $(STEMS),--stems $(STEMS),--stems out/test_audio --seconds 4) $(RIGARGS)
 
-.PHONY: verify-twocore
-verify-twocore: ## Two-core gate: servers on their REAL cores == the DEV hatch, bit for bit, and under 4 skews (~1 min)
-	python3 tools/verify/verify_twocore.py
+.PHONY: verify-two-core
+verify-two-core: ## Two-core gate: servers on their REAL cores == the DEV hatch, bit for bit, and under 4 skews (~1 min)
+	python3 tools/verify/verify_two_core.py
 
 .PHONY: emu-live
 emu-live: ## Play the remix on the port: screen (popups included) + panel in a window; OT_PROJECT or ~/.octabam_project
@@ -202,9 +210,9 @@ emu-cf: ## Build and run the headless ColdFire machine (tools/emu/ot_emu) -- boo
 	$(PY) tools/verify/reach.py --stamp-port
 	./out/emu/ot_emu --image $(if $(IMAGE),$(IMAGE),out/raw/section_3_MAIN_OS.bin)
 
-.PHONY: verify-onebus
-verify-onebus: ## THE ONE AUX BUS on both cores: chain, each host's print, WET passthrough, T8 refusal, no station sends (~2 min)
-	python3 tools/verify/verify_onebus.py
+.PHONY: verify-one-bus
+verify-one-bus: ## THE ONE AUX BUS on both cores: chain, each host's print, WET passthrough, T8 refusal, no station sends (~2 min)
+	python3 tools/verify/verify_one_bus.py
 
 verify-knobs: ## KNOB CLICK CENSUS: every continuous knob of the rig fixture's DSP modules moved mid-render, block-rate steps in dBFS (~1 min)
 	$(PY) tools/verify/verify_knob_clicks.py
@@ -296,20 +304,20 @@ verify-shared: ## The gates that do not depend on the remix: ledger selftest, sl
 verify-remix: ## The selected remix's own gates: dirty state, init regs, DRAM boot, labels, its module gates, menu, the set under the port, USB
 	$(need-remix)
 	$(need-port)
-	@# verify_dirtystate builds the remix's image itself (verify-shared and
+	@# verify_dirty_state builds the remix's image itself (verify-shared and
 	@# verify_character leave theirs at out/mainos_bus.bin): a module started
 	@# from a garbage instance block must be silent on silence -- the unit's
 	@# RAM is not zeroed.
-	python3 tools/verify/verify_dirtystate.py $(REMIX)
-	python3 tools/verify/verify_initregs.py $(REMIX)
+	python3 tools/verify/verify_dirty_state.py $(REMIX)
+	python3 tools/verify/verify_init_regs.py $(REMIX)
 	REMIX=$(REMIX) python3 tools/verify/verify_dram_boot.py
 	@# The three ColdFire-port checks need the .venv (make emu-setup). Without
 	@# it they SKIP; with it a failure FAILS (until 16 Sep 2026 `|| echo SKIP`
-	@# swallowed every exit code, and verify_modenames had been failing since
+	@# swallowed every exit code, and verify_mode_names had been failing since
 	@# image 27 behind a SKIP line).
 	@if [ -x .venv/bin/python3 ]; then \
 	  .venv/bin/python3 tools/verify/verify_labels.py $(REMIX) && \
-	  .venv/bin/python3 tools/verify/verify_modenames.py $(REMIX) && \
+	  .venv/bin/python3 tools/verify/verify_mode_names.py $(REMIX) && \
 	  .venv/bin/python3 tools/verify/verify_hidden.py $(REMIX); \
 	else echo "  [SKIP] labels / mode names / hidden engines: no .venv (make emu-setup)"; fi
 	@# The module gates that take the remix (remix_arg=True) and build or
@@ -467,7 +475,14 @@ ci-dsp: ## CI: dsp56300 at its pin + our patch, built; upstream's test runner; c
 	scripts/vendor.sh dsp56300
 	cmake -S vendor/dsp56300 -B vendor/dsp56300/build -DCMAKE_BUILD_TYPE=Release
 	cmake --build vendor/dsp56300/build --target dsp56kDisassemble dsp_asm dsp_host dsp56kTestRunner -j
-	vendor/dsp56300/build/source/dsp56kTestRunner/dsp56kTestRunner
+	@# The runner logs every JIT'd instruction (`_log@` lines): ~160,000 lines
+	@# per run. Kept in out/dsp56kTestRunner.log; the last 40 other lines print,
+	@# the last 300 on failure.
+	@mkdir -p out
+	@vendor/dsp56300/build/source/dsp56kTestRunner/dsp56kTestRunner > out/dsp56kTestRunner.log 2>&1; rc=$$?; \
+	  if [ $$rc -ne 0 ]; then grep -v '^_log@' out/dsp56kTestRunner.log | tail -300; exit $$rc; fi; \
+	  echo "dsp56kTestRunner: $$(wc -l < out/dsp56kTestRunner.log) log lines in out/dsp56kTestRunner.log, last 40 other lines:"; \
+	  grep -v '^_log@' out/dsp56kTestRunner.log | tail -40
 	@$(MAKE) --no-print-directory check-asm
 
 # rtos, dsp and repitch-* read the stock OS and return 0 without it, so

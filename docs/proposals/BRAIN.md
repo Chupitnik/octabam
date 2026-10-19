@@ -204,7 +204,7 @@ are unchanged: the stock effect select, the new-part initialiser
 the image.
 
 Measured under the port (6 Oct 2026, bottleservice,
-`tools/verify/verify_descdefaults.py`): the FX2 chooser's select (T2 SEND
+`tools/verify/verify_desc_defaults.py`): the FX2 chooser's select (T2 SEND
 -> stock DELAY) and the FX1 chooser's select (T2 SPECTRUM -> CHARACTER)
 land the descriptor's twelve defaults in the live lane, and with those
 twelve bytes poked in RAM after the load they land the poked bytes ✅. The
@@ -534,7 +534,7 @@ with a name editor, copy, paste and clear (✅ on the unit, image A6).
 | 3 | templates for FX pages: image, card, saved on the unit; the TEMPLATES lists. Built 11 Oct 2026 (port): image templates (`templates/`, `Remix.templates`) for effects and the stock targets, BRAIN > TEMPLATES with rename and copy to card | yes | yes |
 | 4 | the stock provider: MIDI track target, instrument templates with knob names, incoming CC map, controller presets; audio track pages; project-level stock settings. Built 11 Oct 2026 (port): card templates for the AMP and LFO pages and for MIDI tracks (`stock.amp`, `stock.lfo`, `stock.midi`); MIDI knob names (NAME KNOB, the CTRL labels, in the project store and in `stock.midi` templates); SRC page templates per machine type; the card's project settings for new projects (`stock.project`) | yes | yes |
 | from 2, in parallel | DSP run-time delivery: probe, route, first DSP setting | yes | yes |
-| REMIX SWITCH | sanderlegit's OS SWITCH (PR #542), renamed, carried by every remix with BRAIN: the `.RMX` images in `/BRAIN/REMIXES/` in BRAIN's REMIXES sub-list, rebuilt at each MAIN MENU opening (PR #542's power-on picker left out). Built 8 Oct 2026 (`verify_remixswitch` under the port; a switch on an MKII as image B2) | yes | yes |
+| REMIX SWITCH | sanderlegit's OS SWITCH (PR #542), renamed, carried by every remix with BRAIN: the `.RMX` images in `/BRAIN/REMIXES/` in BRAIN's REMIXES sub-list, rebuilt at each MAIN MENU opening (PR #542's power-on picker left out). Built 8 Oct 2026 (`verify_remix_switch` under the port; a switch on an MKII as image B2) | yes | yes |
 | MIDI screen, OTOP | built 11-12 Oct 2026 (port): BRAIN > MIDI and BRAIN > OTOP, screens (menu states); LOAD METER measures the frame interrupt, each DSP core and each effect call | yes | yes |
 | after REMIX SWITCH | a MIDI monitor in the BRAIN category: the last incoming messages decoded, each marked with what the firmware did (which handler, or dropped and at which test); a detour on the MIDI byte parser and dispatch (`docs/firmware/MIDI.md` appendix B) into a ring, rows rebuilt and redrawn on a timer (the row mechanism REMIX SWITCH's list needs) | yes | yes |
 

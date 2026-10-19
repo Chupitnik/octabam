@@ -2,7 +2,7 @@
 """TEMPO BUS under the port: the TEMPO key opens the bus screen, the knobs
 edit the hosts, the window closes clean.
 
-    python3 tools/verify/verify_tempobus.py octabam-bus     # after verify_set
+    python3 tools/verify/verify_tempo_bus.py octabam-bus     # after verify_set
     OT_PROJECT=<dir> make check REMIX=octabam-bus            # the same, from make verify
 
 Boots the image and card verify_set staged (out/setverify/image.bin,
@@ -72,14 +72,14 @@ def main():
     remix = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("REMIX")
     mods = registry.remix(remix).modules
     if "TEMPO BUS" not in mods:
-        print(f"  [SKIP] verify_tempobus: {remix} does not carry TEMPO BUS")
+        print(f"  [SKIP] verify_tempo_bus: {remix} does not carry TEMPO BUS")
         return 0
     if not EMU.exists():
-        print("  [SKIP] verify_tempobus: the ColdFire port is not built (make emu-cf)")
+        print("  [SKIP] verify_tempo_bus: the ColdFire port is not built (make emu-cf)")
         return 0
     image, card = SET / "image.bin", SET / "card.img"
     if not (image.is_file() and card.is_file()):
-        print("  [SKIP] verify_tempobus: no staged card (run verify_set with OT_PROJECT first)")
+        print("  [SKIP] verify_tempo_bus: no staged card (run verify_set with OT_PROJECT first)")
         return 0
     first = (SET / "port.txt").read_text().split("\n", 1)[0]
     setname = re.search(r"--set (\S+)", first).group(1)
@@ -212,7 +212,7 @@ def main():
         walked += 1
     check("close: no input layer from the module is left registered", not inside,
           ", ".join(f"{n:#x}" for n in inside))
-    print(f"verify_tempobus: {fails} failure(s)")
+    print(f"verify_tempo_bus: {fails} failure(s)")
     return 1 if fails else 0
 
 

@@ -29,7 +29,7 @@ try:
     from unicorn import UC_HOOK_CODE
     from unicorn.m68k_const import UC_M68K_REG_PC
 except ImportError:
-    print("  [SKIP] verify_ccmap: no unicorn (the .venv: make emu-setup)")
+    print("  [SKIP] verify_cc_map: no unicorn (the .venv: make emu-setup)")
     sys.exit(0)
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -47,7 +47,7 @@ def _build(remix):
     r = subprocess.run([sys.executable, str(ROOT / "tools/build/build_bus.py")],
                        env=env, capture_output=True, text=True, cwd=ROOT)
     if r.returncode:
-        sys.exit(f"verify_ccmap: building {remix} failed:\n{(r.stdout + r.stderr)[-1500:]}")
+        sys.exit(f"verify_cc_map: building {remix} failed:\n{(r.stdout + r.stderr)[-1500:]}")
     return ROOT / "out/mainos_bus.bin"
 
 AUDIO_CC_IN = 0x80000049

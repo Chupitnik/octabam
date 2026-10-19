@@ -1076,7 +1076,7 @@ def main():
                  f"(a DRAM unit in the remix); there is none")
     if _all_units and not _toolchain:
         sys.exit("linked units need m68k-elf-as/ld/objcopy/nm -- run `make setup` "
-                 "(Homebrew: brew install m68k-elf-gcc)")
+                 "(make setup-mac or make setup-linux installs it)")
     for _m, _u in _units:
         _work = pathlib.Path("out/linked") / _m.name / _u.label
         _work.mkdir(parents=True, exist_ok=True)
@@ -3090,7 +3090,7 @@ hostquit:
             # what lets a remix that harvests NOTHING carry one. Stock leaves
             # runs of vector slots as `jmp *`, a self-jump that would freeze
             # the core if that interrupt ever fired, so they are dead words;
-            # tools/verify/verify_dspvectors.py proves nothing arms one, on
+            # tools/verify/verify_dsp_vectors.py proves nothing arms one, on
             # every build, and is the licence for this.
             #
             # The runs are not long enough for a section whole, so the source
@@ -3143,7 +3143,7 @@ hostquit:
                     print(f"  {'PINNED':13} P:0x{_at:05x}..0x{_at + _hi - _lo:05x} "
                           f"({_hi - _lo:4d} words)  {name}"
                           f"{', piece ' + str(_n + 1) if len(_cuts) > 1 else ''}"
-                          f", in stock's dead vectors (verify_dspvectors)")
+                          f", in stock's dead vectors (verify_dsp_vectors)")
                 for _h in (_sec.hooks or ()):
                     if not _h.on(tag):
                         continue

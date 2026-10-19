@@ -56,8 +56,8 @@ HOW A PATH IS PLACED (28 Sep 2026; before, by directory):
                               with remix_arg=False)
                                 -> make check-shared once (for the cover) / its owners
                               a gate of the PER-REMIX half (the verify-remix
-                              recipe: dirtystate, initregs, dram_boot, labels,
-                              modenames, hidden, menu, set, usb)
+                              recipe: dirty-state, init-regs, dram-boot, labels,
+                              mode-names, hidden, menu, set, usb)
                                 -> make check-remix for the cover
                               a manifest gate with remix_arg=True
                                 -> make check-remix for its owners' remixes
@@ -87,8 +87,8 @@ HOW A PATH IS PLACED (28 Sep 2026; before, by directory):
 
 It refuses a tree that is not rebased onto the base (the base must be an
 ancestor of HEAD): gates run before a rebase are not a result (PR #396).
-CI runs the dry form on every pull request so the expected local gates are
-in the job log; it has no firmware, so it runs none of them.
+CI runs `--run` for pushes to main and every pull request (the `gates` job
+fetches the 1.40C into the runner each run).
 
 Two or more remixes to check are printed as one `make check-shared
 REMIXES="..."` (once) and a `make check-remix REMIX=<r>` each; one remix

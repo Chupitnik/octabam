@@ -3,7 +3,7 @@
 crossfader, a page-2 knob turned with a scene held writes a cell, and stock
 scene copy and paste carry the cells.
 
-    python3 tools/verify/verify_scenesp2.py REMIX --project DIR
+    python3 tools/verify/verify_scenes_p2.py REMIX --project DIR
 
 Stages the project's card, boots the remix's image in `ot_emu`, and:
 
@@ -92,7 +92,7 @@ def run(cmd, log):
         f.write(" ".join(cmd) + "\n"); f.flush()
         r = subprocess.run(cmd, cwd=ROOT, stdout=f, stderr=subprocess.STDOUT)
     if r.returncode:
-        sys.exit(f"verify_scenesp2: ot_emu exit {r.returncode} -- {log}")
+        sys.exit(f"verify_scenes_p2: ot_emu exit {r.returncode} -- {log}")
     return log.read_text()
 
 
@@ -110,14 +110,14 @@ def main():
         OUT = pathlib.Path(a.out)
     remix = registry.remix(a.remix)
     if "SCENES P2" not in remix.modules:
-        print(f"  [ -- ] verify_scenesp2: {a.remix} carries no SCENES P2"); return 0
+        print(f"  [ -- ] verify_scenes_p2: {a.remix} carries no SCENES P2"); return 0
     if not a.project:
-        print("  [SKIP] verify_scenesp2: no project (OT_PROJECT=<dir> or --project)"); return 0
+        print("  [SKIP] verify_scenes_p2: no project (OT_PROJECT=<dir> or --project)"); return 0
     if not EMU.is_file():
-        print("  [SKIP] verify_scenesp2: no port binary (make emu-cf)"); return 0
+        print("  [SKIP] verify_scenes_p2: no port binary (make emu-cf)"); return 0
     pdir = pathlib.Path(a.project).expanduser()
     if not (pdir / "project.work").is_file():
-        sys.exit(f"verify_scenesp2: {pdir} is not a project")
+        sys.exit(f"verify_scenes_p2: {pdir} is not a project")
     OUT.mkdir(parents=True, exist_ok=True)
     image = pathlib.Path(a.image) if a.image else OUT / "mainos.bin"
     if not a.image:
@@ -125,7 +125,7 @@ def main():
         r = subprocess.run([sys.executable, str(ROOT / "tools/build/build_bus.py")], env=env,
                            capture_output=True, text=True, cwd=ROOT)
         if r.returncode:
-            sys.exit(f"verify_scenesp2: building {a.remix} failed:\n{(r.stdout + r.stderr)[-1500:]}")
+            sys.exit(f"verify_scenes_p2: building {a.remix} failed:\n{(r.stdout + r.stderr)[-1500:]}")
         shutil.copy2(ROOT / "out/mainos_bus.bin", image)
     copy = OUT / "project"
     if copy.exists():
@@ -138,7 +138,7 @@ def main():
     r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
                         "--tree", str(OUT / "tree"), "--out", str(card)], cwd=ROOT, capture_output=True, text=True)
     if r.returncode:
-        sys.exit(f"verify_scenesp2: stage_card failed:\n{r.stdout[-1000:]}{r.stderr[-1000:]}")
+        sys.exit(f"verify_scenes_p2: stage_card failed:\n{r.stdout[-1000:]}{r.stderr[-1000:]}")
     base = [str(EMU), "--image", str(image), "--card", str(card), "--set", a.set_name, "--project", a.name,
             "--load-ms", "90000"]
     fails = 0
@@ -289,7 +289,7 @@ def main():
     s3 = cells_of((pdir_ / f"s3_{bank}.bin").read_bytes())
     check(f"paste: scene 0 holds the two locks ({s0[0]}, {s0[5]})", s0[0] == (0x05, 77) and s0[5] == (0x1b, 9))
     check(f"paste: scene 3's cells equal scene 0's in bank {bank}", s3 == s0)
-    print(f"verify_scenesp2: {'FAIL' if fails else 'ok'} ({fails} failure(s))")
+    print(f"verify_scenes_p2: {'FAIL' if fails else 'ok'} ({fails} failure(s))")
     return 1 if fails else 0
 
 

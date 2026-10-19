@@ -18,7 +18,7 @@ MODULE = Module(
     key="BOOT TRACE",
     kind=Kind.CF_PATCH,
     category=Category.REFERENCE, author="sanderlegit", author_url="https://github.com/sanderlegit",
-    proof=Proof.HARDWARE, proof_note="an MKII, 29 Sep 2026 (OCTABAM4-14); `verify_boottrace`",
+    proof=Proof.HARDWARE, proof_note="an MKII, 29 Sep 2026 (OCTABAM4-14); `verify_boot_trace`",
     doc="Probe: a MIDI note on MIDI OUT at each boot stage, the DSP upload's record "
         "echoes and any stall, for finding where a boot hangs.",
     linked=(Linked("boot_trace", "modules/boot-trace/trace.s", cpu="5475"),),
@@ -58,5 +58,5 @@ MODULE = Module(
         Detour(0x4000D9A6, H("4cd77fff4fef00fc4e73"), "boot_trace", "tr_frame_end",
                "the audio frame interrupt's return: note 8, once", pad_to=10),
     ),
-    gates=(Gate("tools/verify/verify_boottrace.py"),),
+    gates=(Gate("tools/verify/verify_boot_trace.py"),),
 )

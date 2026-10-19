@@ -63,10 +63,16 @@ the floor; `docs/contributing/TESTING.md` says what each gate proves and what
 none of them can see.
 
 **Before opening a PR, and again before merging one:** rebase onto
-`origin/main`, then `make reach RUN=1 KEEP=1` on the rebased tree
-(`CONTRIBUTING.md` "Before you open a PR" is the rule and the reason);
-list each command and its result in the PR body. Passes whose image and
-inputs did not move are reported `cached`.
+`origin/main`. CI's `Gates — make reach` job runs `make reach RUN=1 KEEP=1`
+on every push to `main` and every PR, fork PRs included, on a runner that
+downloads the 1.40C for that run
+(`CONTRIBUTING.md` "Before you open a PR" is the rule and the reason); the
+PR body links the run and lists each gate's result from its log. A first-time
+contributor's run waits for maintainer approval. Locally,
+iterate with `make check REMIX=<name>` and the one gate script for the change
+(`python3 tools/verify/verify_<name>.py <remix>`). A change to
+`.github/`, `scripts/` or the Makefile runs every CI job. Passes whose image
+and inputs did not move are reported `cached`.
 
 **A change that alters what a remix does — its modules, effects, menus,
 costs or proof status — updates the hand-written manual site pages under
@@ -154,11 +160,11 @@ moment it costs real work, and add its line here.
 - [A part saved under an older slot layout stalls the sequencer](docs/contributing/TRAPS.md#trap-part-layout) — `stamp-defaults` on the card before play.
 - [The emulated load's part is not the part that plays](docs/contributing/TRAPS.md#trap-otemu-part) — write fixtures into every part of every bank.
 - [The harness's dispatcher model is not the dispatcher](docs/contributing/TRAPS.md#trap-dispatcher-model) — measure dispatcher facts under the port.
-- [An effect's `init` must preserve r1](docs/contributing/TRAPS.md#trap-init-r1) — `verify_initregs` refuses; zero through r5.
+- [An effect's `init` must preserve r1](docs/contributing/TRAPS.md#trap-init-r1) — `verify_init_regs` refuses; zero through r5.
 - [A slot can draw a knob and publish nothing](docs/contributing/TRAPS.md#trap-knob-publish) — panel and DSP are separate; `docs/firmware/PARAM_PAGES.md`.
 - [Flash cycles are expensive](docs/contributing/TRAPS.md#trap-flash) — render locally and measure first.
 - [The unit misbehaves](docs/contributing/TRAPS.md#trap-failure-modes) — `docs/contributing/FAILURE_MODES.md` first; add new failures the moment they are seen.
-- [A persistent slot init doesn't clear holds the previous effect's state](docs/contributing/TRAPS.md#trap-dirty-state) — zero every slot the sample loop reads; `verify_dirtystate` refuses.
+- [A persistent slot init doesn't clear holds the previous effect's state](docs/contributing/TRAPS.md#trap-dirty-state) — zero every slot the sample loop reads; `verify_dirty_state` refuses.
 - [`dsp_asm` puts a label's absolute address in `brclr`'s displacement word](docs/contributing/TRAPS.md#trap-brclr) — write the displacement as a number; the roundtrip cannot see it.
 - [A zero CS1 with a valid settings tail boots stock's settings as zeros](docs/contributing/TRAPS.md#trap-cs1-zero) — lay the early block over `cs1_boot(image)`.
 - [`in_slot` lost its `lsll #5`: four packet buffers 3 bytes apart](docs/contributing/TRAPS.md#trap-in-slot) — a gate that passed and now fails: run the old commit under today's tools first.

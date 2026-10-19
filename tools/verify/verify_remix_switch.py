@@ -2,7 +2,7 @@
 """REMIX SWITCH under the ColdFire port: the switcher stages an image, the
 chainloader boots it, and every refusal boots the flashed image instead.
 
-    python3 tools/verify/verify_remixswitch.py remix-switch
+    python3 tools/verify/verify_remix_switch.py remix-switch
     make check REMIX=remix-switch                      # the same, as the module's gate
 
 Builds the remix (the HOME image: what NOR would hold), then:
@@ -102,14 +102,14 @@ def main():
     # 29 Sep 2026, docs/contributing/FAILURE_MODES.md). A gate that asserts a
     # normal boot, an upload and a park cannot be run on that image.
     if "DSP RESET PROBE" in registry.remix(remix).modules:
-        print(f"  [SKIP] verify_remixswitch: {remix} carries DSP RESET PROBE, which stops "
+        print(f"  [SKIP] verify_remix_switch: {remix} carries DSP RESET PROBE, which stops "
               f"the boot on purpose")
         return 0
     if "REMIX SWITCH" not in registry.remix(remix).modules:
-        print(f"  [SKIP] verify_remixswitch: {remix} does not carry REMIX SWITCH")
+        print(f"  [SKIP] verify_remix_switch: {remix} does not carry REMIX SWITCH")
         return 0
     if not EMU.exists():
-        print("  [SKIP] verify_remixswitch: the ColdFire port is not built (make emu-cf)")
+        print("  [SKIP] verify_remix_switch: the ColdFire port is not built (make emu-cf)")
         return 0
     C = consts()
     cached = lambda a: a - 0x08000000                  # the port folds the alias; dumps read either
@@ -120,7 +120,7 @@ def main():
     r = subprocess.run([sys.executable, str(ROOT / "tools/build/build_bus.py")], env=env,
                        capture_output=True, text=True, cwd=ROOT)
     if r.returncode:
-        sys.exit(f"verify_remixswitch: building {remix} failed:\n{(r.stdout + r.stderr)[-1500:]}")
+        sys.exit(f"verify_remix_switch: building {remix} failed:\n{(r.stdout + r.stderr)[-1500:]}")
     work = pathlib.Path(tempfile.mkdtemp(prefix="osswitch."))
     home = work / "home.bin"
     home.write_bytes((ROOT / "out/mainos_bus.bin").read_bytes())
@@ -146,7 +146,7 @@ def main():
     def check(label, ok, detail=""):
         nonlocal fails
         fails += 0 if ok else 1
-        print(f"  [{'PASS' if ok else 'FAIL'}] verify_remixswitch: {label}{'  (' + detail + ')' if detail else ''}")
+        print(f"  [{'PASS' if ok else 'FAIL'}] verify_remix_switch: {label}{'  (' + detail + ')' if detail else ''}")
 
     def boot(tag, preload, watch, dumps, extra=(), max_instr=150_000_000):
         args = [str(EMU), "--image", str(home), "--max", str(max_instr),
@@ -486,7 +486,7 @@ def main():
           ", ".join(f"{pc} x{res[pc][1]}" for pc in res))
 
     if fails:
-        print(f"  verify_remixswitch: logs in {work}")
+        print(f"  verify_remix_switch: logs in {work}")
     else:
         import shutil
         shutil.rmtree(work, ignore_errors=True)       # a 64 MB card and three stages per run

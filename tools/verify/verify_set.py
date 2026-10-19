@@ -22,7 +22,7 @@ the machine back:
             port's MIDI IN (UART0) moves T2's record halfword 12 to 100;
             with CC MAP in the remix, CC 68 at 77 on T1's channel lands
             in T1's FX1 page-2 lane and record halfword 18 (the queue ->
-            main -> DSP leg verify_ccmap cannot run); on a bus remix each
+            main -> DSP leg verify_cc_map cannot run); on a bus remix each
             engine's host track must then carry T2's send (the wet comes
             out on the host since 20 Sep 2026), and an engine on the wrong
             core (BusVerb on T1-4, BusDelay on T5-8: it runs as SEND there)

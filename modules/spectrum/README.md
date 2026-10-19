@@ -74,7 +74,7 @@ back as SEM at whatever SHPE it held. Once per project, before play:
 - `verify_labels` calls SHPE's formatter after the MODE formatter in each
   mode: SEM prints 0:LP 32:32 64:BP 96:96 127:HP; LADR, ISO, VOWL print
   the numbers.
-- `verify_dirtystate` (in `make verify`): init zeroes every persistent slot
+- `verify_dirty_state` (in `make verify`): init zeroes every persistent slot
   the loop reads. Before it did, filter B's frozen HP poles held a stale
   value and put up to a full-scale DC on a station's output, which surfaced
   on hardware as the master compressor collapsing the right channel.
@@ -123,7 +123,7 @@ On Sam's unit since flash 4; the LADR voicing (PR #254) since image 21.
 with and without ENV/LDP, defaults, zeros, max) and `make verify-ident
 MOD=spectrum` (every MODE at two knob sets, zeros, max), the bit-identity
 gates for a rewrite; `make verify-knobs` (every knob moved mid-render);
-`verify_dirtystate` (in `make verify`).
+`verify_dirty_state` (in `make verify`).
 
 ## Modes
 

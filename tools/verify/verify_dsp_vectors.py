@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The DSP interrupt vectors REMIX SWITCH's park could live in are unarmed.
 
-    python3 tools/verify/verify_dspvectors.py [remix]
+    python3 tools/verify/verify_dsp_vectors.py [remix]
 
 REMIX SWITCH costs 40 DSP words in both payloads, out of the region modules
 place their effects in. The words are there for the taking in the vector
@@ -143,7 +143,7 @@ def main():
                            f"{sorted({hex(v) for v, _ in armed})}")
 
     ok = not fails
-    print(f"  [{'PASS' if ok else 'FAIL'}] verify_dspvectors: the free vector runs are "
+    print(f"  [{'PASS' if ok else 'FAIL'}] verify_dsp_vectors: the free vector runs are "
           f"self-jumps and nothing arms an interrupt in them")
     for n in notes:
         print(f"         {n}")
@@ -181,7 +181,7 @@ def selftest():
         print(f"  [{'ok  ' if caught else 'BLIND'}] {why}")
         if not caught:
             bad.append(why)
-    print(f"  [{'PASS' if not bad else 'FAIL'}] verify_dspvectors --selftest: "
+    print(f"  [{'PASS' if not bad else 'FAIL'}] verify_dsp_vectors --selftest: "
           f"{len(cases) - len(bad)}/{len(cases)} doctored listings caught")
     return 1 if bad else 0
 

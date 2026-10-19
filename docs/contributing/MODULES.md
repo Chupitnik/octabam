@@ -108,7 +108,7 @@ remix (a ColdFire module's port scenarios). An
 `"isolated"` gate (the default) builds its own scratch image or none and
 runs before the selected image is restored; an `"image"` gate reads
 `out/mainos_bus.bin` and runs after `make bus` and the shared set gates
-(`verify_tempobus` reads the card `verify_set` staged). A script that
+(`verify_tempo_bus` reads the card `verify_set` staged). A script that
 does not exist fails; the gates every remix gets (the ledger selftest,
 the docs, the knob census, the dirty-state render, the menu, the set
 under the port) stay in the Makefile (`docs/contributing/TESTING.md`). Until 27 Sep 2026 the Makefile listed every
@@ -320,7 +320,7 @@ operator arrives at this mode.
 The unit half needs no new hook: a descriptor carries its twelve parameter
 names as 12 × 6 bytes at `E+0x4e`, the clones are writable RAM, and every
 stepped select already has a formatter cave the panel calls as `fmt(buf,
-value)` with the value in hand. `tools/verify/verify_modenames.py` (in
+value)` with the value in hand. `tools/verify/verify_mode_names.py` (in
 `make check`) calls each MODE formatter on the emulated ColdFire and reads
 the names back out of the clone.
 

@@ -93,12 +93,12 @@ to read a refused `p2lkNN.work` as empty and overwrite it at the next bank write
 
 Under the port (10 Oct 2026): `verify_kits` (the refused `kits.work`: listed; OVERWRITE
 and BACKUP read it as a missing file; the list opens at an encoder turn, LEVEL + YES
-answers OVERWRITE, YES on row 0 answers IGNORE), `verify_plocksp2` (a bad `p2lk` header is
+answers OVERWRITE, YES on row 0 answers IGNORE), `verify_plocks_p2` (a bad `p2lk` header is
 listed and survives SAVE PROJECT), `verify_scenes --persist` (a bad `scenes.work` stays byte
 for byte under IGNORE; OVERWRITE and BACKUP give a good file, BACKUP also `scenes.bak`).
 15 Oct 2026 (#742): `verify_kits` also checks the initial information
 dialog, YES opening the choices, and NO keeping the file protected without
-reopening on another encoder turn. `verify_plocksp2` exercises the same
+reopening on another encoder turn. `verify_plocks_p2` exercises the same
 information, choices and cancellation with a refused lock file, capturing
 the LCD for review. Not covered: a list opened over another window, the
 new prompt on a unit.

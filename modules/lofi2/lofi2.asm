@@ -75,7 +75,7 @@
 ;   LOFI2 uses none of it (CHIP.md section 5).
 ; ---- boot garbage --------------------------------------------------------
 ; `init` zeroes $00..$83 from r7, as stock LO-FI's own init does
-; (verify_dirtystate). Beyond that, the state tolerates garbage:
+; (verify_dirty_state). Beyond that, the state tolerates garbage:
 ;   * carrier phase: any value is a legal phase, and A1 extraction wraps it.
 ;   * held pair: at worst one wrong sample before the first latch.
 ;   * SRR phase: init zeroes it, and it stays in 0 .. 1.0 by construction.
@@ -94,9 +94,9 @@
 ; ---------------------------------------------------------------------------
 
 init:
-; ---- every slot to zero (verify_dirtystate; AGENTS.md "a persistent slot
+; ---- every slot to zero (verify_dirty_state; AGENTS.md "a persistent slot
 ; that init does not clear"). r5, never r1: the FX1 dispatcher keeps the
-; effect id in r1 across this call (verify_initregs). $00..$83 is the whole
+; effect id in r1 across this call (verify_init_regs). $00..$83 is the whole
 ; block, so no per-slot census can go stale. The smoothed shelf coefficient
 ; at $08 starts at 0 and glides to its target over the first few hundred
 ; samples, which on silence produces nothing.

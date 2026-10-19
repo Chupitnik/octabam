@@ -13,7 +13,7 @@ Repository: `/Users/sambanks/git/octabam`. Never edit the main checkout.
    - `b3dc3d7b`: merges the four USB modules into `modules/usb/`.
    - `b2a35a51`: fixes symbol lookup to use each linked unit's own symbols.
    - This handoff commit also fixes three manual site pages and preserves
-     the inherited notes in `USB-PROGRESS.md`.
+     the inherited notes in `USB-PROGRESS.md` (removed; `git show 9ae811b3:USB-PROGRESS.md`).
 2. `.claude/worktrees/ata-write-guard`, branch `codex/ata-write-guard`:
    - Started from the same `origin/main`, independently of the USB merge.
    - WIP implementation commit: `e867e1c6` (cherry-pick only after validation).

@@ -25,7 +25,7 @@ in the quiet part minus the same in the burst.
 What this cannot show: the chip's timing (lock-step, or a guessed -skew),
 and anything the ColdFire does (knobs are poked into r6).
 
-    python3 tools/verify/verify_charkey.py      # ~1 min
+    python3 tools/verify/verify_char_key.py      # ~1 min
 """
 import math
 import pathlib
@@ -35,7 +35,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1])); import toolpath  # noqa: E402,F401
 import send_probe  # noqa: E402
-import verify_onebus as ob  # noqa: E402
+import verify_one_bus as ob  # noqa: E402
 from remix import registry  # noqa: E402
 
 # The station under test: CHARACTER, or the module named on the command line

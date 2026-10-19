@@ -32,6 +32,10 @@ if [ "$GOT_SHA256" != "$KNOWN_SHA256" ]; then
   echo "[fetch] *** WARNING: ZIP hash differs from the one this repo was built against ***"
   echo "[fetch]   expected $KNOWN_SHA256"
   echo "[fetch]   got      $GOT_SHA256"
+  if [ "${OS_HASH_STRICT:-}" = "1" ]; then
+    echo "[fetch]   OS_HASH_STRICT=1: refusing." >&2
+    exit 1
+  fi
   echo "[fetch]   Proceeding, but verify 'make recon' output before trusting a build."
 fi
 

@@ -67,7 +67,7 @@ init:
 moclrz:
         nop
 monoclr:
-; ---- every persistent slot to zero (verify_dirtystate) -------------------
+; ---- every persistent slot to zero (verify_dirty_state) -------------------
         clr     a
         move    r7,r5
         move    #>$ffffff,m5

@@ -10,7 +10,7 @@ full scale on a station's output, invisible in an AC-coupled capture, that
 the master compressor's makeup clipped on one channel ("R collapses above
 COMP 40"; docs/contributing/FAILURE_MODES.md).
 
-    python3 tools/verify/verify_dirtystate.py [remix] [--image out/mainos_bus.bin]
+    python3 tools/verify/verify_dirty_state.py [remix] [--image out/mainos_bus.bin]
 
 For every DSP module of the remix with an entry in the dispatch tables:
 render it under dsp_host with the instance block X:(r7+$00..$ff) pre-filled
@@ -89,7 +89,7 @@ def main():
         r = subprocess.run([sys.executable, str(ROOT / "tools/build/build_bus.py")], env=env,
                            capture_output=True, text=True, cwd=ROOT)
         if r.returncode:
-            sys.exit(f"verify_dirtystate: building {remix.name} failed:\n{(r.stdout + r.stderr)[-1500:]}")
+            sys.exit(f"verify_dirty_state: building {remix.name} failed:\n{(r.stdout + r.stderr)[-1500:]}")
         a.image = str(ROOT / "out/mainos_bus.bin")
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="dirtystate_"))
     mems = {pl: send_probe.dump_mem(a.image, tmp / f"payload_{pl}.mem", pl) for pl in "AB"}

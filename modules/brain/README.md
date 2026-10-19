@@ -55,7 +55,7 @@ Measured under the port (13 Oct 2026; `verify_brain`, 118 checks, run alone): NE
 
 A setting row reads `NAME` at the left and its value at the right (a Binary a checkbox elsewhere, ON or OFF here); YES steps the value (a Binary toggles; an Option steps by one and a Number by its step, each wrapping to its minimum past the maximum) and writes it to `card.work` through an engine-task job.
 
-The stock menu engine is two levels deep (the root and a category's list), so BRAIN's screens are states of its menu-state table: the table (16 entries of `{enter, exit, draw, key, encoder}` at `0x400cbdac`) is copied to DRAM with seven states appended (16..22, `brain_stab` in `manifest.py`) and its six references repointed (the same as `modules/busscreen`, in history, did for its 17th state, tags 85-90 on the unit). A row's action calls the engine's state opener (`0x40064e20`); the key dispatcher (`0x4006510a`) passes each key to `brain_scr_key` and redraws after it; NO runs the state's exit member and returns to the menu (`0x400650a0`). The screens draw with the stock routines the MIDI screens use (`0x400128a8` the icon, `0x40012bd8` text, `0x40011910` the rule, `0x40012254` the inverted bar, `0x40011a58` a dotted line) and are rebuilt from `sr[]` on entry and after each action. MAIN MENU's opening resets the pane to its top (REMIX SWITCH's detour at `0x40064c32`). Measured under the port, 12 Oct 2026 (`verify_brain`, `verify_remixswitch`, screens rendered with `ot_emu --lcd`).
+The stock menu engine is two levels deep (the root and a category's list), so BRAIN's screens are states of its menu-state table: the table (16 entries of `{enter, exit, draw, key, encoder}` at `0x400cbdac`) is copied to DRAM with seven states appended (16..22, `brain_stab` in `manifest.py`) and its six references repointed (the same as `modules/busscreen`, in history, did for its 17th state, tags 85-90 on the unit). A row's action calls the engine's state opener (`0x40064e20`); the key dispatcher (`0x4006510a`) passes each key to `brain_scr_key` and redraws after it; NO runs the state's exit member and returns to the menu (`0x400650a0`). The screens draw with the stock routines the MIDI screens use (`0x400128a8` the icon, `0x40012bd8` text, `0x40011910` the rule, `0x40012254` the inverted bar, `0x40011a58` a dotted line) and are rebuilt from `sr[]` on entry and after each action. MAIN MENU's opening resets the pane to its top (REMIX SWITCH's detour at `0x40064c32`). Measured under the port, 12 Oct 2026 (`verify_brain`, `verify_remix_switch`, screens rendered with `ot_emu --lcd`).
 
 Opened over any other page, or on a MIDI track, the popup says to open an
 FX page and nothing is written. The category is a fifth root row: the root
@@ -69,7 +69,7 @@ core puts every effect's twelve descriptor defaults (`P+0x5e`) back to the
 image's values. It then reads `/BRAIN/card.work`, or `card.strd` by the
 pair rule (BRAIN.md section 6.2), and writes each valid default record
 over its effect's bytes. The FX choosers and the new-part initialiser read
-those bytes when they run (`tools/verify/verify_descdefaults.py`).
+those bytes when they run (`tools/verify/verify_desc_defaults.py`).
 
 The file is written on a computer:
 

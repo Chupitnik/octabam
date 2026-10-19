@@ -3,7 +3,7 @@
 moved by stock's trig and pattern operations, played on trigs, saved to the
 card and loaded back.
 
-    python3 tools/verify/verify_plocksp2.py REMIX --project DIR
+    python3 tools/verify/verify_plocks_p2.py REMIX --project DIR
 
 Stages the project's card and boots the remix's image in `ot_emu`. A probe
 load reads the bank the panel edits, its track and part; the track's FX2
@@ -71,7 +71,7 @@ def run(cmd, log):
         f.write(" ".join(map(str, cmd)) + "\n"); f.flush()
         r = subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=f, stderr=subprocess.STDOUT)
     if r.returncode:
-        sys.exit(f"verify_plocksp2: ot_emu exit {r.returncode} -- {log}")
+        sys.exit(f"verify_plocks_p2: ot_emu exit {r.returncode} -- {log}")
     return log.read_text()
 
 
@@ -403,14 +403,14 @@ def main():
         OUT = pathlib.Path(a.out)
     remix = registry.remix(a.remix)
     if "PLOCKS P2" not in remix.modules:
-        print(f"  [ -- ] verify_plocksp2: {a.remix} carries no PLOCKS P2"); return 0
+        print(f"  [ -- ] verify_plocks_p2: {a.remix} carries no PLOCKS P2"); return 0
     if not a.project:
-        print("  [SKIP] verify_plocksp2: no project (OT_PROJECT=<dir> or --project)"); return 0
+        print("  [SKIP] verify_plocks_p2: no project (OT_PROJECT=<dir> or --project)"); return 0
     if not EMU.is_file():
-        print("  [SKIP] verify_plocksp2: no port binary (make emu-cf)"); return 0
+        print("  [SKIP] verify_plocks_p2: no port binary (make emu-cf)"); return 0
     pdir = pathlib.Path(a.project).expanduser()
     if not (pdir / "project.work").is_file():
-        sys.exit(f"verify_plocksp2: {pdir} is not a project")
+        sys.exit(f"verify_plocks_p2: {pdir} is not a project")
     OUT.mkdir(parents=True, exist_ok=True)
 
     # ---- the image and its runtime's symbols --------------------------------
@@ -418,7 +418,7 @@ def main():
     r = subprocess.run([sys.executable, str(ROOT / "tools/build/build_bus.py")], env=env,
                        capture_output=True, text=True, cwd=ROOT)
     if r.returncode:
-        sys.exit(f"verify_plocksp2: building {a.remix} failed:\n{(r.stdout + r.stderr)[-1500:]}")
+        sys.exit(f"verify_plocks_p2: building {a.remix} failed:\n{(r.stdout + r.stderr)[-1500:]}")
     image = OUT / "mainos.bin"
     shutil.copy2(ROOT / "out/mainos_bus.bin", image)
     nm = subprocess.run(["m68k-elf-nm", str(ROOT / "out/platform/runtime/runtime.elf")],
@@ -452,7 +452,7 @@ def main():
     import ot_project
     fallback = next((i for i in REVERBS if page2_ok(i)), None)
     if fallback is None:
-        sys.exit("verify_plocksp2: no FX2 page-2 slot 0 available for the fixture")
+        sys.exit("verify_plocks_p2: no FX2 page-2 slot 0 available for the fixture")
     for bankfile in sorted(copy.glob("bank*.work")):
         def usable_fx(data):
             # record() first taps trig 1 to create it; start empty in our copy.
@@ -470,7 +470,7 @@ def main():
     r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
                         "--tree", str(OUT / "tree"), "--out", str(card)], cwd=ROOT, capture_output=True, text=True)
     if r.returncode:
-        sys.exit(f"verify_plocksp2: stage_card failed:\n{r.stdout[-1000:]}{r.stderr[-1000:]}")
+        sys.exit(f"verify_plocks_p2: stage_card failed:\n{r.stdout[-1000:]}{r.stderr[-1000:]}")
     base = [EMU, "--image", image, "--card", card, "--set", a.set_name, "--project", a.name, "--load-ms", "90000"]
     fails = 0
 
@@ -497,7 +497,7 @@ def main():
     if not page2_ok(fx_id):
         fx_id = next((i for i in REVERBS if page2_ok(i)), None)
         if fx_id is None:
-            sys.exit("verify_plocksp2: no FX2 in the image with a page-2 slot 0 to lock")
+            sys.exit("verify_plocks_p2: no FX2 in the image with a page-2 slot 0 to lock")
         pokes = [f"{pwin + ID2_OFF + trk:#x}={fx_id:#x}", f"{LIVE_IDS + 8 + trk:#x}={fx_id:#x}"]
     print(f"  bank {bank + 1}, track {trk + 1}, part {part + 1}, FX2 id {fx_id:#04x}, page-2 slot 0 = {knob}")
 
@@ -520,7 +520,7 @@ def main():
          "--tree", OUT / "display-tree", "--out", display_card], OUT / "display-stage.log")
     display_walk(image, display_card, a.set_name, a.name, STORE, OUT / "display", check)
     if a.display_only:
-        print(f"verify_plocksp2 display: {fails} failure(s)")
+        print(f"verify_plocks_p2 display: {fails} failure(s)")
         return int(bool(fails))
 
     # ---- the panel scenarios, one load ----------------------------------------
@@ -711,7 +711,7 @@ def main():
                   bool(word("dialog")) == (tag == "info") and bool(word("menu")) == (tag == "options"))
         with ThreadPoolExecutor(3) as ex:
             list(ex.map(refusal_ui, ("info", "options", "cancel")))
-    print(f"verify_plocksp2: {'FAIL' if fails else 'ok'} ({fails} failure(s))")
+    print(f"verify_plocks_p2: {'FAIL' if fails else 'ok'} ({fails} failure(s))")
     return 1 if fails else 0
 
 
