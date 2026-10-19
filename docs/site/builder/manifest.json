@@ -1,0 +1,35 @@
+{
+ "commit": "b7d3771409493b46837c27031b27c7be60391ce2",
+ "dev": false,
+ "build": "A0",
+ "date": "2026-10-19",
+ "remixes": [
+  {
+   "name": "octabam-bus",
+   "title": "octabam-bus",
+   "version": "OCTABAMA0",
+   "imageName": "OCTABAM-BUS A0",
+   "patch": "patches/octabam-bus.obp",
+   "patchBytes": 92724,
+   "sha256": "f192ae3c43b78dbcc8b8595b7aaa1aca42d0a6074e4f17252bfce15264a7a53f"
+  },
+  {
+   "name": "octabam-core",
+   "title": "octabam-core",
+   "version": "OCTABAMA0",
+   "imageName": "OCTABAM-CORE A0",
+   "patch": "patches/octabam-core.obp",
+   "patchBytes": 76334,
+   "sha256": "79e79a4a8dfe3964ef912ed41ab3283c8701c6a065a9f5a17ca0b3795cf7455c"
+  },
+  {
+   "name": "octabam-inserts",
+   "title": "octabam-inserts",
+   "version": "OCTABAMA0",
+   "imageName": "OCTABAM-INSERTS",
+   "patch": "patches/octabam-inserts.obp",
+   "patchBytes": 93008,
+   "sha256": "8e8657833cc3096d1273a5f48785602ed1cd2b17c54164e127a9052cceefa91f"
+  }
+ ]
+}
