@@ -23,7 +23,7 @@ from remix.schema import Category, Proof, Detour, Kind, Linked, Module
 H = bytes.fromhex
 
 
-def ids_inc(modules):
+def ids_inc(modules, remix):
     """The four ids the unit writes, from the manifests. The stock DELAY
     need not be in the remix (its dispatch stays stock either way), so its
     id comes from the registry."""

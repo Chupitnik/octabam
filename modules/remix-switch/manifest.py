@@ -37,7 +37,7 @@ UNCACHED = 0x08000000
 STAGE = ArenaReserve("image stage", _OSW["OSW_MBOX"] - UNCACHED, _OSW["OSW_END"] - _OSW["OSW_MBOX"])
 
 
-def _include(_modules):
+def _include(_modules, remix):
     """osw.inc, the TRACE switch and this image's own name."""
     # the image's own name (remix.brain.image_name: `<REMIX> <BUILD>`, the
     # name BRAIN's heading shows and make image gives the .RMX)

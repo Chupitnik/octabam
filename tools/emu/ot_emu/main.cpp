@@ -2933,6 +2933,30 @@ int main(int _argc, char** _argv)
 						m.write8(req.addr + uint32_t(i), req.bytes[i]);
 					usb->answerRequest("poke ok\n");
 				}
+				else if(req.kind == "peek")
+				{
+					// `peek <addr> <len>` -> peek <hex> | peek err <why>: guest
+					// memory read between run slices (the arena probes).
+					const uint64_t len = req.args.empty() ? 0 : req.args[0];
+					if(len < 1 || len > 4096 || req.addr + len > 0x100000000ull || !m.mapped(req.addr, uint32_t(len)))
+					{
+						char line[128];
+						std::snprintf(line, sizeof line, "err peek %#x+%llu\n", req.addr, static_cast<unsigned long long>(len));
+						usb->answerRequest(line);
+					}
+					else
+					{
+						std::string out = "peek ";
+						static const char* const hex = "0123456789abcdef";
+						for(uint64_t i = 0; i < len; ++i)
+						{
+							const auto b = m.read8(req.addr + uint32_t(i));
+							out += hex[b >> 4];
+							out += hex[b & 15];
+						}
+						usb->answerRequest(out + "\n");
+					}
+				}
 				else
 				{
 					uint32_t d0 = 0;

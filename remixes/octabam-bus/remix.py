@@ -29,6 +29,8 @@ REMIX = Remix(
     host_slots=(("DELAY SERVER", 2), ("REVERB SERVER", 2)),
     locked=("REVERB SERVER", "DELAY SERVER"),
     fx1=("SPECTRUM", "CHARACTER", "MODULATION"),
-    settings={("octabam.usb", "LAYOUT"): "MAIN CUE", ("octabam.usb", "INPUTS"): "OFF",
+    settings={("octabam.usb", "TRACKS"): "PRE", ("octabam.usb", "MAIN"): 1,
+              ("octabam.usb", "CUE"): 1, ("octabam.usb", "MASTER"): 0,
+              ("octabam.usb", "IN"): "OFF",
               ("kyoti.mute-modes", "PLACE"): Pin("DRAM")},
 )

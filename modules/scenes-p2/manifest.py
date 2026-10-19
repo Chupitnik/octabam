@@ -24,7 +24,7 @@ from remix.schema import Gate, Category, Proof, Claims, Detour, Kind, Linked, Mo
 H = bytes.fromhex
 
 
-def next_inc(modules):
+def next_inc(modules, remix):
     """Where a turn with no scene held continues: the stock prologue replay
     inside the unit. PLOCKS = 1 when PLOCKS P2 is in the remix: the dial
     shows a held step's page-2 lock."""

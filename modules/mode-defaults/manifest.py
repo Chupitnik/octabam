@@ -32,7 +32,7 @@ from remix.schema import Gate, Category, Proof, Detour, Kind, Linked, Module
 H = bytes.fromhex
 
 
-def table_inc(modules):
+def table_inc(modules, remix):
     """The view table, one entry per module with ModeViews:
     id, mode slot, nviews, then per view: mode, npairs, (slot, value)*;
     0xff ends it."""

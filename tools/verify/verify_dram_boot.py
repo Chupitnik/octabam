@@ -14,7 +14,13 @@ For the current REMIX (the image at out/mainos_bus.bin):
     table, written by brain_sched (the scheduler hook) on every task
     switch from very early in boot, so a BRAIN-carrying remix always shows
     some of these -- it is not a one-time stamp, and a boot that reaches
-    handoff later or schedules differently changes the count a little.
+    handoff later or schedules differently changes the count a little;
+    USB AUDIO IN's six config words and per-speed descriptor pointers
+    (usb_trk..usb_hs_step in usbaudio's data, 26 B): the boot config code
+    applies the setting defaults (MAIN/CUE/MIDI on, MASTER/INPUTS off), the
+    interface numbers, the four cfg_sel pointers into the descriptor blobs
+    it builds in a bank buffer, and the audio geometry (frame bytes, HS
+    capability/step) before handoff.
 
 SKIPs when the port is not built (`make emu-cf`) or the remix carries no
 DRAM payload. What this cannot see: caches (the port has none), the

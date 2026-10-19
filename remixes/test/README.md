@@ -14,8 +14,8 @@ Each carries one module, or one combination, for that module's gates: `make chec
 | [`bus-tempo-replay`](bus-tempo-replay/README.md) | bus with TEMPO SYNC's CAVE pinned REPLAY (diagnostic). | port-gated |
 | [`cfmeter`](cfmeter/README.md) | octatrick (less TUNER and the USB input) + CF METER on T8's FX2: ColdFire idle time and frame-interrupt duration, over USB. | port-gated: the readout chain under the port |
 | [`cfmeter-port`](cfmeter-port/README.md) | cfmeter without the idle loop: the port gate for the readout chain and the interrupt timing. | port-gated: the readout chain under the port |
-| [`cfmeter-post`](cfmeter-post/README.md) | octatrick (less TUNER and the USB input) + CF METER on T8's FX2, with USB LAYOUT TRACKS POST in place of TRACKS MAIN CUE: the layout's ColdFire cost, over USB. | port-gated: the readout chain under the port |
-| [`cfmeter-tracks`](cfmeter-tracks/README.md) | octatrick (less TUNER and the USB input) + CF METER on T8's FX2, with USB LAYOUT TRACKS in place of TRACKS MAIN CUE: the layout's ColdFire cost, over USB. | port-gated: the readout chain under the port |
+| [`cfmeter-post`](cfmeter-post/README.md) | octatrick (less TUNER and the USB input) + CF METER on T8's FX2, with USB TRACKS POST in place of TRACKS MAIN CUE: POST's ColdFire cost, over USB. | port-gated: the readout chain under the port |
+| [`cfmeter-tracks`](cfmeter-tracks/README.md) | octatrick (less TUNER and the USB input) + CF METER on T8's FX2, with USB TRACKS in place of TRACKS MAIN CUE: the 16-channel-only stream's ColdFire cost, over USB. | port-gated: the readout chain under the port |
 | [`character-txtr`](character-txtr/README.md) | octabam-bus with CHARACTER TXTR (Character + Airwindows Pockey2 texture) on FX1 in place of CHARACTER: the image for measuring the texture stage's cost on a unit. | `make check` |
 | [`direct-jump-kyoti`](direct-jump-kyoti/README.md) | stock effects with DIRECT_JUMP_KYOTI: [PTN] + [YES] toggles an immediate, clock-locked pattern change. | `make check` |
 | [`erase-empty-trigless-locks`](erase-empty-trigless-locks/README.md) | stock effects with ERASE_EMPTY_TRIGLESS_LOCKS: an emptied trigless lock disappears. | `make check` |
@@ -66,12 +66,12 @@ Each carries one module, or one combination, for that module's gates: `make chec
 | [`usb-io-tracks-main-cue-abcd`](usb-io-tracks-main-cue-abcd/README.md) | stock - SPATIALIZER + USB (TRACKS MAIN CUE out, ABCD in). | port-gated: `make check` (verify_usb, verify_usb_in) under the port, 28 Sep 2026; not on hardware in this form |
 | [`usb-io-tracks-main-cue-cd`](usb-io-tracks-main-cue-cd/README.md) | stock - SPATIALIZER + USB (TRACKS MAIN CUE out, CD in). | port-gated: `make check` (verify_usb, verify_usb_in) under the port, 28 Sep 2026; not on hardware in this form |
 | [`usb-midi`](usb-midi/README.md) | stock + USB MIDI (class-compliant, mirrors DIN). | `make check` |
-| [`usb-out-main`](usb-out-main/README.md) | stock + USB (LAYOUT MAIN) (2 ch: MAIN L/R). | port-gated: `verify_usb` under the port, 28 Sep 2026 |
-| [`usb-out-main-cue`](usb-out-main-cue/README.md) | stock + USB (LAYOUT MAIN CUE) (4 ch: MAIN + CUE). | port-gated |
-| [`usb-out-master`](usb-out-master/README.md) | stock + USB (LAYOUT MASTER) (2 ch: track 8). | port-gated |
-| [`usb-out-tracks`](usb-out-tracks/README.md) | stock + USB (LAYOUT TRACKS) (16 ch: the tracks). | port-gated |
-| [`usb-out-tracks-main-cue`](usb-out-tracks-main-cue/README.md) | stock + USB MIDI + USB AUDIO (20 ch: tracks, MAIN, CUE). | port-gated |
-| [`usb-out-tracks-post`](usb-out-tracks-post/README.md) | stock + USB (LAYOUT TRACKS POST) (16 ch: the tracks after their own MAIN gain). | on hardware: allmyfriendsaresynths's MKII, P3, 5 Oct 2026 (smoke test: 16 channels, LEVEL/mute/solo/crossfader follow) |
+| [`usb-out-main`](usb-out-main/README.md) | stock + USB (MAIN) (2 ch: MAIN L/R). | port-gated: `verify_usb` under the port, 28 Sep 2026 |
+| [`usb-out-main-cue`](usb-out-main-cue/README.md) | stock + USB (MAIN CUE) (4 ch: MAIN + CUE). | port-gated |
+| [`usb-out-master`](usb-out-master/README.md) | stock + USB (MASTER) (2 ch: track 8). | port-gated |
+| [`usb-out-tracks`](usb-out-tracks/README.md) | stock + USB (TRACKS) (16 ch: the tracks). | port-gated |
+| [`usb-out-tracks-main-cue`](usb-out-tracks-main-cue/README.md) | stock + USB MIDI + USB AUDIO (20 ch: tracks, MAIN, CUE); PLATE REV harvested for USB's words. | port-gated |
+| [`usb-out-tracks-post`](usb-out-tracks-post/README.md) | stock + USB (TRACKS POST) (16 ch: the tracks after their own MAIN gain). | on hardware: allmyfriendsaresynths's MKII, P3, 5 Oct 2026 (smoke test: 16 channels, LEVEL/mute/solo/crossfader follow) |
 | [`vocoder`](vocoder/README.md) | VOCODER beside the stock effects (all but PLATE REV, whose words it takes, and DJ EQ, so its table sits in X). | on hardware: Ignorato's MKII, OCTABAM12 (the earlier positions T1 T2 T5 T6), 4 Oct 2026; the current positions (T2 T4 T6 T8) not flashed |
 | [`vocoder-usb`](vocoder-usb/README.md) | The vocoder remix plus USB MIDI and USB audio out, TRACKS MAIN CUE (20 channels over USB: the tracks, MAIN, CUE). | port-gated: make check under the ColdFire port, 10 Oct 2026; not flashed |
 | [`wave`](wave/README.md) | Experiment: a 4-voice wavetable synth on FX2, played by a sine on its track; SCALE QUANTIZER, page-2 tools, USB out; DARK and SPRING REV give up their words. | on hardware: Sam's MKII, image 93, 3 Oct 2026: plays, PTCH and the CHROMATIC keys move the pitch |

@@ -89,7 +89,7 @@ class ReferenceTests(unittest.TestCase):
     B = (0x400d7000, "b" * 64)
 
     def test_callable_picks_a_variant(self):
-        u = Linked("u", "u.s", include=lambda mods: "",
+        u = Linked("u", "u.s", include=lambda mods, remix: "",
                    reference=lambda mods: self.B if "SIDECHAIN" in mods else self.A)
         self.assertEqual(u.reference_for({"SIDECHAIN": object()}), self.B)
         self.assertEqual(u.reference_for({}), self.A)

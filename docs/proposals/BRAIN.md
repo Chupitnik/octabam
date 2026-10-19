@@ -80,10 +80,12 @@ event to the brain at Kit load and save.
 ```python
 store=Store(id="octabam.usb"),
 settings=(
-    Setting(key=1, name="LAYOUT", kind=Option("TRACKS MAIN CUE", "TRACKS", "MASTER", "MAIN CUE", "MAIN", "TRACKS POST", "OFF"),
-            default=0, scope=Scope.CARD, apply=Apply.BUILD),
-    Setting(key=2, name="INPUTS", kind=Option("AB", "CD", "ABCD", "OFF"),
-            default=0, scope=Scope.CARD, apply=Apply.BUILD),
+    Setting(7, "TRACKS", Option("OFF", "PRE", "POST"), default="PRE", apply=Apply.NEXT_BOOT, early=True),
+    Setting(8, "MAIN", Binary(), default=1, apply=Apply.NEXT_BOOT, early=True),
+    Setting(9, "CUE", Binary(), default=1, apply=Apply.NEXT_BOOT, early=True),
+    Setting(10, "MASTER", Binary(), default=0, apply=Apply.NEXT_BOOT, early=True),
+    Setting(11, "IN", Option("OFF", "AB", "CD", "ABCD"), default="OFF", apply=Apply.NEXT_BOOT, early=True),
+    Setting(12, "MIDI", Binary(), default=1, apply=Apply.NEXT_BOOT, early=True),
 ),
 ```
 
@@ -122,8 +124,8 @@ settings=(
 ```python
 REMIX = Remix(...,
     modules=(..., "BRAIN"),
-    settings={("octabam.usb", "LAYOUT"): Pin("MASTER"),
-              ("octabam.usb", "INPUTS"): "CD"},
+    settings={("octabam.usb", "TRACKS"): Pin("PRE"),
+              ("octabam.usb", "IN"): "CD"},
     defaults={("DELAY SERVER", "GRAIN", "PTCH"): 96},
 )
 ```
@@ -181,7 +183,7 @@ Reading a setting from ColdFire source:
 |---|---|
 | live | one absolute read from the value table |
 | pinned, or the brain is absent | a constant |
-| `Apply.BUILD` | an assembler symbol, as `layout_inc(n)` passes `USB_LAYOUT` today |
+| `Apply.BUILD` | an assembler symbol (`layout_inc(n)` passed `USB_LAYOUT` until the USB merge, 15 Oct 2026) |
 
 Events: `card_loaded`, `project_loaded`, `project_saving`,
 `project_closing`, `setting_changed`, and the birth events

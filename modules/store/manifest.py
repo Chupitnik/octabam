@@ -40,7 +40,7 @@ CLIENTS = (
 CLIENT_IDS = {"PLOCKS P2": 0, "KITS": 1, "MIDI SCENES": 2}
 
 
-def store_inc(modules):
+def store_inc(modules, remix):
     out = ["ev_ctl:", "        .long   kits_level" if "KITS" in modules else "        .long   0",
            "name_tab:", "        .long   nm_plk, nm_kits, nm_scn",
            'nm_plk: .asciz "P2LK%02d.WORK"', 'nm_kits: .asciz "KITS.WORK"', 'nm_scn: .asciz "SCENES.WORK"',

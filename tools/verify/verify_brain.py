@@ -564,9 +564,10 @@ def main():
         sys.exit(f"verify_brain: the menu_settings run did not finish -- {mlog}")
     files = emu_card.extract_image(mafter.read_bytes())
     mw = next((v for k, v in files.items() if k.upper().endswith("BRAIN/CARD.WORK")), None)
-    srec = [r for r in brainfile.parse(mw).records if r.kind == brainfile.SETTINGS] if mw else []
+    srec = [r for r in brainfile.parse(mw).records
+            if r.kind == brainfile.SETTINGS and r.store_id == "octabam.brain"] if mw else []
     got = {v.key: v.data[0] for v in srec[0].values()} if len(srec) == 1 else {}
-    check(f"settings: YES on LOG > MIDI > MIDI LOG writes one settings record, MIDI LOG on, APPLY DFLTS on, "
+    check(f"settings: YES on LOG > MIDI > MIDI LOG writes the octabam.brain settings record, MIDI LOG on, APPLY DFLTS on, "
           f"EVENT LOG at its default (on), the unknown key kept  {got}", got == {1: 1, 2: 1, 3: 1, 99: 1})
 
     # ---- templates: SAVE from the shortcut; LOAD of a seeded template -------
