@@ -272,7 +272,7 @@ def main():
                                               "--project", a.name, "--sequencer", "--internal-clock",
                                               "--frames", "3000", "--load-ms", "90000", "--dsp",
                                               "--poke", f"{sym['aud_force']:#x}=1",
-                                              "--mem-dump", f"{sym['aud_ring']:#x},8192={ring}"])),
+                                              "--mem-dump", f"{sym['aud_sum']:#x},8192={ring}"])),
                                cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
         if r.returncode:
             sys.exit(f"verify_loadmeter: the {tag} run failed -- {log}")

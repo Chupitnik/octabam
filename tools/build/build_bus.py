@@ -527,6 +527,7 @@ _RT_SYMS = {
     "m_dcr0": "$ffffec", "m_dcr1": "$ffffe8", "m_dcr2": "$ffffe4",
     "m_dcr3": "$ffffe0", "m_dcr4": "$ffffdc", "m_dcr5": "$ffffd8",
     "m_tcr": "$ffffb5", "m_rcr": "$ffffb7", "m_tcr_1": "$ffff95", "m_rcr_1": "$ffff97",
+    "m_tcr0": "$ffff8c", "m_tcpr0": "$ffff8d", "m_tlr0": "$ffff8e", "m_tcsr0": "$ffff8f",
 }
 _RT_SYM = re.compile(r"\b(" + "|".join(sorted(_RT_SYMS, key=len, reverse=True)) + r")\b")
 
@@ -1092,7 +1093,7 @@ def main():
         _inc = None
         if _u.include is not None:
             _inc = _work
-            (_work / "remix.inc").write_text(_u.include(_sel))
+            (_work / "remix.inc").write_text(_u.include(_sel, REMIX))
         _uref = _u.reference_for(_sel)
         if _uref is not None:
             _ra, _rsha = _uref
@@ -1386,16 +1387,20 @@ def main():
                 for _r in getattr(remix_modules()[_k], "dram_regions", ())]
     _fixed = [(f"{_k} {_r.label}", _r.at, _r.end) for _k in REMIX.modules
               for _r in getattr(remix_modules()[_k], "arena_reserves", ())]
-    _incs = {_u.label: _u.include(_sel) for _m, _u in _dram + _early if _u.include is not None}
+    _incs = {_u.label: _u.include(_sel, REMIX) for _m, _u in _dram + _early if _u.include is not None}
 
     def _defs_for(pbase):
         """The DRAM units' Linked.defsyms, resolved as a ROM unit's; one
         link, so one value per name. ARENA_BASE is the remix's audio arena
         base (the stock literal moved by the reservation), as the build
-        rewrites a ROM cave's base literals."""
+        rewrites a ROM cave's base literals. CS1_EARLY_BASE is the CS1
+        early-settings block's base (remix.brain.early_layout), for the
+        brain's writer."""
         _dram_defs: dict[str, int] = {}
         _unit_defs: dict[str, tuple] = {}
         _build_defs = {"ARENA_BASE": pbase}
+        if _brain.has_brain(REMIX):
+            _build_defs["CS1_EARLY_BASE"] = _brain.early_layout(REMIX, _sel)[0]
         for _m, _u in _dram:
             _mine = tuple((n, _build_defs.get(n, _exports.get(n, v))) for n, v in _u.defsyms)
             for _n, _v in _mine:
@@ -1509,7 +1514,7 @@ def main():
                 _rinc = None
                 if _u.include is not None:
                     _rinc = _rw
-                    (_rw / "remix.inc").write_text(_u.include(_sel))
+                    (_rw / "remix.inc").write_text(_u.include(_sel, REMIX))
                 _rb, _, _ = _link(pathlib.Path(_u.source), _ra, "54455", _rw,
                                   defsyms=tuple(_u.defsyms), incdir=_rinc, asdefs=tuple(_u.defsyms))
                 _got = hashlib.sha256(_rb).hexdigest()
@@ -3571,7 +3576,7 @@ hostquit:
         _pappend, _psyms2, _pgsyms2, _punits2, _ploader2, _boot, _pnames = platform_build.build(
             [(_m.key, _u) for _m, _u in _dram], [], pathlib.Path("out/platform"),
             reserve=_reserve, defsyms=_pdefs, unit_defs=_unit_defs,
-            includes={_u.label: _u.include(_sel) for _m, _u in _dram + _early if _u.include is not None},
+            includes={_u.label: _u.include(_sel, REMIX) for _m, _u in _dram + _early if _u.include is not None},
             regions=_regions, patch=_rt_patch, early=[_u for _m, _u in _early], fixed=_fixed)
         if (_psyms2, _pgsyms2, _punits2) != (_psyms, _pgsyms, _punits):
             # the loader is not compared: its tail (_end & co) moves with
@@ -3609,7 +3614,7 @@ hostquit:
         _pappend, _psyms2, _pgsyms2, _punits2, _ploader2, _boot, _pnames = platform_build.build(
             [(_m.key, _u) for _m, _u in _dram], [], pathlib.Path("out/platform"),
             reserve=_reserve, defsyms=_pdefs, preboot=_pres, unit_defs=_unit_defs,
-            includes={_u.label: _u.include(_sel) for _m, _u in _dram + _early if _u.include is not None},
+            includes={_u.label: _u.include(_sel, REMIX) for _m, _u in _dram + _early if _u.include is not None},
             regions=_regions,       # the same regions as the first link, or its symbols differ
             patch=_rt_patch, early=[_u for _m, _u in _early], fixed=_fixed)
         if (_psyms2, _pgsyms2, _punits2) != (_psyms, _pgsyms, _punits) \

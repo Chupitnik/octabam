@@ -23,7 +23,7 @@ from remix.schema import (BusRole, Category, Detour, DspSection, Formatter, Gate
 _BLANK = Param(b"", None, active=False)
 
 
-def load_inc(modules):
+def load_inc(modules, remix):
     """WAVE LOAD in the remix: m_isr calls its cl_load with BURN as K."""
     return "        .set    WAVE_LOAD, 1\n" if "WAVE LOAD" in modules else ""
 

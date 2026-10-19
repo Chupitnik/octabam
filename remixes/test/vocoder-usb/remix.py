@@ -1,4 +1,4 @@
-"""vocoder-usb -- the vocoder remix plus USB (LAYOUT TRACKS MAIN CUE, INPUTS OFF), so a VOCODER
+"""vocoder-usb -- the vocoder remix plus USB (TRACKS PRE, MAIN, CUE; IN OFF), so a VOCODER
 performance records cleanly over USB: each track post-FX pre-fader on channels 1-16, MAIN (after
 the crossfader and scenes) on 17-18, CUE on 19-20, and USB MIDI. USB is ColdFire code in DRAM and
 takes no DSP words or cycles; VOCODER's DSP side is the vocoder remix's, byte for byte."""
@@ -13,5 +13,6 @@ REMIX = Remix(family="effects", proof=Proof.PORT, proof_note="make check under t
               fallback="NONE",
               fx1=("FILTER", "EQUALIZER", "PHASER", "FLANGER", "CHORUS", "SPATIALIZER",
                    "COMB FILTER", "COMPRESSOR", "LO-FI"),
-              settings={("octabam.usb", "LAYOUT"): "TRACKS MAIN CUE",
-                        ("octabam.usb", "INPUTS"): "OFF"})
+              settings={("octabam.usb", "TRACKS"): "PRE", ("octabam.usb", "MAIN"): 1,
+                        ("octabam.usb", "CUE"): 1, ("octabam.usb", "MASTER"): 0,
+                        ("octabam.usb", "IN"): "OFF"})

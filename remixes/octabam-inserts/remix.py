@@ -29,7 +29,9 @@ REMIX = Remix(
     modules=STATIONS + ("MODE DEFAULTS", "DELAY", "GATE VERB") + INSERTS + ("LOFI2",) + CORE,
     fallback="NONE",
     fx1=STATIONS + INSERTS,
-    settings={("octabam.usb", "LAYOUT"): "MAIN CUE", ("octabam.usb", "INPUTS"): "OFF",
+    settings={("octabam.usb", "TRACKS"): "PRE", ("octabam.usb", "MAIN"): 1,
+              ("octabam.usb", "CUE"): 1, ("octabam.usb", "MASTER"): 0,
+              ("octabam.usb", "IN"): "OFF",
               ("kyoti.mute-modes", "PLACE"): Pin("DRAM"),
               **{(f"octabam.{k.lower()}", "SLOTS"): Pin("FX1+FX2") for k in STATIONS}},
 )
