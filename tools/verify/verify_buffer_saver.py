@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """BUFFER SAVER under the port: SAVE PROJECT (FUNC + PROJ) after a take,
-in four scenarios, each its own boot.
+in six scenarios, each its own boot.
 
 Each boots the built image (out/mainos_bus.bin) on a private card holding a
 saved, empty project (project.work and project.strd, so SAVE takes stock's
@@ -22,6 +22,12 @@ copy.
            the old file is unchanged.
   no       take, FUNC + PROJ, NO (SAVE SAMPLES?), YES (CONTINUE?). Wanted: no
            WAV, SLOT=129 with no path, the project saved, no mode-2 save.
+  new      take, PROJECT > SAVE TO NEW, YES, a new name (BUFSAVF). Wanted:
+           the take saved, the new project pointing at it, SAVE SAMPLES?
+           once, stock's name keyboard once.
+  first    the project's name cleared (never saved), take, FUNC + PROJ, NO.
+           Stock's SAVE runs SAVE TO NEW's code itself: SAVE SAMPLES? still
+           once, and stock's name keyboard opens.
 
 Never flashes or talks to hardware.
 """
@@ -47,11 +53,15 @@ MODE = 0x460BCFC8                    # the sample save's mode; the module writes
 DIALOG_ENTRY = 0x4006D57C            # stock's YES/NO dialog (title, lines n, lines, 3, callback)
 DRAM = (0x40A00000, 0x46000000)      # the module's own data, where SAVE SAMPLES?'s lines live
 SAVE_PROJECT_TITLE = 0x400B3820      # "SAVE PROJECT", both dialogs' title
+KEYBOARD = 0x4007E664                # stock's naming keyboard (SAVE TO NEW asks the new name)
+PROJECT_NAME = 0x100F8378            # the open project's name; empty = never saved
 AUDIO = "OCTABAM/AUDIO/"
 PROJECT = "OCTABAM/BUFSAVE/project.strd"
+NEW_PROJECT = "OCTABAM/BUFSAVF/project.work"   # SAVE TO NEW with the name's last letter stepped up
 
 # Panel key codes (tools/panel/key_map.json: row 0x20+r, bit b -> r*8+b).
 NO, YES, FUNC, REC_AB, T1, PROJ = 0x32, 0x31, 0x2D, 0x2B, 0x10, 0x1C
+UP, DOWN, LEFT = 0x33, 0x20, 0x34
 SETUP = [f"500 key {NO:#x} down", f"560 key {NO:#x} up",
          f"800 key {FUNC:#x} down", f"860 key {REC_AB:#x} down",
          f"920 key {REC_AB:#x} up", f"960 key {FUNC:#x} up",
@@ -96,7 +106,7 @@ def run(work, card, name, script, quit_ms):
     args = [str(EMU), "--image", str(IMAGE), "--card", str(card), "--card-out", str(out_card),
             "--set", "OCTABAM", "--project", "BUFSAVE", "--load-ms", "90000",
             "--mkii", "--dsp", "--main-level", "64", "--audio-in", "tones",
-            "--watch-mem", f"{MODE:#x},4", "--watch-pc", f"{DIALOG_ENTRY:#x}",
+            "--watch-mem", f"{MODE:#x},4", "--watch-pc", f"{DIALOG_ENTRY:#x},{KEYBOARD:#x}",
             "--live-script", str(path)]
     r = subprocess.run(args, cwd=ROOT, capture_output=True, text=True, timeout=3600)
     files = emu_card.extract_image(out_card.read_bytes()) if out_card.is_file() else {}
@@ -110,20 +120,32 @@ def writes(output, addr):
 
 
 def dialogs(output):
-    """(ours, stock) counts of SAVE PROJECT dialogs opened (the words at the
+    """(ours, stock) counts of YES/NO dialogs opened (the words at the
     entry's sp: return address, title, line count, lines): lines in the
-    module's DRAM are SAVE SAMPLES?, the rest stock's CONTINUE?. Other
-    dialogs (the staged card's load message at boot) are not counted."""
+    module's DRAM are SAVE SAMPLES? (titled SAVE PROJECT or SAVE TO NEW);
+    stock's are its SAVE PROJECT dialogs (CONTINUE?). Others (the staged
+    card's load message at boot, SAVE AS NEW's notice) are not counted."""
     ours = stock = 0
     for words in re.findall(rf"at {DIALOG_ENTRY:#x} .*?\[sp 0x[0-9a-f]+: ([^\]]+)\]", output):
         w = [int(x, 16) for x in words.split()]
-        if len(w) < 4 or w[1] != SAVE_PROJECT_TITLE:
+        if len(w) < 4:
             continue
         if DRAM[0] <= w[3] < DRAM[1]:
             ours += 1
-        else:
+        elif w[1] == SAVE_PROJECT_TITLE:
             stock += 1
     return ours, stock
+
+
+def keyboards(output):
+    """How often stock's naming keyboard opened."""
+    return len(re.findall(rf"at {KEYBOARD:#x} ", output))
+
+
+def slot129_in(files, name):
+    text = files.get(name, b"").decode("latin1")
+    m = re.search(r"SLOT=129\r?\nPATH=([^\r\n]*)", text)
+    return m.group(1) if m else None
 
 
 def slot129(files):
@@ -159,7 +181,7 @@ def main():
                                 cwd=ROOT, capture_output=True, text=True)
         if staged.returncode:
             return fail("could not stage the card with R1-000000-0000.wav", staged.stdout + staged.stderr)
-        cards = {"yes": card, "again": card, "taken": card_taken, "no": card}
+        cards = {"yes": card, "again": card, "taken": card_taken, "no": card, "new": card, "first": card}
 
         first = SETUP + take(2000) + save(6000) + press(9000, YES) + press(14000, YES)
         # One project save at most per boot (it writes ~10 MB) and a late quit:
@@ -170,7 +192,16 @@ def main():
                 ("again", SETUP + take(2000) + save(6000) + press(9000, YES) + press(14000, NO)
                  + save(17000) + press(20000, NO), 24000),
                 ("taken", first, 30000),
-                ("no", SETUP + take(2000) + save(6000) + press(9000, NO) + press(12000, YES), 30000)]
+                ("no", SETUP + take(2000) + save(6000) + press(9000, NO) + press(12000, YES), 30000),
+                # PROJECT > SAVE TO NEW (row 4), YES; on stock's keyboard LEFT then UP
+                # make BUFSAVE BUFSAVF, YES; stock copies the project to it.
+                ("new", SETUP + take(2000) + ["6000 key 0x1c down", "6060 key 0x1c up"] + press(6500, YES)
+                 + sum((press(7000 + 300 * i, DOWN) for i in range(4)), []) + press(9000, YES)
+                 + press(11000, YES) + press(30000, LEFT) + press(30300, UP) + press(31000, YES), 75000),
+                # A project never saved (its name cleared): stock's SAVE runs SAVE
+                # TO NEW's code itself; NO, and nobody is asked a second time.
+                ("first", [f"1000 poke {PROJECT_NAME:#x}=0"] + SETUP + take(2000) + save(6000)
+                 + press(9000, NO), 30000)]
         with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
             results = {name: (rc, out, files) for name, rc, out, files in
                        pool.map(lambda j: run(work, cards, *j), jobs)}
@@ -222,10 +253,26 @@ def main():
     if dialogs(out) != (1, 1):
         return fail(f"no: wanted SAVE SAMPLES? and CONTINUE? once each, saw {dialogs(out)}", out)
 
+    rc, out, files = results["new"]
+    names = sorted(k[len(AUDIO):] for k in files if k.startswith(AUDIO))
+    if names != ["R1-000000-0000.ot", "R1-000000-0000.wav"]:
+        return fail(f"new: wanted the take saved before SAVE TO NEW, saw {names}", out)
+    if slot129_in(files, NEW_PROJECT) != "../AUDIO/R1-000000-0000.wav":
+        return fail(f"new: the new project's SLOT=129 path is {slot129_in(files, NEW_PROJECT)!r}", out)
+    if dialogs(out)[0] != 1 or keyboards(out) != 1:
+        return fail(f"new: wanted SAVE SAMPLES? once and stock's name keyboard once, saw "
+                    f"{dialogs(out)[0]} and {keyboards(out)}", out)
+
+    rc, out, files = results["first"]
+    if dialogs(out)[0] != 1 or keyboards(out) != 1:
+        return fail(f"first: wanted SAVE SAMPLES? once (not again inside stock's SAVE TO NEW) and "
+                    f"stock's name keyboard, saw {dialogs(out)[0]} and {keyboards(out)}", out)
+
     print("  [PASS] verify_buffer_saver: after a take FUNC + PROJ asks SAVE SAMPLES?; YES writes "
           "R1-000000-0000.wav and .ot and points the project's buffer 1 at it, and the next save does "
           "not ask; with that name taken the take is saved as R1-000000-0000-2 and the old file is "
-          "left alone; NO writes no sample and the project saves as stock")
+          "left alone; NO writes no sample and the project saves as stock; SAVE TO NEW asks too, and the "
+          "new project points at the saved take; a project never saved is asked once")
     return 0
 
 

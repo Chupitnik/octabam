@@ -12,14 +12,18 @@ When you sample into a record buffer it is not automatically saved to the CF and
 ## Using it
 
 1. Record as usual.
-2. Save the project: PROJECT > SAVE, or FUNC + PROJ.
+2. Save the project: PROJECT > SAVE, FUNC + PROJ, or PROJECT > SAVE TO NEW.
 3. If a recorder buffer holds a take not yet saved, a dialog asks
    **UNSAVED RECORDINGS! / SAVE SAMPLES?**
    - **YES**: each such buffer is saved to the card and assigned to
      itself, then the project saves as usual (stock's own SAVE PROJECT
      question follows). On reload the buffers come back with the takes.
    - **NO**: the project saves exactly as stock.
-4. With nothing new to save, SAVE PROJECT is stock: no dialog.
+   - With SAVE TO NEW, YES saves the takes first, then stock's SAVE TO NEW
+     asks for the new name and copies the project, the takes included
+     (with SAVE SAMPLES TO = PROJ DIR they are copied into the new
+     project's folder; with AUD POOL both projects point at the pool).
+4. With nothing new to save, the save is stock: no dialog.
 
 - Names are stock's suggestion, `R<n>-YYMMDD-HHMM` (n = the buffer, 1–8).
   If that file exists, `-2`, `-3` … is added. Nothing is overwritten and
@@ -29,6 +33,11 @@ When you sample into a record buffer it is not automatically saved to the CF and
 - A buffer still recording, or armed, is left for the next save.
 - A take saved once is not offered again until the buffer records again.
   Loading a project clears the list.
+- After a power cycle nothing is offered: the recorder buffers do not
+  survive a power-off on stock 1.40C, and the list of new takes starts
+  empty at boot (it lives in the module's DRAM). Tried on the unit, 17 Oct
+  2026 (PREMIX): a take, SAVE PROJECT with NO, power off and on; the take
+  was gone and FUNC + PROJ did not ask.
 - If a save fails (a full card), stock's errors show, the project is not
   saved, and the next SAVE PROJECT offers that buffer again; NO there saves
   the project as stock. Stock's failed write leaves its files under the

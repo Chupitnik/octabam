@@ -5,6 +5,7 @@ One ColdFire module and the stock effects. For anyone who has lost recorder take
 ## What is in it
 
 - **BUFFER SAVER** — SAVE PROJECT (and FUNC + PROJ) asks SAVE SAMPLES? when a recorder buffer holds a take not yet saved. YES saves each to the card under stock's automatic name (`-2`, `-3` … when taken), assigned to itself, then saves the project. NO saves the project as stock. [`modules/buffer-saver/README.md`](../../../modules/buffer-saver/README.md).
+- **ATA WRITE GUARD** — closes stock's first-sector card-write race, which hung the gate's project saves under the port when a build shifted the timing (as in the official remixes).
 - the 14 stock FX2 effects, listed so the chooser is stock's.
 
 ## Status

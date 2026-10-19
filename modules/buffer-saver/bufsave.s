@@ -12,6 +12,10 @@
 |              Recorder buffer n belongs to track n (object id 128 + n).
 |   load_clear (0x4008534c, the engine's LOAD PROJECT case) clears
 |              `pending`: what the load brings back is saved already.
+|   new_gate   (0x40063618) the PROJECT menu's SAVE TO NEW: the same question,
+|              then stock's SAVE TO NEW, whose copy of the project folder
+|              takes the saved takes along (port, 17 Oct 2026: stock copies
+|              the project's own samples, long names intact).
 |   save_gate  (0x40063890) the PROJECT menu's SAVE, which FUNC + PROJ also
 |              reaches (0x400648fc). With a marked buffer that has audio and
 |              is not recording, it asks SAVE SAMPLES?; NO, or nothing to
@@ -38,6 +42,7 @@
         .global arm_mark
         .global load_clear
         .global save_gate
+        .global new_gate
 
         .equ    KIND, 0x460be9e8        | the sample save's object kind (1 = FLEX)
         .equ    OBJ, 0x460be9ec         | ... and object id (recorder buffer n = 128 + n)
@@ -77,19 +82,62 @@ stock_save:
         move.l  %d2,-(%sp)
         jmp     (0x40063896).l          | stock's SAVE, unchanged
 .sg_ask:
+        clr.b   then_new                | the chain ends in stock's SAVE
+        pea     (0x400b3820).l          | "SAVE PROJECT"
+        bra.s   ask
+
+| 0x40063618 displaced: pea 1 / jsr 0x40022cd4. The PROJECT menu's SAVE TO
+| NEW (and stock's other routes into it). Stock's SAVE also calls it for a
+| project never saved; while our own call to stock's SAVE runs (in_save),
+| it passes straight through, so nobody is asked twice.
+new_gate:
+        tst.b   in_save
+        bne.s   call_stock_new
+        bsr     ready
+        tst.l   %d0
+        beq.s   call_stock_new
+        moveq   #1,%d0
+        move.b  %d0,then_new            | the chain ends in stock's SAVE TO NEW
+        pea     (0x400b58c7).l          | "SAVE TO NEW"
+| The question, titled by the word pushed; returns to the menu.
+ask:
+        move.l  (%sp)+,%d0
         pea     answer
         pea     3                       | YES / NO
         pea     ask_lines
         pea     2                       | two lines
-        pea     (0x400b3820).l          | "SAVE PROJECT"
+        move.l  %d0,-(%sp)              | the title
         jsr     (0x4006d57c).l
         lea     20(%sp),%sp
         rts
 
+| Stock's SAVE TO NEW, callable: it syncs the project, asks for the new
+| name and copies the project, the takes just saved in its folder included.
+call_stock_new:
+        pea     1
+        jsr     (0x40022cd4).l
+        jmp     (0x40063622).l          | the rest of stock's SAVE TO NEW, which returns
+
+| Stock's SAVE, callable, with in_save set while it runs.
+call_stock_save:
+        moveq   #1,%d0
+        move.b  %d0,in_save
+        clr.l   -(%sp)                  | the handler's argument
+        bsr.s   stock_save
+        addq.l  #4,%sp
+        clr.b   in_save
+        rts
+
+| After the question or the last buffer: the save the user chose.
+finish:
+        tst.b   then_new
+        bne.s   call_stock_new
+        bra.s   call_stock_save
+
 | The dialog's callback (it closes before calling): 0 = YES.
 answer:
         tst.l   4(%sp)
-        bne.s   stock_save
+        bne.s   finish
         clr.l   tried
         bra.s   next_buffer
 
@@ -110,7 +158,7 @@ next_buffer:
         move.l  tried,%d1
         not.l   %d1
         and.l   %d1,%d0
-        beq.s   stock_save
+        beq.s   finish
         moveq   #0,%d1
 .nb_find:
         btst    %d1,%d0
@@ -269,4 +317,8 @@ path:
         .space  256
 pending:
         .byte   0                       | buffers with a take not yet saved (bit n)
+then_new:
+        .byte   0                       | 1: the chain ends in SAVE TO NEW, 0: in SAVE
+in_save:
+        .byte   0                       | 1 while our call to stock's SAVE runs
         .balign 4
