@@ -14,11 +14,11 @@ MODULE = Module(
     key="PERSISTENT BUFFERS",
     kind=Kind.CF_PATCH,
     category=Category.SETTINGS,
-    author="iliamurzinov",
-    author_url="https://github.com/iliamurzinov",
+    author="ilia-murzinov",
+    author_url="https://github.com/ilia-murzinov",
     proof=Proof.CHECK,
     proof_note="verify_persistent_buffers: symbols + port save/load; author MKII "
-               "R2–R6 (17 Oct 2026): BUFFERS/RECn.wav; !BUFFERS left UI unassigned",
+               "R2–R6 (17 Oct 2026): head is R6, path BUFFERS/RECn.wav (no !)",
     doc="On project save, dump non-empty recorder buffers to BUFFERS/REC1.wav..REC8.wav "
         "(overwrite); on project load, restore them.",
     linked=(Linked("pbf", "modules/persistent-buffers/pbuf.s", dram=True),),

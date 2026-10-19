@@ -82,7 +82,7 @@ nav:
   - Settings:
       - Brain: brain.md
       - Memory: reference/modules/memory.md
-      - Recbuf Persist: reference/modules/recbuf-persist.md
+      - Persistent Buffers: reference/modules/persistent-buffers.md
       - Store: reference/modules/store.md
   - Utilities:
       - Buffer Saver: reference/modules/buffer-saver.md

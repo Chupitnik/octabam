@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
-"""RECBUF PERSIST: symbols + a light port proof (no PROJECT menu, no DSP).
+"""PERSISTENT BUFFERS: symbols + a light port proof (no PROJECT menu, no DSP).
 
-  1. Links rbp_st_*.
-  2. Save smoke: `--call rbp_st_pstore_pre` right after load on empty
+  1. Links pbf_st_*.
+  2. Save smoke: `--call pbf_st_pstore_pre` right after load on empty
      buffers — must return; card has no REC*.wav (empty skip).
   3. Load: stage a 256-frame REC1.wav, boot, dump slot 128 settings and
-     the control record — PATH is REC1.wav and ctl length is 256 (flex
-     load ran). Settings +266/+270 stay virgin garbage; flex writes the
-     frame count elsewhere (+304) and into 0x46c922c4+44·slot.
+     the control record — PATH is BUFFERS/REC1.wav and ctl length is 256
+     (slot load ran). Settings +266/+270 stay virgin garbage; flex writes
+     the frame count elsewhere (+304) and into 0x46c922c4+44·slot.
 
 A full record→save under DSP still needs the PROJECT menu (callAsMain while
-the frame ISR owns the PC aborts). That path is not this gate.
+the frame ISR owns the PC aborts). That path is not this gate — hardware
+only.
 
-    python3 tools/verify/verify_recbuf.py [REMIX]
+    python3 tools/verify/verify_persistent_buffers.py [REMIX]
 """
 from __future__ import annotations
 
@@ -36,11 +37,11 @@ if not PY.is_file():
     PY = pathlib.Path(sys.executable)
 
 NEED = (
-    "rbp_st_pstore_pre",
-    "rbp_st_loadall_post",
-    "rbp_st_loadmask_post",
-    "rbp_st_preload_post",
-    "rbp_st_answer",
+    "pbf_st_pstore_pre",
+    "pbf_st_loadall_post",
+    "pbf_st_loadmask_post",
+    "pbf_st_preload_post",
+    "pbf_st_answer",
 )
 
 SETTINGS1 = 0x100B14F0 + 128 * 0x448
@@ -49,7 +50,7 @@ WAV_FRAMES = 256
 
 
 def check(msg, ok):
-    print(f"  [{'PASS' if ok else 'FAIL'}] verify_recbuf: {msg}")
+    print(f"  [{'PASS' if ok else 'FAIL'}] verify_persistent_buffers: {msg}")
     return bool(ok)
 
 
@@ -62,7 +63,7 @@ def build(remix_name: str) -> pathlib.Path:
     )
     if r.returncode:
         print((r.stdout + r.stderr)[-2000:])
-        sys.exit(f"verify_recbuf: build {remix_name} failed")
+        sys.exit(f"verify_persistent_buffers: build {remix_name} failed")
     return ROOT / "out/mainos_bus.bin"
 
 
@@ -105,12 +106,12 @@ def boot(cmd: list, log: pathlib.Path, timeout: int = 180) -> int:
             r = subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=f,
                                stderr=subprocess.STDOUT, timeout=timeout)
         except subprocess.TimeoutExpired:
-            f.write(f"\n[verify_recbuf] TIMEOUT {timeout}s\n")
+            f.write(f"\n[verify_persistent_buffers] TIMEOUT {timeout}s\n")
             return 99
     return r.returncode
 
 
-def port_tests(image: pathlib.Path, out: pathlib.Path, rbp: int) -> int:
+def port_tests(image: pathlib.Path, out: pathlib.Path, pbf: int) -> int:
     sys.path.insert(0, str(ROOT / "tools/emu"))
     import emu_card  # noqa: E402
 
@@ -133,14 +134,14 @@ def port_tests(image: pathlib.Path, out: pathlib.Path, rbp: int) -> int:
     rc = boot(
         [EMU, "--image", image, "--card", card, "--set", "OCTABAM",
          "--project", "RECBUF", "--mount", "--load-ms", "90000", "--mkii",
-         "--call", f"{rbp:#x}", "--card-out", out / "smoke.img"],
+         "--call", f"{pbf:#x}", "--card-out", out / "smoke.img"],
         out / "smoke.txt",
     )
     log = (out / "smoke.txt").read_text(errors="replace")
     fails += not check(f"save-smoke run exited {rc}", rc == 0)
     fails += not check(
-        "save-smoke: call rbp_st_pstore_pre returned",
-        f"call       : {rbp:#x}(0 args) returned" in log,
+        "save-smoke: call pbf_st_pstore_pre returned",
+        f"call       : {pbf:#x}(0 args) returned" in log,
     )
     if rc == 0:
         files = emu_card.extract_image((out / "smoke.img").read_bytes())
@@ -204,10 +205,12 @@ def port_tests(image: pathlib.Path, out: pathlib.Path, rbp: int) -> int:
 
 
 def main() -> int:
-    remix_name = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("REMIX", "recbuf-persist")
+    remix_name = sys.argv[1] if len(sys.argv) > 1 else os.environ.get(
+        "REMIX", "persistent-buffers"
+    )
     remix = registry.remix(remix_name)
-    if "RECBUF PERSIST" not in remix.modules:
-        print(f"  [ -- ] verify_recbuf: {remix.name} has no RECBUF PERSIST")
+    if "PERSISTENT BUFFERS" not in remix.modules:
+        print(f"  [ -- ] verify_persistent_buffers: {remix.name} has no PERSISTENT BUFFERS")
         return 0
 
     image = build(remix.name)
@@ -215,29 +218,29 @@ def main() -> int:
     syms = symbols(elf)
     missing = [s for s in NEED if s not in syms]
     if missing:
-        print(f"  [FAIL] verify_recbuf: missing symbols {missing}")
+        print(f"  [FAIL] verify_persistent_buffers: missing symbols {missing}")
         return 1
     print(
-        f"  [PASS] verify_recbuf: {remix.name} links "
+        f"  [PASS] verify_persistent_buffers: {remix.name} links "
         + ", ".join(f"{s}=0x{syms[s]:x}" for s in NEED)
     )
 
     if not EMU.is_file():
-        print("  [SKIP] verify_recbuf: port tests (make emu-cf)")
+        print("  [SKIP] verify_persistent_buffers: port tests (make emu-cf)")
         return 0
 
-    out = ROOT / "out/recbuf_verify"
+    out = ROOT / "out/persistent_buffers_verify"
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
     ours = out / "ours.bin"
     ours.write_bytes(image.read_bytes())
 
-    fails = port_tests(ours, out, syms["rbp_st_pstore_pre"])
+    fails = port_tests(ours, out, syms["pbf_st_pstore_pre"])
     if fails:
-        print(f"  [FAIL] verify_recbuf: {fails} port check(s) failed")
+        print(f"  [FAIL] verify_persistent_buffers: {fails} port check(s) failed")
         return 1
-    print("  [PASS] verify_recbuf: port (save-smoke + staged load)")
+    print("  [PASS] verify_persistent_buffers: port (save-smoke + staged load)")
     return 0
 
 
