@@ -25,5 +25,5 @@ MODULE = runpy.run_path(str(_UPSTREAM), run_name="remix_manifest_sidechain_compr
 # The module table's fields are octabam's (README.md, `make docs`), so they
 # are added here rather than in the author's manifest.
 MODULE = dataclasses.replace(
-    MODULE, category=Category.TRACK, author="Zac-Kyoti/octatrack-kyoti-fw", author_url="https://github.com/Zac-Kyoti/octatrack-kyoti-fw",
+    MODULE, category=Category.TRACK, author="Zac Kyoti", author_url="https://github.com/Zac-Kyoti",
     proof=Proof.HARDWARE, proof_note="the author's MKI, 4 Oct 2026, an octabam image with all six KYOTI modules and REC_TRIG_MUTE: ducking on one core and across cores both ways, KFLT/KGN/MON, a muted KEY in every MUTE MODE")

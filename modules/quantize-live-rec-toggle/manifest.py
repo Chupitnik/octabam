@@ -23,5 +23,5 @@ MODULE = runpy.run_path(str(_UPSTREAM), run_name="remix_manifest_quantize_live_r
 # The module table's fields are octabam's (README.md, `make docs`), so they
 # are added here rather than in his manifest.
 MODULE = dataclasses.replace(
-    MODULE, category=Category.MACHINES, author="Zac-Kyoti/octatrack-kyoti-fw", author_url="https://github.com/Zac-Kyoti/octatrack-kyoti-fw",
+    MODULE, category=Category.MACHINES, author="Zac Kyoti", author_url="https://github.com/Zac-Kyoti",
     proof=Proof.HARDWARE, proof_note="the author's MKI, 25 Sep 2026 (gesture) and 30 Sep 2026 (setting survives a power cycle)")

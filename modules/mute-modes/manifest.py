@@ -41,5 +41,5 @@ def _adapted_variant(values):
 # are added here rather than in his manifest.
 MODULE = dataclasses.replace(
     MODULE, linked=tuple(_adapt_unit(_u) for _u in MODULE.linked), variant=_adapted_variant,
-    category=Category.MACHINES, author="Zac-Kyoti/octatrack-kyoti-fw", author_url="https://github.com/Zac-Kyoti/octatrack-kyoti-fw",
+    category=Category.MACHINES, author="Zac Kyoti", author_url="https://github.com/Zac-Kyoti",
     proof=Proof.HARDWARE, proof_note="the author's MKI (standalone image and the KYOTI V1.0 combined image)")
