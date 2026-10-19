@@ -4429,9 +4429,9 @@ static void set_value(u32 i)
 	int v = brain_values[i];
 	char *o = setval[i];
 	if (e->type == 1)
-		put_s(o, v ? "ON" : "OFF");
+		o[put_s(o, v ? "ON" : "OFF")] = 0;
 	else if (e->type == 2)
-		put_s(o, (u32)v < e->nlabels ? e->labels[v] : "?");
+		o[put_s(o, (u32)v < e->nlabels ? e->labels[v] : "?")] = 0;
 	else {
 		u32 n = 0;
 		if (v < 0) {
