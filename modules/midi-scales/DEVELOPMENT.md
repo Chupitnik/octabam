@@ -17,7 +17,7 @@ It is therefore a **Part setting**, not a new per-pattern project field.
 Select `MIDI SCALES` in the remix. This module works independently. It extends stock sequencer/arp output
 quantization; it does not generate chords. Existing Major/Minor playback
 keeps stock quantization. Added modes use nearest scale notes, ties downward.
-Follow and Harmony combinations require their own integration checks.
+Combinations with other MIDI modules are not qualified.
 
 No audio tracks or Scale Quantizer settings are involved. On a cold project
 load, stock 1.40C clamps saved KEY values 25–84 to 24 (**B Minor**). Saving
@@ -78,5 +78,5 @@ at `0x40a955e0` on every build (SHA-256
 `e265a08d11b72cc6806c6ac5212969b828c28e2c34681ae088c686e51db8c806`).
 This reference was measured from the native source in integration commit
 `8f8e00d061d17a890a3b01d5f340492f912712e2`. Native and pinned-adapter
-standalone images are byte-identical at BUILD=79. Future Follow/Harmony
-variants need their own references and combination checks.
+standalone images are byte-identical at BUILD=79. A variant of this module
+needs its own reference.
