@@ -25,8 +25,26 @@ from remix.schema import Category, Proof
 _UPSTREAM = pathlib.Path(__file__).resolve().parent / "upstream" / "octabam-modules" / "varispeed" / "manifest.py"
 
 MODULE = runpy.run_path(str(_UPSTREAM), run_name="remix_manifest_varispeed")["MODULE"]
+# The build passes (modules, remix) to every include so a unit can resolve
+# the remix's settings; the author's include takes only (modules). Adapted
+# here, not in `upstream/`, as for MUTE_MODES: both the units themselves and
+# the PLACE variant, which rebuilds `linked` from the author's own tuple.
+def _adapt_unit(_unit):
+    if callable(getattr(_unit, "include", None)):
+        return dataclasses.replace(_unit, include=(lambda modules, remix, _inc=_unit.include: _inc(modules)))
+    return _unit
+
+_author_variant = MODULE.variant
+
+def _adapted_variant(values):
+    _out = dict(_author_variant(values)) if _author_variant else {}
+    if "linked" in _out:
+        _out["linked"] = tuple(_adapt_unit(_u) for _u in _out["linked"])
+    return _out
+
 # The module table's fields are octabam's (README.md, `make docs`), so they
 # are added here rather than in the author's manifest.
 MODULE = dataclasses.replace(
-    MODULE, category=Category.MACHINES, author="Zac-Kyoti/octatrack-kyoti-fw", author_url="https://github.com/Zac-Kyoti/octatrack-kyoti-fw",
+    MODULE, linked=tuple(_adapt_unit(_u) for _u in MODULE.linked), variant=_adapted_variant,
+    category=Category.MACHINES, author="Zac-Kyoti/octatrack-kyoti-fw", author_url="https://github.com/Zac-Kyoti/octatrack-kyoti-fw",
     proof=Proof.HARDWARE, proof_note="the author's MKI, 15 Oct 2026 (the VARI1 build, standalone image)")
