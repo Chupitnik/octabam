@@ -63,10 +63,17 @@ the floor; `docs/contributing/TESTING.md` says what each gate proves and what
 none of them can see.
 
 **Before opening a PR, and again before merging one:** rebase onto
-`origin/main`, then `make reach RUN=1 KEEP=1` on the rebased tree
-(`CONTRIBUTING.md` "Before you open a PR" is the rule and the reason);
-list each command and its result in the PR body. Passes whose image and
-inputs did not move are reported `cached`.
+`origin/main`. CI's `Gates — make reach` job runs `make reach RUN=1 KEEP=1`
+on every push to `main` and every PR from a branch in this repository, on
+a runner that downloads the 1.40C for that run
+(`CONTRIBUTING.md` "Before you open a PR" is the rule and the reason); the
+PR body links the run and lists each gate's result from its log. Locally,
+iterate with `make check REMIX=<name>` and the one gate script for the change
+(`python3 tools/verify/verify_<name>.py <remix>`). A PR from a
+fork gets no firmware in CI (`Gates — Listed (Fork PRs)` prints the list):
+its author runs `make reach RUN=1 KEEP=1` and lists each result. A change to
+`.github/`, `scripts/` or the Makefile runs every CI job. Passes whose image
+and inputs did not move are reported `cached`.
 
 **A change that alters what a remix does — its modules, effects, menus,
 costs or proof status — updates the hand-written manual site pages under
