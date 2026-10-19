@@ -49,7 +49,7 @@ def image_name(remix, build):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--build", type=int, required=True, help="the BUILD number stamped into the images")
+    ap.add_argument("--build", required=True, help="the BUILD tag stamped into the images (make image BUILD=; A0 is image 100)")
     ap.add_argument("--out", default="out/web")
     ap.add_argument("--dev", action="store_true", help="allow a tree that is not clean at origin/main (manifest says so)")
     args = ap.parse_args()
