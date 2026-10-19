@@ -29,6 +29,7 @@ repository path appears in this file on purpose: tools/verify/doclinks.py
 scans it too, and every path it finds must exist.
 """
 
+import html
 import pathlib
 import json
 import re
@@ -241,7 +242,10 @@ def module_page(m, mods, official) -> str:
     lines = ["---", "not_in_nav: true", "---", "",
              f"# {_label(m)}", ""]
     if not m.is_stock:
-        lines += [f"By {_author(m)}", ""]
+        who = html.escape(m.author or "?")
+        if m.author_url:
+            who = f'<a href="{html.escape(m.author_url)}">{who}</a>'
+        lines += [f'<p class="byline">By {who}</p>', ""]
     lines += hero(m)
     if fragment.is_file():
         lines += [f'--8<-- "usage/{m.name}.md"', ""]

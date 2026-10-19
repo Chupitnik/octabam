@@ -175,7 +175,19 @@ def capture_fx(p,r,assignments):
 
 
 def capture_bus(p,r):
-    capture_fx(p,r,[(1,'fx2','DELAY SERVER'),(2,'fx2','SEND'),(5,'fx2','REVERB SERVER')])
+    capture_fx(p,r,[(2,'fx2','SEND')])
+    # The servers draw DEL and REV on their host track's FX2 page; the rest is in the TEMPO window,
+    # a scrolling list per box: the top rows, then the bottom rows.
+    for track,key,box,last in ((1,'DELAY SERVER','DELAY',5),(5,'REVERB SERVER','REVERB',9)):
+        m=registry.modules()[key]
+        press(p,f't{track}');press(p,'pg_fx2')
+        shot(p,m.name,'main',f'{key} on track {track}: the FX2 page (DEL and REV).',r)
+        press(p,'tempo')
+        if box=='REVERB':press(p,'right')
+        shot(p,m.name,'tempo-top',f'{key}: the {box} box in the TEMPO window, first rows.',r)
+        press(p,'down',last)
+        shot(p,m.name,'tempo-bottom',f'{key}: the {box} box in the TEMPO window, last rows.',r)
+        close(p)
     press(p,'t1');p.chord('func','pg_fx2')
     shot(p,'fx2-lock','chooser','Locked FX2 selection on the delay host.',r)
     close(p)

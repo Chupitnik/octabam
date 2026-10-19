@@ -270,49 +270,63 @@
   "busdelay": {
     "main": {
       "image": "busdelay/main.png",
-      "caption": "Delay server: main parameter page.",
+      "caption": "DELAY SERVER on track 1: the FX2 page (DEL and REV).",
       "remix": "octabam-bus",
       "source": "emulator panel UART",
-      "firmware_sha256": "4bc3318b76dae9399a48bfda9a792ac0fc77d6e968b97256b2e36c852e2b9af3"
+      "firmware_sha256": "df70af456ba5405b9674fe4bac2d837c64feaa7b4addc2d381e1c76ec625905c"
     },
-    "setup": {
-      "image": "busdelay/setup.png",
-      "caption": "DELAY SERVER: effect selection and setup parameters.",
+    "tempo-top": {
+      "image": "busdelay/tempo-top.png",
+      "caption": "DELAY SERVER: the DELAY box in the TEMPO window, first rows.",
       "remix": "octabam-bus",
       "source": "emulator panel UART",
-      "firmware_sha256": "4bc3318b76dae9399a48bfda9a792ac0fc77d6e968b97256b2e36c852e2b9af3"
+      "firmware_sha256": "df70af456ba5405b9674fe4bac2d837c64feaa7b4addc2d381e1c76ec625905c"
+    },
+    "tempo-bottom": {
+      "image": "busdelay/tempo-bottom.png",
+      "caption": "DELAY SERVER: the DELAY box in the TEMPO window, last rows.",
+      "remix": "octabam-bus",
+      "source": "emulator panel UART",
+      "firmware_sha256": "df70af456ba5405b9674fe4bac2d837c64feaa7b4addc2d381e1c76ec625905c"
     }
   },
   "send": {
     "main": {
       "image": "send/main.png",
-      "caption": "Send: main parameter page.",
+      "caption": "SEND: main parameter page.",
       "remix": "octabam-bus",
       "source": "emulator panel UART",
-      "firmware_sha256": "4bc3318b76dae9399a48bfda9a792ac0fc77d6e968b97256b2e36c852e2b9af3"
+      "firmware_sha256": "df70af456ba5405b9674fe4bac2d837c64feaa7b4addc2d381e1c76ec625905c"
     },
     "setup": {
       "image": "send/setup.png",
       "caption": "SEND: effect selection and setup parameters.",
       "remix": "octabam-bus",
       "source": "emulator panel UART",
-      "firmware_sha256": "4bc3318b76dae9399a48bfda9a792ac0fc77d6e968b97256b2e36c852e2b9af3"
+      "firmware_sha256": "df70af456ba5405b9674fe4bac2d837c64feaa7b4addc2d381e1c76ec625905c"
     }
   },
   "busverb": {
     "main": {
       "image": "busverb/main.png",
-      "caption": "Reverb server: main parameter page.",
+      "caption": "REVERB SERVER on track 5: the FX2 page (DEL and REV).",
       "remix": "octabam-bus",
       "source": "emulator panel UART",
-      "firmware_sha256": "4bc3318b76dae9399a48bfda9a792ac0fc77d6e968b97256b2e36c852e2b9af3"
+      "firmware_sha256": "df70af456ba5405b9674fe4bac2d837c64feaa7b4addc2d381e1c76ec625905c"
     },
-    "setup": {
-      "image": "busverb/setup.png",
-      "caption": "REVERB SERVER: effect selection and setup parameters.",
+    "tempo-top": {
+      "image": "busverb/tempo-top.png",
+      "caption": "REVERB SERVER: the REVERB box in the TEMPO window, first rows.",
       "remix": "octabam-bus",
       "source": "emulator panel UART",
-      "firmware_sha256": "4bc3318b76dae9399a48bfda9a792ac0fc77d6e968b97256b2e36c852e2b9af3"
+      "firmware_sha256": "df70af456ba5405b9674fe4bac2d837c64feaa7b4addc2d381e1c76ec625905c"
+    },
+    "tempo-bottom": {
+      "image": "busverb/tempo-bottom.png",
+      "caption": "REVERB SERVER: the REVERB box in the TEMPO window, last rows.",
+      "remix": "octabam-bus",
+      "source": "emulator panel UART",
+      "firmware_sha256": "df70af456ba5405b9674fe4bac2d837c64feaa7b4addc2d381e1c76ec625905c"
     }
   },
   "fx2-lock": {
