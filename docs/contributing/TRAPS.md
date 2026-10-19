@@ -746,6 +746,108 @@ store) makes DC visible through an AC-coupled capture; (3) when "which knob"
 does not localise a fault, "which TRACK" (LEVEL 0 per track, then AMP VOL vs
 MUTE) does.
 
+<a name="trap-brclr"></a>
+
+### `dsp_asm` puts a label's absolute address in `brclr`'s displacement word
+
+**`DSP_ASM` PUTS A LABEL'S ABSOLUTE ADDRESS IN `BRCLR`'S DISPLACEMENT
+WORD.** `brclr #0,x1,usbi_nocd` at P:$1098 assembled to `0cc580 00109c`;
+the chip reads the extension word as a displacement from the brclr (stock
+payload A P:$63e: `brclr #$c,x1` is `0cc58c 00001d`, a branch to P:$65b).
+The branch went to P:$2134 and core 0 ran off the end of P memory (the port's
+FAULT: PC 0x80000). `bsr` and `do` encode right (`0d1080 000008` is +8).
+The build's roundtrip did not stop it: a decoded label operand matches any
+number in the listing. Fix: write `brclr`'s operand as the displacement, a
+number (`brclr #0,x1,$4`), and check it against the listing's addresses.
+Cost: one in-gate run (16 Oct 2026, USB inject). Gate: `verify_usb_in`'s
+runtime rows (the DSP faults and no host sample lands).
+
+<a name="trap-cs1-zero"></a>
+
+### A zero CS1 with a valid settings tail boots stock's settings as zeros
+
+**A ZERO CS1 WITH A VALID SETTINGS TAIL BOOTS STOCK'S SETTINGS AS ZEROS.**
+`verify_usb`'s `cs1_block` wrote the early block into zeros and added the
+valid tail, so the boot skipped its wipe and read every stock setting held
+in CS1 as 0: on octabam-bus the input gain the ColdFire sends the DSP
+(X:$x823, written at P:$369) was `030000` where a fresh boot sends
+`030040`, and stock's input stage (P:$166-$1ff, the RX block times that
+gain, back in place) wrote zeros over every injected block. `cs1_boot`
+(16 Oct 2026) boots the image once with no CS1 file and dumps CS1 (the
+boot writes 584,212 non-zero bytes of defaults); `cs1_block(...,
+template=cs1_boot(image))` lays the early block over it. Cost: the
+in-gate's runtime rows, a day of the USB merge. Gate: `verify_usb_in`'s
+runtime rows (bit-exact RX blocks).
+
+<a name="trap-in-slot"></a>
+
+### `in_slot` lost its `lsll #5`: four packet buffers 3 bytes apart
+
+**`IN_SLOT` LOST ITS `LSLL #5`: FOUR PACKET BUFFERS 3 BYTES APART.** When
+INPUTS became a run-time setting, `in_slot` (usbaudio_in.s) kept the
+`slot * 3` adds and dropped the `slot * 32` before them, so the four
+queued 96-byte EP3 OUT buffers sat at SRAM_BUFS + 3n and each packet
+overwrote the others. The RX blocks showed runs of samples a byte off
+(`001158` where `01580x` belonged), some frames right: it looked like a
+host-port or bank fault. Found by building the merged commit 1915559f in
+a second worktree and running the same gate on the same remix: it passed,
+so the cause was in the branch's image. Rule: when a gate that passed
+fails after a refactor, run the old commit under today's tools before
+reasoning about the hardware model. Gate: `verify_usb_in`.
+
+<a name="trap-region7"></a>
+
+### The stock echo-freeze mix rewrites the arena's region 7 every frame, from staging the tap check did not zero
+
+**THE STOCK ECHO-FREEZE MIX REWRITES THE ARENA'S REGION 7 (THE TRACK-8
+BLOCK OF BOTH BANKS) EVERY FRAME, FROM STAGING THE TAP CHECK DID NOT
+ZERO.** The producer's t7 and MASTER read arena region 7; the stock frame
+routine's mix writes it from its own staging at 0x800039a0/0x80003a40
+every frame (byte stores at pc 0x400035c2, 96 a frame; halfword stores at
+0x4000375e/0x40003764, 32 each; read back at 0x40003738). A gate that
+pokes region 7 full of tap identities sees them overwritten before the
+producer reads them, so the wire's t7/MASTER channels carry the mix's
+values, not the poked taps, and the tap-identity check reports every src-7
+position wrong. Fix: poke region 7 AND the staging zero — zero in, zero
+out — and expect zero on the src-7 wire positions; tracks 0-6 keep full
+tap identity. Cost: verify_usb's tap check failed until the overwrite was
+measured (the watch told us exactly who writes the block). Rule: before a
+poked-input check, ask what else in the frame writes the same block; the
+write log answers it.
+
+<a name="trap-post-cs1"></a>
+
+### A gate that models a setting must boot that setting, and an empty run must report, not crash
+
+**A GATE THAT MODELS A SETTING MUST BOOT THAT SETTING, AND AN EMPTY RUN
+MUST REPORT, NOT CRASH.** verify_usb_post models TRACKS POST, but the
+image under test (octabam-bus) resolves TRACKS PRE, and the gate's session
+booted no CS1 early block — the producer never runs the POST path, so
+post_state is never written, every frame's state is empty, `blocks` comes
+out empty, and the SUM line crashed on `min()` of no diffs (a ValueError
+traceback, which also hid the real failure: the RUN line never printed).
+Two defects, both fixed: (1) the session boots a CS1 block holding
+TRACKS=2 via `--cs1-in` (cs1_block from verify_usb, the same mechanism
+the runtime rows already used — the mechanism existed and the gate just
+was not using it); (2) an empty `blocks` reports the producer/MAIN/state
+frame counts and fails the RUN line instead of crashing. Rule: a gate's
+emulated session serves the image's resolved settings unless it boots an
+early block; when a prerequisite watch captures nothing, the gate must
+say which one, not die in analysis.
+
+<a name="trap-bench-socket"></a>
+
+### The bench socket is non-blocking: writeSocket dropped the rest of a large reply on EAGAIN
+
+**THE BENCH SOCKET IS NON-BLOCKING: WRITESOCKET DROPPED THE REST OF A
+LARGE REPLY ON EAGAIN.** A `writes` reply (449,543 records here) exceeds
+the socket send buffer; `write()` returns EAGAIN and the old loop broke,
+truncating the reply the gate then parsed. Fix: on EAGAIN/EWOULDBLOCK/
+EINTR poll POLLOUT and continue (tools/emu/ot_emu/usb.cpp). Also: Emu.cmd
+logs `r[:300]` — that truncation is display-only, the returned reply is
+full; a short line in the port log is not a short reply. Rule: a socket
+write loop that breaks on `n <= 0` truncates under load; poll POLLOUT.
+
 ## Traps on the ColdFire / DRAM side (the platform work, 9–10 Sep 2026)
 
 <a name="trap-watch-alias"></a>
@@ -959,3 +1061,74 @@ before calling the FX draw callback. `verify_plocksp2` now compares UART
 LCD pixels with normal-value references, exercises reholding without a
 knob turn, and checks the other windows. A lock-byte assertion alone
 cannot establish that a user can see the edit.
+
+<a name="trap-movem-sp"></a>
+
+### `moveml %sp@` is the mode-2 form: it stores at sp and leaves sp unchanged
+
+**`MOVEML %SP@` IS THE MODE-2 FORM: IT STORES AT SP AND LEAVES SP
+UNCHANGED — A SAVE/RESTORE PAIR WRITES OVER THE CALLER'S LIVE FRAME.**
+GNU as encodes `%sp@` (address-register indirect) as mode 2, no
+pre-decrement, so `moveml %d0-%d7/%a0-%a2,%sp@` stores the 44 bytes AT
+sp: [sp+12] is the caller's return address, clobbered by d3's slot, and
+the restore reads the same wrong place. The four cfgsel responder stubs
+(usbaudio.s) saved registers this way across the cfgsel re-run
+(usb_cfg_ready 0: brain, block not valid yet) and corrupted the
+control-transfer handler's frame. The fix is the module's lea-framed
+idiom (usbmidi_rx.s): `lea %sp@(-44),%sp` before the moveml pair and
+`lea %sp@(44),%sp` after — the movem writes into the reserved space and
+sp round-trips. verify_usb's runtime rows exercise cfgsel with the block
+invalid (the brain rows) and valid. Rule: a register-save movem through
+sp needs either `%sp@-`/`%sp@+` or the lea frame; `%sp@` alone is a write
+over the live frame.
+
+<a name="trap-cfgsel-nch"></a>
+
+### cfgsel served one MAIN and one CUE short of the declared channel count
+
+**CFGSEL SERVED ONE MAIN AND ONE CUE SHORT OF THE DECLARED CHANNEL
+COUNT.** The sum over the six settings added usb_main and usb_cue ONCE
+each, so nch = 16 × TRACKS + MAIN + CUE + 2 × MASTER: the 20-channel
+combo (TRACKS MAIN CUE) served 18 channels' worth of frame bytes while
+AS_GENERAL declared 20, and the 22-channel combo 20. usb_nch is the single
+source for the frame bytes (nch × 4), the high-speed cap and step
+(≤ 20 channels polls at 250 µs, 22 at 125 µs), and the interface set, so
+the descriptor shape and the frame loop disagreed on every channel-count
+dependent word. Fix: nch = 16 × TRACKS + 2 × (MAIN + CUE + MASTER).
+verify_usb's runtime rows pin the served geometry per row (geom), the
+22-channel row the bInterval-1 endpoint. Rule: when a sum over the six
+settings feeds descriptors AND a frame loop, the per-setting factor is the
+one thing every consumer must agree on — check each term against the
+descriptor it builds.
+
+<a name="trap-producer-stride"></a>
+
+### At .Lf_nomaster the branch was inverted: TRACKS OFF advanced 24 bytes of an 88-byte slot
+
+**AT .LF_NOMASTER THE BRANCH WAS INVERTED: TRACKS OFF ADVANCED 24 BYTES
+OF AN 88-BYTE SLOT.** The slot is the tracks field (64 bytes, written
+only when trk != 0, through %a3@+ stores that advance a3 as they go) plus
+the rest (24: MAIN/CUE/MASTER). trk != 0: a3 already sits at +64 from the
+stores, so the walk adds the rest. trk == 0: nothing advanced a3, so the
+walk must add 64 + 24. The old `beqs 2f` skipped the 64-byte lea exactly
+when nothing had been written, landing every following frame's ring
+writes 64 bytes early — tap identity garbage across the whole stream. Fix:
+`bnes 2f`. Related, in the same producer: TRACKS OFF fell through into
+PRE's bounds/gain pointer setup; the early return is `beq.w 7f`. verify_usb's
+tap-identity check and verify_usb_post's per-frame ring reads both pin the
+slot layout. Rule: a conditional slot advance is a walk of WHAT WAS
+WRITTEN — the branch condition must name the write, not the setting.
+
+<a name="trap-watchmem"></a>
+
+### `--watch-mem` is one string: a second flag replaces the first
+
+**`--WATCH-MEM` IS ONE STRING: A SECOND FLAG REPLACES THE FIRST.** The
+argument parser stores the flag's value into one slot
+(`watchMem = _argv[++i]`, tools/emu/ot_emu/main.cpp), and Rtos::watchMem
+only ever adds ranges — nothing removes one. A batch run passing
+`--watch-mem` twice silently watches only the last range, and the gate
+reports on a range it never watched. Rule: one comma-joined
+`--watch-mem addr,len;addr,len` argument; when a watch captures nothing,
+check what the command line actually watched before suspecting the
+runtime.

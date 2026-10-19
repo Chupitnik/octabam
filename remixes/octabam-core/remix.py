@@ -24,6 +24,8 @@ REMIX = Remix(
     doc="The core ColdFire modules on the 14 stock effects, with LOFI AMF FIX.",
     modules=CORE + ("LOFI AMF FIX",) + STOCK14,
     fallback="NONE",
-    settings={("octabam.usb", "LAYOUT"): "MAIN CUE", ("octabam.usb", "INPUTS"): "OFF",
+    settings={("octabam.usb", "TRACKS"): "PRE", ("octabam.usb", "MAIN"): 1,
+              ("octabam.usb", "CUE"): 1, ("octabam.usb", "MASTER"): 0,
+              ("octabam.usb", "IN"): Pin("OFF"),
               ("kyoti.mute-modes", "PLACE"): Pin("DRAM")},
 )

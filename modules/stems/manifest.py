@@ -68,7 +68,7 @@ STOCK_SLICE = pathlib.Path(__file__).resolve().parents[2] / "out/raw/section_3_M
 GTAB_OFF, GTAB_LEN = 0x400EA18A - 0x40000400, 258 * 3
 
 
-def gtab_inc(modules):
+def gtab_inc(modules, remix):
     """remix.inc for stems.s: the label stems_gtab and the table's bytes."""
     return ("| remix.inc -- STEM REC's copy of core 0's gain table\n"
             "        .global stems_gtab\n"

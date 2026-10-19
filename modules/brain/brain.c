@@ -37,6 +37,8 @@ extern const u32 brain_fx_n;
  * 0xff ends it (modules/mode-defaults/manifest.py table_inc) */
 extern u8 *const brain_modedef;		/* MODEDEF_TABLE or 0 (hooks.s) */
 #define MODEDEF_TABLE brain_modedef
+extern u8 *const brain_cs1_early;	/* CS1_EARLY_BASE (hooks.s) */
+#define CS1_EARLY_BASE brain_cs1_early
 
 #define F_OPEN   ((int (*)(void *, const char *, const char *, void *, u32))0x40016864)
 #define F_READ   ((int (*)(void *, void *, u32))0x40016564)
@@ -343,6 +345,7 @@ struct set_ent {
 	u8 id_len, type, apply, nlabels;	/* type 1 Binary, 2 Option, 3 Number */
 	u16 key, step;
 	int min, max, def;
+	u32 cs1_off;				/* the value's CS1 address when early, 0 otherwise (settings_inc) */
 	const char *const *labels;
 	const char *name, *group;
 	u32 scope;				/* 0 CARD (card.work), 1 PROJECT (the project's brain.work) */
@@ -730,6 +733,7 @@ static u8 pset_have;
 static u32 def_sig[MAX_FX], pset_sig;
 static u32 pairs_sig(const u8 *pay, u32 from, u32 plen);
 static void cache_defaults(int have);
+static void write_early_block(void);
 
 static void load_card(void)
 {
@@ -737,6 +741,7 @@ static void load_card(void)
 	int st = pair_load("/BRAIN/card.work", "/BRAIN/card.strd", &n);
 	brain_counts[C_STATE] = (u32)st;
 	load_settings(st == 1 || st == 2, 0);
+	write_early_block();		/* CS1 mirrors the table after every load */
 	cache_templates(st == 1 || st == 2);
 	cache_defaults(st == 1 || st == 2);
 	if ((st == 1 || st == 2) && brain_v_octabam_brain_2)
@@ -1144,11 +1149,46 @@ static int write_set_file(u32 scope, int project)
 	return write_store(w, scope ? 2 : 0, at, kept) < 0 ? 4 : 0;
 }
 
+/* The CS1 early block (BRAIN.md section 6.4): at CS1_EARLY_BASE a 4-byte
+ * header (magic 0xea, version 1, the 16-bit sum of the value bytes), then
+ * each early setting's value at its cs1_off (type 1/2: one byte; type 3:
+ * two, big-endian). The sum is over the value bytes of every early entry,
+ * so the reader (the usb unit's cfgsel) checks the same sum over the table
+ * its include emits; the order does not matter, addition is commutative. */
+#define EARLY_MAGIC 0xea
+#define EARLY_VER   1
+
+static void write_early_block(void)
+{
+	volatile u8 *b = CS1_EARLY_BASE;
+	u32 sum = 0;
+	for (u32 i = 0; i < brain_set_n && i < MAX_SET; i++) {
+		const struct set_ent *e = &brain_set[i];
+		if (e->apply != 2 || !e->cs1_off)
+			continue;
+		volatile u8 *p = (volatile u8 *)e->cs1_off;
+		if (e->type == 3) {
+			p[0] = (u8)(brain_values[i] >> 8);
+			p[1] = (u8)brain_values[i];
+			sum += p[0] + p[1];
+		} else {
+			p[0] = (u8)brain_values[i];
+			sum += p[0];
+		}
+	}
+	b[0] = EARLY_MAGIC;
+	b[1] = EARLY_VER;
+	b[2] = (u8)(sum >> 8);
+	b[3] = (u8)sum;
+}
+
 /* SETTINGS edit: card.work, and the project's brain.work when a PROJECT
  * setting exists and a project is named. */
 static int write_settings(void)
 {
 	int err = write_set_file(0, 0), proj = 0;
+	if (!err)
+		write_early_block();		/* CS1 mirrors the table (BRAIN.md 6.4) */
 	for (u32 e = 0; e < brain_set_n && e < MAX_SET; e++)
 		proj |= in_scope(e, 1);
 	if (proj) {
@@ -4410,6 +4450,67 @@ static void set_value(u32 i)
 	}
 }
 
+/* The usb module's pair rule: IN needs an output stream beside it (EP3 IN
+ * is its implicit-feedback source). A move of entry i to value v is
+ * refused when it leaves IN not OFF while TRACKS, MAIN, CUE and MASTER are
+ * all off. The check is on the labels ("OFF") and the binary values (0),
+ * not the indexes, which the store's lock file owns; no usb module in the
+ * remix, no rule. */
+static int label_is(const struct set_ent *e, int v, const char *s)
+{
+	const char *l = (u32)v < e->nlabels ? e->labels[v] : 0;
+	if (!l)
+		return 0;
+	while (*s && *l == *s) {
+		l++;
+		s++;
+	}
+	return !*s && !*l;
+}
+
+/* A usb setting is off at value v: 0 for the Binary ones (MAIN, CUE,
+ * MASTER), the "OFF" label for the Options (TRACKS, IN). */
+static int usb_off(const struct set_ent *e, int v)
+{
+	if (e->type == 1)
+		return v == 0;
+	return label_is(e, v, "OFF");
+}
+
+static int usb_pair_ok(u32 i, int v)
+{
+	int tr = -1, ma = -1, cu = -1, ms = -1, in = -1;
+	for (u32 k = 0; k < brain_set_n && k < MAX_SET; k++) {
+		const struct set_ent *e = &brain_set[k];
+		if (!same_id(e->id, e->id_len, "octabam.usb", 11))
+			continue;
+		if (e->key == 1)
+			tr = (int)k;
+		else if (e->key == 2)
+			ma = (int)k;
+		else if (e->key == 3)
+			cu = (int)k;
+		else if (e->key == 4)
+			ms = (int)k;
+		else if (e->key == 5)
+			in = (int)k;
+	}
+	if (in < 0)
+		return 1;
+	int iv = i == (u32)in ? v : brain_values[in];
+	if (usb_off(&brain_set[in], iv))
+		return 1;
+	if (tr >= 0 && !usb_off(&brain_set[tr], i == (u32)tr ? v : brain_values[tr]))
+		return 1;
+	if (ma >= 0 && !usb_off(&brain_set[ma], i == (u32)ma ? v : brain_values[ma]))
+		return 1;
+	if (cu >= 0 && !usb_off(&brain_set[cu], i == (u32)cu ? v : brain_values[cu]))
+		return 1;
+	if (ms >= 0 && !usb_off(&brain_set[ms], i == (u32)ms ? v : brain_values[ms]))
+		return 1;
+	return 0;
+}
+
 /* LEFT and RIGHT: one step down or up, stopping at the ends */
 static void set_move(u32 i, int dir)
 {
@@ -4419,6 +4520,12 @@ static void set_move(u32 i, int dir)
 		v = e->min;
 	if (v > e->max)
 		v = e->max;
+	if (!usb_pair_ok(i, v)) {
+		msg[0] = "IN NEEDS AN";
+		msg[1] = "OUTPUT STREAM";
+		POPUP("USB SETTINGS", 2, msg, 0, 0);
+		return;
+	}
 	brain_values[i] = v;
 	brain_post_settings();
 }
@@ -4429,6 +4536,12 @@ static void set_step(u32 i)
 	int v = brain_values[i] + (e->type == 3 ? e->step : 1);
 	if (v > e->max)
 		v = e->min;
+	if (!usb_pair_ok(i, v)) {
+		msg[0] = "IN NEEDS AN";
+		msg[1] = "OUTPUT STREAM";
+		POPUP("USB SETTINGS", 2, msg, 0, 0);
+		return;
+	}
 	brain_values[i] = v;
 	brain_post_settings();
 }
