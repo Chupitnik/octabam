@@ -4477,6 +4477,13 @@ static int usb_off(const struct set_ent *e, int v)
 	return label_is(e, v, "OFF");
 }
 
+/* the setting keys of modules/usb/manifest.py */
+#define USB_KEY_TRACKS 7
+#define USB_KEY_MAIN 8
+#define USB_KEY_CUE 9
+#define USB_KEY_MASTER 10
+#define USB_KEY_IN 11
+
 static int usb_pair_ok(u32 i, int v)
 {
 	int tr = -1, ma = -1, cu = -1, ms = -1, in = -1;
@@ -4484,15 +4491,15 @@ static int usb_pair_ok(u32 i, int v)
 		const struct set_ent *e = &brain_set[k];
 		if (!same_id(e->id, e->id_len, "octabam.usb", 11))
 			continue;
-		if (e->key == 1)
+		if (e->key == USB_KEY_TRACKS)
 			tr = (int)k;
-		else if (e->key == 2)
+		else if (e->key == USB_KEY_MAIN)
 			ma = (int)k;
-		else if (e->key == 3)
+		else if (e->key == USB_KEY_CUE)
 			cu = (int)k;
-		else if (e->key == 4)
+		else if (e->key == USB_KEY_MASTER)
 			ms = (int)k;
-		else if (e->key == 5)
+		else if (e->key == USB_KEY_IN)
 			in = (int)k;
 	}
 	if (in < 0)

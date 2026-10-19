@@ -570,6 +570,36 @@ def main():
     check(f"settings: YES on LOG > MIDI > MIDI LOG writes the octabam.brain settings record, MIDI LOG on, APPLY DFLTS on, "
           f"EVENT LOG at its default (on), the unknown key kept  {got}", got == {1: 1, 2: 1, 3: 1, 99: 1})
 
+    # ---- USB's pair rule from the panel: IN is refused while TRACKS, MAIN, CUE and MASTER are off ----
+    # BRAIN > SETTINGS: TRACKS PRE -> POST -> OFF, MAIN off, CUE off, then YES on IN. The rule
+    # compares the usb entries' keys (modules/usb/manifest.py); with the wrong keys it found none
+    # and IN went to AB (19 Oct 2026, usb_pair_ok looked for keys 1-5, the settings are 7-11).
+    if "USB" in remix.modules:
+        uc, uafter, ulog = OUT / "menu_usb.img", OUT / "menu_usb_after.img", OUT / "menu_usb.txt"
+        r = subprocess.run([str(PY), str(ROOT / "tools/emu/ot_emu/stage_card.py"), str(copy), a.set_name, a.name,
+                            "--tree", str(OUT / "tree_menu_usb"), "--out", str(uc)], cwd=ROOT, capture_output=True, text=True)
+        if r.returncode:
+            sys.exit(f"verify_brain: stage_card failed:\n{r.stdout[-800:]}{r.stderr[-800:]}")
+        keys = ([("no", 400), ("proj", 1200)] + [("down", 400)] * 4 + [("right", 800)] + [("down", 400)] * 2 + [("yes", 800)]
+                + [("down", 300)] * 6 + [("yes", 500)] * 2           # TRACKS: PRE, POST, OFF
+                + [("up", 300)] * 3 + [("yes", 500)]                 # MAIN off
+                + [("up", 300)] * 2 + [("yes", 500)]                 # CUE off
+                + [("down", 300), ("yes", 1500)])                    # IN: refused
+        (OUT / "menu_usb.script").write_text(keys_script(keys))
+        cmd = [EMU, "--image", image, "--card", uc, "--set", a.set_name, "--project", a.name, "--load-ms", "90000",
+               "--mkii", "--live-script", OUT / "menu_usb.script", "--card-out", uafter]
+        with open(ulog, "w") as fh:
+            r = subprocess.run(list(map(str, cmd)), cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT)
+        if r.returncode or "ended on quit" not in ulog.read_text():
+            sys.exit(f"verify_brain: the menu_usb run did not finish -- {ulog}")
+        files = emu_card.extract_image(uafter.read_bytes())
+        mw = next((v for k, v in files.items() if k.upper().endswith("BRAIN/CARD.WORK")), None)
+        urec = [r for r in brainfile.parse(mw).records
+                if r.kind == brainfile.SETTINGS and r.store_id == "octabam.usb"] if mw else []
+        got = {v.key: v.data[0] for v in urec[0].values()} if len(urec) == 1 else {}
+        check(f"settings: USB's IN is refused while TRACKS, MAIN and CUE are OFF (record, key: value {got}; want TRACKS 0, MAIN 0, CUE 0, IN 0)",
+              got.get(7) == 0 and got.get(8) == 0 and got.get(9) == 0 and got.get(11) == 0)
+
     # ---- templates: SAVE from the shortcut; LOAD of a seeded template -------
     # Run 1: T1's FX1 page; hold FX1 + FUNC (the shortcut), SAVE TEMPLATE:
     # card.work holds one template record of the effect, equal to the page.

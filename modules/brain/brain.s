@@ -3248,20 +3248,20 @@ usb_pair_ok:
 	cmp.l #.LC30+11,%a0
 	jne .L656
 	mvz.w 8(%a2),%d0
-	mov3q.l #1,%d1
+	mov3q.l #7,%d1
 	cmp.l %d0,%d1
 	jeq .L708
-	mov3q.l #2,%d1
+	moveq #8,%d1
 	cmp.l %d0,%d1
 	jeq .L709
-	mov3q.l #3,%d1
+	moveq #9,%d1
 	cmp.l %d0,%d1
 	jeq .L710
-	mov3q.l #4,%d1
+	moveq #10,%d1
 	cmp.l %d0,%d1
 	jeq .L711
-	subq.l #5,%d0
-	tst.l %d0
+	moveq #11,%d1
+	cmp.l %d0,%d1
 	jeq .L712
 .L655:
 	addq.l #1,%d2
