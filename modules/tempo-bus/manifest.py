@@ -42,7 +42,7 @@ ROW_ORDER = {
 }
 
 
-def table_inc(modules):
+def table_inc(modules, remix):
     """ENGIDS (the two FX2 ids), NAMED (per box, a bit per slot the engine's
     manifest names) and two macros, NAMETAB_0 / NAMETAB_1: each engine's
     twelve 6-byte names, labelled NAMES_<fx2 id>. helpers.s places the

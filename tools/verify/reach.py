@@ -391,7 +391,7 @@ def recipe_scripts(make_text, target):
 def variant_gates(m):
     """Every gate the module declares, in every build variant: a variant
     (schema.Module.variant) can name gates the unbound module does not
-    carry (USB's verify_usb_post and verify_usb_align, by LAYOUT). Until
+    carry (USB's verify_usb_post and verify_usb_align, by output combo). Until
     12 Oct 2026 a change to such a gate reached nothing. Each Apply.BUILD
     Option takes every label and a Binary 0 and 1; any other kind keeps
     its default. A combination the variant refuses (the build refuses it

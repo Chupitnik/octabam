@@ -7,6 +7,108 @@ settings are `Apply.BUILD` — a LAYOUT/INPUTS change takes effect at the
 next build, not on the unit. Sam's reaction to that ("that's crazy") was
 the phase confusion, not a design change.
 
+## 16 Oct 2026: the gate failures, resolved
+
+Worktree `/Users/sambanks/git/octabam/.claude/worktrees/usb-module`, branch
+`usb-runtime`. Each gate passed on its own, octabam-bus unless named:
+
+- verify_brain: the store writes one SETTINGS record per module (usb's,
+  keys 7-12, beside brain's); the check reads brain's record.
+- verify_usb_align, verify_usb_post: the ring slot is 88 B (tracks 64,
+  MAIN, CUE, MASTER); the harness and the gate parsed 80.
+- verify_loadmeter: the publish block is `x:$206 + $100` (stock's banks
+  alternate $2600/$4600, A P:$54/$64; the literal $2700 was right every
+  other frame: good 43178 / bad 43179). Words paid by two no-op
+  `and #>$ffffff` and the OTOP lookup through `x:(r1+n1)`; payload A FREE
+  3, the LM_BURN builds fit.
+- verify_usb_in (usb-io-tracks-main-cue-ab and the octabam-bus runtime
+  rows): `in_slot` had lost `lsll #5` (packet buffers 3 B apart); the
+  inject reads `r6 + $320` (the literal $6320 read 0, a literal $2320 is
+  one bank); one 24-bit word per channel cannot cross the 16-bit host port
+  (hi/lo halfwords, two passes); `brclr` displacements written as numbers
+  (TRAPS trap-brclr); in_build reads pair frames at 8 B; the runtime rows
+  boot CS1 from `cs1_boot(image)` (a zero CS1 sent input gain 0, TRAPS
+  trap-cs1-zero). The merged commit 1915559f, built in a second worktree,
+  passed the same gate and split the branch's image from the tools.
+
+### Where it stands (end of the 16 Oct session)
+
+Nothing is committed past 6dc32fbd; 28 paths are modified or staged in this
+worktree (`git status --short`). `make check REMIX=octabam-bus` was running
+detached (log `/tmp/check_bus2.log`, ends with a `check=<rc>` line): 1,285
+checks passed and 0 failed up to the LOAD METER gate, which was running.
+Gates not yet seen green in that run: the loadmeter tail, then the final
+`check=` line. If the log is gone, rerun it (about 2 h).
+
+Fixes made after the first draft of this section, all in the tree:
+- `tools/remix/selftest.py`: `usb-out-tracks-main-cue` is expected to give
+  up PLATE REV (its remix harvests it for USB's inject).
+- `tools/verify/verify_usb.py`: `cs1_boot(image)` and the `template`
+  argument of `cs1_block` (a zero CS1 booted stock's input gain as 0).
+- `tools/verify/verify_usb_in.py`: runtime rows use `cs1_boot`; a remix
+  with no CS1 entries skips them.
+- `modules/usb/usbaudio_in.s`: `in_slot` restored `lsll #5`; two-pass
+  `in_build`; per-IN transfer length (192 B pair, 320 B ABCD).
+- `modules/usb/rx_inject.asm`: two passes, `brclr` displacements numeric.
+- `modules/load-meter/dsp_meter.asm`: publish block `x:$206 + $100`.
+- Traps written: trap-brclr, trap-cs1-zero, trap-in-slot (TRAPS.md and
+  AGENTS.md).
+
+### RESOLVED: octabam-core and the inject (Sam chose option 1, 16 Oct)
+
+`make reach` failed `octabam-core:image` ("nothing is harvested, so there
+is nowhere to place USB"): core keeps all 14 effects and has no donor
+region, and no effect may leave (old projects use them). Fix:
+`Module.dsp_if(fixed)` (schema.py; applied in registry.bound()) drops USB's
+DSP section when IN is fixed OFF in the image (pinned, Apply.BUILD, or a
+remix without BRAIN); `octabam-core` pins `IN` OFF; `cfgsel` takes a
+pinned setting's built-in value (descriptors.py emits `CS1_USB_<n> = -1`,
+usbaudio.s `CFG_READ`); `verify_usb_in` skips the runtime rows when IN has
+no CS1 entry. octabam-core builds with no DSP region placed. IN stays
+switchable on the unit in octabam-bus and octabam-inserts.
+
+Remaining, in order:
+1. `make reach RUN=1 KEEP=1` on HEAD (octabam-core was red before the dsp_if fix; inserts not yet seen).
+2. `make docs` and `verify_docs` (remixes/test/README.md may be stale).
+3. Commit (end messages with `Co-Authored-By: Claude Code <noreply@anthropic.com>`),
+   rebase onto origin/main, `make reach RUN=1 KEEP=1`.
+4. `scripts/refhash.sh check` (build_bus.py `_RT_SYMS` is a build change;
+   re-save only after the artifacts are shown identical).
+5. PR: list each command and result; state the 22-channel bInterval 1
+   choice and the LOAD METER payload A margin (3 words free on octabam-bus).
+   Body ends with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
+6. Merge (shoot-first); Sam hardware-tests; CHANGELOG entry only after a
+   flashed image.
+
+Rules: this worktree only; verifiers run in sequence (shared
+`out/platform`); never pkill by pattern; long runs detached.
+
+## State (16 Oct 2026): phases 2–4 landed on this branch
+
+Sam's operative directive became "power through the phases, hardware test
+at the end", so the redesign (docs/proposals/USB.md section 8) is
+implemented here, not by another agent:
+
+- Six NEXT_BOOT, early settings (manifest keys 7–12): TRACKS
+  OFF/PRE/POST (default PRE), MAIN (default on), CUE (default on),
+  MASTER (default off), IN OFF/AB/CD/ABCD (default off), MIDI (default
+  on). Pair rule: IN ≠ OFF requires TRACKS ≠ OFF or MAIN or CUE or
+  MASTER (brain.c usb_pair_ok; cfgsel forces IN off on a bad block).
+- cfgsel reads the CS1 early block at the USB controller init, so the
+  settings stand from the first enumeration; the served channel count is
+  16 × TRACKS(≠ OFF) + 2 × (MAIN + CUE + MASTER), 22 at most at
+  bInterval 1 (125 µs).
+- Runtime fixes: the producer's .Lf_nomaster stride (TRACKS OFF walked
+  24 of 88 bytes), TRACKS OFF's early return, cfgsel's MAIN/CUE count,
+  the four responder stubs' moveml frame (mode-2 trap), MASTER reading
+  arena region 7.
+- Gates reworked for the six-setting schema: verify_usb (16 runtime rows
+  via the CS1 block; the tap check is region-7-aware), verify_usb_in
+  (runtime rows), verify_usb_post (boots TRACKS POST via the CS1 block).
+- 16 Oct gate fixes: brain.s regenerated (real drift), the align remix
+  harvests PLATE REV, verify_usb_in encodes Option indices,
+  verify_usb_post's CS1 boot + empty-run report.
+
 ## Branch
 
 `usb-module` in worktree `.claude/worktrees/usb-module`.
@@ -45,6 +147,9 @@ Measured:
   BUILD=0 + LAYOUT OFF — pass;
   BUILD=1 + MAIN CUE — pass;
   BUILD=79 + MAIN CUE — pass.
+- 16 Oct, `make check REMIX=octabam-bus` on the redesign tree: LOAD METER
+  still fails (publish: good 43178, bad 43179; otop: fewest 0 samples)
+  and the gate's emu run hangs at 99% CPU (killed by PID after 6:56).
 - The tag changes the server panel names: `FULLNAME["REVERB SERVER"] =
   b"BusVerb" + BUILD_TAG`, same for BusDelay (build_bus.py:330–334).
   BUILD=0 vs BUILD=1 images differ ONLY in: the loader's payload table in

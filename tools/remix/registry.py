@@ -320,12 +320,21 @@ def bound(r) -> dict[str, object]:
         raise SystemExit(f"remix {r.name!r}: " + "; ".join(bad))
     vals = brain.build_values(r, mods)
     knobs = brain.defaults_by_module(r, mods)
+    sel = set(r.modules)
+    fixed: dict[str, dict[str, object]] = {}
+    for res, st in brain.resolve(r, mods):
+        if not res.runtime:
+            fixed.setdefault(res.module, {})[res.name] = (
+                st.kind.labels[res.value] if hasattr(st.kind, "labels") else res.value)
     out = {}
     for k, m in mods.items():
         if k in vals:
             m = m.bind(vals[k])
         if k in knobs:
             m = dataclasses.replace(m, **brain.apply_defaults(m, knobs[k]))
+        if m.dsp_if is not None and m.dsp is not None and k in sel:
+            if not m.dsp_if(fixed.get(k, {})):
+                m = dataclasses.replace(m, dsp=None)
         out[k] = m
     return out
 

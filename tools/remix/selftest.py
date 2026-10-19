@@ -901,7 +901,7 @@ def main():
     _rig = ("FILTER", "SPATIALIZER", "EQUALIZER", "PHASER", "FLANGER", "CHORUS",
                  "PLATE REV", "SPRING REV", "DARK REV", "COMPRESSOR", "LO-FI",
                  "DJ EQ", "COMB FILTER")
-    _want = {"midi-loopback": (), "midi-scales": (), "mods": (), "ata-write-guard": (), "octabam-core": (), "usb-out-tracks-main-cue": (), "usb-out-tracks": (), "usb-out-master": (),
+    _want = {"midi-loopback": (), "midi-scales": (), "mods": (), "ata-write-guard": (), "octabam-core": (), "usb-out-tracks-main-cue": ("PLATE REV",), "usb-out-tracks": (), "usb-out-master": (),
              "usb-out-tracks-post": (),
              "remix-switch": (), "remix-switch-trace": (),   # REMIX SWITCH's park in dead vectors, no region words
              "usb-out-main-cue": (), "usb-out-main": (), "usb-midi": (), "stems": (),     # stock effects + ColdFire modules, no DSP words
@@ -922,6 +922,7 @@ def main():
              "cfmeter": ("DARK REV",), "cfmeter-port": ("DARK REV",), "cfmeter-post": ("DARK REV",), "cfmeter-tracks": ("DARK REV",),   # the readout insert's words
              "waveload": ("DARK REV",), "waveload-port": ("DARK REV",),   # CF METER's readout insert, as cfmeter
              "wave": ("SPRING REV", "DARK REV"),   # WAVE runs in their words
+             "usb-out-tracks-main-cue": ("PLATE REV",),   # USB's inject is placed in its words (the remix lists 13)
              "transient": ("PLATE REV",),   # TRANSIENT runs in its words; the other 13 stay
              "lofi2": ("PLATE REV", "SPRING REV"),   # LOFI2's 1,372 words with its table; PLATE alone is 594
              "testgen": ("PLATE REV",),     # TESTGEN runs in its words; the other 13 stay

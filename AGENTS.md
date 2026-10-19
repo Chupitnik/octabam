@@ -159,6 +159,12 @@ moment it costs real work, and add its line here.
 - [Flash cycles are expensive](docs/contributing/TRAPS.md#trap-flash) — render locally and measure first.
 - [The unit misbehaves](docs/contributing/TRAPS.md#trap-failure-modes) — `docs/contributing/FAILURE_MODES.md` first; add new failures the moment they are seen.
 - [A persistent slot init doesn't clear holds the previous effect's state](docs/contributing/TRAPS.md#trap-dirty-state) — zero every slot the sample loop reads; `verify_dirtystate` refuses.
+- [`dsp_asm` puts a label's absolute address in `brclr`'s displacement word](docs/contributing/TRAPS.md#trap-brclr) — write the displacement as a number; the roundtrip cannot see it.
+- [A zero CS1 with a valid settings tail boots stock's settings as zeros](docs/contributing/TRAPS.md#trap-cs1-zero) — lay the early block over `cs1_boot(image)`.
+- [`in_slot` lost its `lsll #5`: four packet buffers 3 bytes apart](docs/contributing/TRAPS.md#trap-in-slot) — a gate that passed and now fails: run the old commit under today's tools first.
+- [The stock echo-freeze mix rewrites arena region 7 every frame](docs/contributing/TRAPS.md#trap-region7) — poke region 7 AND its staging zero in a tap check; expect zero on src-7.
+- [A gate that models a setting must boot that setting](docs/contributing/TRAPS.md#trap-post-cs1) — `--cs1-in` the block; an empty run reports which watch was empty, never crashes.
+- [The bench socket drops a large reply on EAGAIN](docs/contributing/TRAPS.md#trap-bench-socket) — poll POLLOUT in the write loop; a short line in the port log is display-only.
 
 **ColdFire / DRAM side**
 
@@ -179,6 +185,10 @@ moment it costs real work, and add its line here.
 - [The port ran under Rosetta and nothing said so](docs/contributing/TRAPS.md#trap-rosetta) — `file out/emu/ot_emu` is the check.
 - [The report is API and prints paths](docs/contributing/TRAPS.md#trap-report-api) — re-save refhash only after the artifacts are shown identical.
 - [Same-named labels across units resolve by nm table order](docs/contributing/TRAPS.md#trap-nm-order) — per-unit tables; a ref naming a symbol its unit does not define is refused.
+- [`moveml %sp@` is the mode-2 form and stores at sp unchanged](docs/contributing/TRAPS.md#trap-movem-sp) — the lea-framed save/restore idiom, or `%sp@-`/`%sp@+`.
+- [cfgsel served one MAIN and one CUE short of the declared nch](docs/contributing/TRAPS.md#trap-cfgsel-nch) — 16 × TRACKS + 2 × (MAIN + CUE + MASTER); every consumer agrees on usb_nch.
+- [At .Lf_nomaster the branch was inverted](docs/contributing/TRAPS.md#trap-producer-stride) — the slot advance walks what was WRITTEN: 24 with tracks, 88 without.
+- [`--watch-mem` is one string](docs/contributing/TRAPS.md#trap-watchmem) — a second flag replaces the first; comma-join the ranges.
 - [A completion IRQ in the first-sector write window polls DRQ on the stale count](docs/contributing/TRAPS.md#trap-first-sector-irq) — the guard keeps the sector and its bookkeeping inside the existing mask; `verify_ata_write` gates it.
 
 ## How claims are written here

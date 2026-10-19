@@ -1188,11 +1188,12 @@ class Linked:
     # unit's), under the loader's labels: prefix every label. Needs the
     # platform (a remix with at least one DRAM unit).
     loader: bool = False
-    # Assembler text generated PER REMIX -- include(modules) -> str, given
-    # the remix's modules by key -- written beside the unit as `remix.inc`
-    # and reachable by `.include "remix.inc"`. A unit whose data depends
-    # on which modules are in the image (mode-defaults' view table) is
-    # otherwise unlinkable: the source cannot know the remix.
+    # Assembler text generated PER REMIX -- include(modules, remix) -> str,
+    # given the remix's modules by key and the remix -- written beside the
+    # unit as `remix.inc` and reachable by `.include "remix.inc"`. A unit
+    # whose data depends on which modules are in the image (mode-defaults'
+    # view table) is otherwise unlinkable: the source cannot know the
+    # remix. The remix is what the layers below it resolve to (brain.py).
     include: object | None = None
     # (name, value) pairs passed to both `m68k-elf-as --defsym` (so
     # `.ifdef NAME` sees them) and `m68k-elf-ld --defsym`, as
@@ -1544,6 +1545,13 @@ class Module:
     # so every reader of `linked`, `dsp`, `detours` or `gates` sees the
     # chosen code without asking (modules/usb is the first).
     variant: object | None = None
+    # CODE THAT THE BUILD DROPS WHEN IT CANNOT BE NEEDED: dsp_if(fixed) ->
+    # bool, given {setting name: value} of the module's settings that are
+    # fixed in the image (Apply.BUILD, pinned, or any setting of a remix
+    # without BRAIN; an Option as its label). False drops the module's DSP
+    # section (registry.bound()). modules/usb places its inject only when IN
+    # could be on.
+    dsp_if: object | None = None
     # The values a bound module was built with ({name: value}); empty on an
     # unbound one. An `include` callable reads them from the selection.
     build_values: Mapping = field(default_factory=dict, hash=False, compare=False)
