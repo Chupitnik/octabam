@@ -3,12 +3,12 @@
 # working tree on every run and runs `make reach RUN=1 KEEP=1`; the bytes are
 # not cached, not uploaded as an artifact and not printed. It runs for pushes
 # to main and for pull requests from this repository, not for fork PRs.
-# Each job is one make target, so a red job reproduces with the same
-# command. `classify` gates each job
-# on whether the diff touches its inputs (tools/verify/ci_paths.py holds
-# the map); it errs toward running: a workflow, Makefile or scripts change
-# runs everything, and `make ci` locally still runs everything.
-name: CI
+# Each job is one make target, so a red job reproduces with the same command.
+# `classify` gates each job on whether the diff touches its inputs
+# (tools/verify/ci_paths.py holds the map); it errs toward running: a
+# workflow, Makefile or scripts change runs everything, and `make ci`
+# locally still runs everything.
+name: ✅ CI
 on:
   pull_request:
   push:
@@ -23,7 +23,7 @@ jobs:
   classify:
     # Which of the jobs below this diff can reach; a skipped job is a grey
     # check, not a pass. No usable diff (workflow_dispatch) -> everything.
-    name: classify
+    name: 🔍 Classify Changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -33,14 +33,19 @@ jobs:
       reach: ${{ steps.map.outputs.reach }}
       site: ${{ steps.map.outputs.site }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
-      - id: map
+
+      - name: 🔍 Detect Changed Paths
+        id: map
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             base="origin/${{ github.base_ref }}"
@@ -54,7 +59,7 @@ jobs:
     # (tools/verify/reach.py), printed and not run. For fork PRs, which do
     # not get the firmware; the PR body lists each with its result from a
     # local run.
-    name: gates the PR reaches (listed)
+    name: 📋 Gates — Listed (Fork PRs)
     needs: classify
     if: >-
       github.event_name == 'pull_request'
@@ -63,20 +68,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
           submodules: true
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
-      - run: make reach BASE=origin/${{ github.base_ref }}
+
+      - name: 📋 List Gates
+        run: make reach BASE=origin/${{ github.base_ref }}
 
   gates:
     # make reach RUN=1 KEEP=1 against the stock 1.40C fetched into this
     # runner. No cache or upload step touches downloads/ or out/.
-    name: gates (make reach RUN=1)
+    name: 🧪 Gates — make reach
     needs: classify
     if: >-
       (github.event_name == 'push'
@@ -88,39 +98,58 @@ jobs:
     env:
       OS_HASH_STRICT: '1'
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
           submodules: true
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
-      - name: m68k-elf toolchain
+
+      - name: 💾 Restore Toolchain Cache
         id: m68k
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.local/m68k-elf
           key: m68k-elf-${{ runner.os }}-${{ hashFiles('scripts/m68k-toolchain.sh') }}
+
       # apt packages, the m68k toolchain (a no-op when restored), then setup.sh
-      - run: |
+      - name: 🚀 Install System Tools and Toolchain
+        run: |
           echo "$HOME/.local/m68k-elf/bin" >> "$GITHUB_PATH"
           scripts/setup-linux.sh
+
       # saved when the toolchain is complete (libgcc is its last install step),
       # also after a later failure; a partial tree would be cached under the key for good
-      - id: m68k-done
+      - name: 🧮 Check Toolchain Complete
+        id: m68k-done
         if: always()
         run: find ~/.local/m68k-elf -name libgcc.a 2>/dev/null | grep -q . && echo complete=true >> "$GITHUB_OUTPUT" || true
-      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+
+      - name: 💾 Save Toolchain Cache
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         if: always() && steps.m68k.outputs.cache-hit != 'true' && steps.m68k-done.outputs.complete == 'true'
         with:
           path: ~/.local/m68k-elf
           key: m68k-elf-${{ runner.os }}-${{ hashFiles('scripts/m68k-toolchain.sh') }}
-      - run: make os
-      - run: make recon
-      - run: pip install uv && make emu-setup
-      - run: make emu-cf
-      - name: make reach
+
+      - name: ⬇️ Fetch Stock OS
+        run: make os
+
+      - name: 🔬 Extract Main OS
+        run: make recon
+
+      - name: 📦 Install Remixer Dependencies
+        run: pip install uv && make emu-setup
+
+      - name: 🏗️ Build ColdFire Port
+        run: make emu-cf
+
+      - name: 🧪 Run Gates
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             base="origin/${{ github.base_ref }}"
@@ -130,7 +159,7 @@ jobs:
           make reach RUN=1 KEEP=1 BASE="$base"
 
   acceptance-runner:
-    name: acceptance runner tests (${{ matrix.os }})
+    name: ✅ Acceptance Runner Tests (${{ matrix.os }})
     needs: classify
     if: needs.classify.outputs.acceptance == 'true'
     runs-on: ${{ matrix.os }}
@@ -140,76 +169,102 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           # the runner tests load the registry, whose manifests read the author submodules (test_check_shards)
           submodules: true
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
-      - run: make test-acceptance
+
+      - name: ✅ Acceptance Runner Tests
+        run: make test-acceptance
 
   docs:
-    name: docs and links
+    name: 📚 Docs and Links
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           # the rendered tables load the registry, whose manifests read the author submodules
           submodules: true
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
+
       # the manual site's pages include the generated reference files, so
       # they must exist before the doclinks scan of the tracked pages
-      - run: python3 tools/site/gen_pages.py
-      - run: make verify-docs
+      - name: 📝 Generate Pages
+        run: python3 tools/site/gen_pages.py
+
+      - name: 🔗 Verify Docs
+        run: make verify-docs
 
   site:
     # The manual site builds with MkDocs shadcn: the generator runs the registry, and
     # mkdocs --strict fails on a bad manifest, a broken link or a broken
     # snippet include. The deploy is the Pages workflow on main; a PR
     # builds without deploying.
-    name: manual site builds
+    name: 🌐 Manual Site Build
     needs: classify
     if: github.event_name == 'pull_request' && needs.classify.outputs.site == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           # the generator loads the registry, whose manifests read the author submodules
           submodules: true
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
-      - run: pip install -r docs/site/requirements.txt
-      - run: python3 tools/site/gen_pages.py
-      - run: mkdocs build --strict --config-file docs/site/mkdocs.yml
+
+      - name: 📦 Install Site Dependencies
+        run: pip install -r docs/site/requirements.txt
+
+      - name: 📝 Generate Pages
+        run: python3 tools/site/gen_pages.py
+
+      - name: 🏗️ Build Site
+        run: mkdocs build --strict --config-file docs/site/mkdocs.yml
 
   web-patches:
     # The web builder's committed patches (docs/site/builder/). Needs no
     # firmware: the manifest must match the patch files, and on main each
     # remix the code has moved past is reported as a warning. The patches are
     # rebuilt from a machine with the user's 1.40C: make webpatch BUILD=N.
-    name: web builder patches
+    name: 🧩 Web Builder Patches
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
           # the staleness check loads the registry, whose manifests read the author submodules
           submodules: true
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
-      - run: |
+
+      - name: 🧩 Check Patch Manifest
+        run: |
           if [ -f docs/site/builder/manifest.json ]; then
             python3 tools/web/stale.py --check
             if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then python3 tools/web/stale.py; fi
@@ -218,7 +273,7 @@ jobs:
           fi
 
   dsp-toolchain:
-    name: dsp56300 + our patch (${{ matrix.os }})
+    name: 🎛️ DSP Toolchain — dsp56300 (${{ matrix.os }})
     needs: classify
     if: needs.classify.outputs.dsp == 'true'
     runs-on: ${{ matrix.os }}
@@ -228,13 +283,16 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: make ci-dsp
+
+      - name: 🎛️ Build and Test dsp56300
+        run: make ci-dsp
 
   coldfire-port:
-    name: ColdFire port unit tests (${{ matrix.os }})
+    name: 🔌 ColdFire Port Unit Tests (${{ matrix.os }})
     needs: classify
     if: needs.classify.outputs.coldfire == 'true'
     runs-on: ${{ matrix.os }}
@@ -244,7 +302,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: 📥 Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: make ci-emu
+
+      - name: 🔌 Build and Test ColdFire Port
+        run: make ci-emu

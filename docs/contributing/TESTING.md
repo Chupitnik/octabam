@@ -636,22 +636,25 @@ project loads (`verify_set`, `verify_tempobus`, `verify_modedefaults`,
 
 ## 11. What GitHub Actions checks
 
-`.github/workflows/ci.yml` runs on every PR, on `main` and by hand, on
-Ubuntu and macOS, with no Elektron bytes (each job is one `make` target;
-`make ci` runs them all locally, unfiltered):
+`.github/workflows/ci.yml` runs on every PR, on `main` and by hand. Each job
+is one `make` target (`make ci` runs them all locally, unfiltered). All jobs
+but `Gates — make reach` need no Elektron bytes; that job downloads the 1.40C
+into the runner each run (section 6) and runs only for pushes to `main` and
+PRs from this repository:
 
 | job | target | proves |
 |---|---|---|
-| classify | `tools/verify/ci_paths.py` on the diff | each job below runs only when the diff touches its inputs (the map is `JOB_PREFIXES` there); a skipped job is a grey check, not a pass. No usable diff (a manual run) and workflow, Makefile and `scripts/` changes run everything; `make ci` locally still runs everything |
-| gates the PR reaches | `make reach` (dry run) | the diff classifies and the branch is rebased |
-| acceptance runner tests | `make test-acceptance` | the runner refuses skipped, failed, incomplete and over-budget evidence; `reach` routes as documented; the shard runner covers the recipe |
-| dsp56300 + our patch | `make ci-dsp` | the vendored DSP emulator at its pin takes our patch, builds, passes upstream's runner; `dsp_asm` emits the one-word displaced move |
-| ColdFire port unit tests | `make ci-emu` | `ot_emu` builds on both hosts (the fork unshare has a macOS and a Linux path) and passes `emac` and `periph` |
-| docs and links | `make verify-docs` | the rendered tables are current, every remix has a README, every link between tracked files resolves |
+| 🔍 Classify Changes | `tools/verify/ci_paths.py` on the diff | each job below runs only when the diff touches its inputs (the map is `JOB_PREFIXES` there); a skipped job is a grey check, not a pass. No usable diff (a manual run) and workflow, Makefile and `scripts/` changes run everything; `make ci` locally still runs everything |
+| 🧪 Gates — make reach | `make reach RUN=1 KEEP=1` | the gates the diff reaches, on the stock 1.40C fetched into the runner (Ubuntu) |
+| 📋 Gates — Listed (Fork PRs) | `make reach` (dry run) | fork PRs get no firmware: the diff classifies, the branch is rebased, the gates are listed |
+| ✅ Acceptance Runner Tests | `make test-acceptance` | the runner refuses skipped, failed, incomplete and over-budget evidence; `reach` routes as documented; the shard runner covers the recipe |
+| 🎛️ DSP Toolchain — dsp56300 | `make ci-dsp` | the vendored DSP emulator at its pin takes our patch, builds, passes upstream's runner; `dsp_asm` emits the one-word displaced move |
+| 🔌 ColdFire Port Unit Tests | `make ci-emu` | `ot_emu` builds on both hosts (the fork unshare has a macOS and a Linux path) and passes `emac` and `periph` |
+| 📚 Docs and Links | `make verify-docs` | the rendered tables are current, every remix has a README, every link between tracked files resolves |
 
-**A green CI run says nothing about a remix.** Building, booting and
-playing one needs 1.40C; that is why the gates run on your machine and
-their results go in the PR body.
+**A green CI run says nothing about a remix unless `Gates — make reach` ran.**
+Building, booting and playing one needs 1.40C; a fork PR's gates run on the
+contributor's machine and their results go in the PR body.
 
 ## 12. What none of this can see
 
