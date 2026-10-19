@@ -11,15 +11,16 @@ For each official remix (`remixes/octabam-*`) it runs `make image`, turns
     <out>/manifest.json          commit, date, and per remix: version, image name, patch
     <out>/ref/<remix>/           the files `make image` wrote, for tools/web/test_chain.mjs
 
-`ref/` holds Elektron's OS and stays on this machine; `patches/` and
-`manifest.json` are what the site serves. The tree must be at origin/main
-and clean, so a published patch names a commit anyone can check out.
+`ref/` holds Elektron's OS and stays in <out> (out/ is not tracked).
+`patches/` and `manifest.json` are copied to docs/site/builder/, which the
+site serves; commit them in a PR of their own. The tree must be at
+origin/main and clean, so a published patch names a commit anyone can check
+out; `--dev` builds into <out> only.
 """
 import argparse
 import datetime
 import json
 import pathlib
-import re
 import shutil
 import subprocess
 import sys
@@ -29,6 +30,7 @@ sys.path.insert(0, str(ROOT / "tools/web"))
 import obpatch  # noqa: E402
 
 STOCK = ROOT / "out/raw/section_3_MAIN_OS.bin"
+SITE = ROOT / "docs/site/builder"
 
 
 def git(*a):
@@ -86,6 +88,12 @@ def main():
                 "date": datetime.date.today().isoformat(), "remixes": rows}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
     print(f"wrote {args.out}/manifest.json for {commit[:8]}")
+    if manifest["dev"]:
+        return
+    shutil.rmtree(SITE / "patches", ignore_errors=True)
+    shutil.copytree(out / "patches", SITE / "patches")
+    shutil.copyfile(out / "manifest.json", SITE / "manifest.json")
+    print(f"copied patches and manifest to {SITE.relative_to(ROOT)}/ -- commit them in a PR")
 
 
 if __name__ == "__main__":
