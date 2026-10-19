@@ -6,8 +6,9 @@
 
 Octabam Bus adds the core features, a **delay and reverb bus** with a send
 from every track, and three new FX1 effects to Octatrack OS 1.40C. The USB
-module uses LAYOUT MAIN CUE and INPUTS OFF here; these are build settings,
-and on-device configuration is not implemented in this version.
+module's defaults here are TRACKS PRE, MAIN and CUE on, MASTER off, IN off,
+MIDI on. They are changed on the unit in PROJ > BRAIN > SETTINGS and take
+effect at the next boot; see [USB](reference/modules/usb.md).
 
 ## The Bus
 

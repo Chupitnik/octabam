@@ -365,6 +365,20 @@
       "remix": "octabam-bus",
       "source": "emulator panel UART",
       "firmware_sha256": "4bc3318b76dae9399a48bfda9a792ac0fc77d6e968b97256b2e36c852e2b9af3"
+    },
+    "settings": {
+      "image": "usb/settings.png",
+      "caption": "BRAIN > SETTINGS, the USB group: CUE, IN and MAIN. A value that ends in * takes effect at the next boot.",
+      "remix": "octabam-bus",
+      "source": "emulator panel UART",
+      "firmware_sha256": "a152ef060937eee73ca056adb804144d9fcafdb644d0de890e959cb447f29acf"
+    },
+    "settings-end": {
+      "image": "usb/settings-end.png",
+      "caption": "The end of the USB group: TRACKS, with * AT NEXT BOOT under the list.",
+      "remix": "octabam-bus",
+      "source": "emulator panel UART",
+      "firmware_sha256": "a152ef060937eee73ca056adb804144d9fcafdb644d0de890e959cb447f29acf"
     }
   },
   "character-txtr": {

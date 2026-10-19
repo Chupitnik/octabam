@@ -192,6 +192,16 @@ def capture_bus(p,r):
     shot(p,'usb','performance','BRAIN performance: USB counters.',r)
 
 
+def capture_usb(p,r):
+    # PROJ > BRAIN > SETTINGS; the list is BRAIN, APPLY DEFAULTS, then the USB group
+    # (CUE, IN, MAIN, MASTER, MIDI, TRACKS). YES changes the selected value.
+    p.open_menu();press(p,'up',5);press(p,'down',4);press(p,'right');press(p,'down',2);press(p,'yes')
+    press(p,'down',3)
+    shot(p,'usb','settings','BRAIN > SETTINGS, the USB group: CUE, IN and MAIN. A value that ends in * takes effect at the next boot.',r)
+    press(p,'down',7)
+    shot(p,'usb','settings-end','The end of the USB group: TRACKS, with * AT NEXT BOOT under the list.',r)
+
+
 def capture_analog(p,r):
     press(p,'t1')
     p.chord('func','pg_playback')
@@ -330,7 +340,7 @@ def prepare(remix,project,assignments):
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('groups',nargs='+',choices=['core','plocks','features','inserts','bus','extras','machines','probes','midi-scales','midi-loopback','utilities','varispeed'])
+    ap.add_argument('groups',nargs='+',choices=['core','plocks','features','inserts','bus','extras','machines','probes','midi-scales','midi-loopback','utilities','varispeed','usb'])
     cfg=Path.home()/'.octabam_project'
     ap.add_argument('--project',default=os.environ.get('OT_PROJECT') or (cfg.read_text().strip() if cfg.is_file() else ''))
     a=ap.parse_args();OUT.mkdir(parents=True,exist_ok=True)
@@ -349,6 +359,7 @@ def main():
             assignments=[(i+1,'fx1' if i<5 else 'fx2',key) for i,key in enumerate(('SPECTRUM','CHARACTER','MODULATION','TRANSIENT','EUCLID','LOFI2','GATE VERB','DELAY'))]
             jobs=[('octabam-inserts',capture_fx,assignments)]
         elif group=='bus':jobs=[('octabam-bus',capture_bus,[])]
+        elif group=='usb':jobs=[('octabam-bus',capture_usb,[])]
         elif group=='machines':jobs=[('analog-bassdrum',capture_analog,[]),('octatrick',capture_synth,[]),('blackpyramids-303',capture_blackpyramids,[])]
         elif group=='probes':jobs=[('cfmeter',capture_fx,[(8,'fx2','CF METER')])]
         elif group=='utilities':jobs=[('buffer-saver',capture_buffer_saver,[])]

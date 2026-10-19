@@ -16,7 +16,7 @@ and [Octabam Bus](remix-bus.md) add effects to this set.
 - [Page 2 locks](reference/modules/plocks-p2.md) and
   [scene locks](reference/modules/scenes-p2.md): control both effect pages.
 - [MIDI scenes](reference/modules/midi-scenes.md), CC mapping, and CC feedback.
-- [USB](reference/modules/usb.md): MIDI input and output, plus MAIN and CUE audio to a computer.
+- [USB](reference/modules/usb.md): MIDI input and output, plus audio to a computer: the 16 track channels, MAIN and CUE by default.
 - Recorder, sequencing, mute, and storage fixes listed below.
 
 ## Build and Install
@@ -47,9 +47,9 @@ Every module in the image, credited to its author:
     --8<-- "reference/_remix-octabam-core.md"
 
 USB combines MIDI, audio output, audio input and the input crossbar in one
-module. In this first merge, LAYOUT and INPUTS are build settings: changing
-them requires rebuilding the image. On-device USB configuration is planned
-but is not implemented in this version.
+module. Its settings (TRACKS, MAIN, CUE, MASTER, MIDI) are changed on the
+unit in PROJ > BRAIN > SETTINGS and take effect at the next boot; IN is fixed
+at OFF in this remix. See [USB](reference/modules/usb.md).
 
 ## Memory Use
 

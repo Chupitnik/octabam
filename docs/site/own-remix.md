@@ -44,9 +44,9 @@ For the full key reference and hand-editing options, see the
 [remixer guide](https://github.com/sambanks/octabam/blob/main/docs/guide/REMIXER.md).
 
 Select **USB** for USB MIDI and optional audio in either direction. Its
-LAYOUT and INPUTS settings replace the four former USB module selections.
-For now they are build settings, so a different USB channel selection needs
-a rebuilt image; they cannot yet be changed on the unit.
+TRACKS, MAIN, CUE, MASTER, IN and MIDI settings replace the four former USB
+module selections. They are changed on the unit in PROJ > BRAIN > SETTINGS
+and take effect at the next boot. A remix can fix one with a `Pin`.
 
 ## 3. Record and Check the Remix
 
