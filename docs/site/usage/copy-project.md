@@ -1,6 +1,7 @@
 Duplicate a project folder on the CompactFlash card without loading it
-first. Module sidecars in the folder (`kits.work`, `scenes.work`,
-`p2lk*`, …) come along; stock SAVE TO NEW does not.
+first — stock files and module extras (`kits.work`, `scenes.work`,
+`brain.work`, `p2lk*`, `BUFFERS/`, …). Stock SAVE TO NEW does not keep
+those extras.
 
 ## Access
 
@@ -11,9 +12,11 @@ the set that holds the source first (CHANGE set if needed).
 
 1. Pick the source from the list (folders with `project.work` /
    `project.strd`; `AUDIO` is skipped). LEVEL scrolls a row per detent.
+   Rows show the first 16 characters of the name; the copy uses the
+   full folder name.
 2. Edit the suggested name (`PROJECT` + date). With RND NAME in the
-   remix, FUNC+CUE fills `YYMMDD` + two pool words. Names longer than
-   32 characters refuse with `COPY FAILED`.
+   remix, FUNC+CUE fills `YYMMDD` + two pool words. The name editor
+   caps at 32 characters.
 3. Confirm `COPY SRC -> DST?`.
 4. On success: `PROJECT COPIED` / `OPEN IT?` — YES loads the copy (stock
    LOAD PROJECT), NO leaves the live project as it was. `COPY FAILED`
@@ -23,4 +26,4 @@ This copies whatever is on disk (including unsaved `.work` cache). SAVE
 PROJECT on the source first if you want the last saved state only. v1
 copies within the mounted set only. Also refuses (no silent truncate)
 when the set has more than 64 projects, a directory has more than 256
-entries, or an entry name is longer than 32 characters.
+entries, or an entry name inside the tree is longer than 32 characters.

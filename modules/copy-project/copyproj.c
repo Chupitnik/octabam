@@ -41,6 +41,7 @@ typedef unsigned int u32;
 #define NMAX   64
 #define EMAX   256			/* entries kept per directory */
 #define NLEN   32
+#define DLBL   16			/* LISTPOP display cap (panel ~128 px) */
 #define PATH_N 260
 #define DEPTH  6
 
@@ -168,7 +169,7 @@ static int scan_entries(const char *dir)
 /* ---- project list in the mounted set ------------------------------------- */
 
 static char names[NMAX][NLEN + 1];
-static char labels[NMAX][NLEN + 1];
+static char labels[NMAX][DLBL + 1];
 static const char *name_lp[NMAX];
 /* Global: STORE's LEVEL scroll compares M_CBS against this (kits_level idiom). */
 void (*name_fp[NMAX])(u32);
@@ -182,6 +183,8 @@ static char dst_path[PATH_N];
 static char tmp_path[PATH_N];
 static const char *msg[3];
 static char line1[48];
+static char lbl_src[DLBL + 1];
+static char lbl_dst[DLBL + 1];
 
 static void cp_picked(u32 unused);
 static void cp_answer(u32 answer);
@@ -225,7 +228,9 @@ static int list_projects(void)
 		if (kept >= NMAX)
 			return -1;
 		cpy(names[kept], ent_name[i], NLEN + 1);
-		cpy(labels[kept], ent_name[i], NLEN + 1);
+		/* Full name stays in names[]; LISTPOP sizes to the longest
+		 * label, so a 32-char (or wide-glyph) name empties the panel. */
+		cpy(labels[kept], ent_name[i], DLBL + 1);
 		name_lp[kept] = labels[kept];
 		name_fp[kept] = cp_picked;
 		kept++;
@@ -296,10 +301,12 @@ void cp_named(u32 confirmed)
 		POPUP("COPY PROJECT", 1, msg, 0, 0);
 		return;
 	}
+	cpy(lbl_src, src_name, DLBL + 1);
+	cpy(lbl_dst, dst_name, DLBL + 1);
 	cpy(line1, "COPY ", sizeof line1);
-	cat(line1, src_name, sizeof line1);
+	cat(line1, lbl_src, sizeof line1);
 	cat(line1, " -> ", sizeof line1);
-	cat(line1, dst_name, sizeof line1);
+	cat(line1, lbl_dst, sizeof line1);
 	cat(line1, "?", sizeof line1);
 	msg[0] = line1;
 	POPUP("COPY PROJECT", 1, msg, 3, (u32)cp_answer);
