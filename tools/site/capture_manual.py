@@ -223,6 +223,22 @@ def press_encoder(p, n):
     p.proc.command('key 0x27 0', 'ok');p.run(80)
 
 
+def capture_midi_loopback(p,r):
+    # Sample-free fixture starts in audio mode, with MIDI channel 1, DEST EXT.
+    press(p,'midi');press(p,'t1');p.chord('func','pg_playback')
+    shot(p,'midi-loopback','channel-ext','MIDI NOTE SETUP: CHAN 1 uses external output.',r)
+    press_encoder(p,0)
+    shot(p,'midi-loopback','routing-ext','ROUTING: EXT sends to external MIDI.',r)
+    enc(p,0,4)
+    shot(p,'midi-loopback','routing-int','ROUTING: INT sends to the internal MIDI receiver.',r)
+    press_encoder(p,0)
+    shot(p,'midi-loopback','channel-int','MIDI NOTE SETUP: CHAN 1I indicates internal routing.',r)
+    press_encoder(p,0);enc(p,0,4)
+    shot(p,'midi-loopback','routing-both','ROUTING: BOTH sends internally and externally.',r)
+    press_encoder(p,0)
+    shot(p,'midi-loopback','channel-both','MIDI NOTE SETUP: CHAN 1B indicates both destinations.',r)
+
+
 def capture_midi_scales(p,r):
     # Sample-free fixture starts in audio mode with MIDI KEY OFF.
     press(p,'midi');press(p,'t1');p.chord('func','pg_amp')
@@ -286,13 +302,14 @@ def prepare(remix,project,assignments):
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('groups',nargs='+',choices=['core','plocks','features','inserts','bus','extras','machines','probes','midi-scales','utilities'])
+    ap.add_argument('groups',nargs='+',choices=['core','plocks','features','inserts','bus','extras','machines','probes','midi-scales','midi-loopback','utilities'])
     cfg=Path.home()/'.octabam_project'
     ap.add_argument('--project',default=os.environ.get('OT_PROJECT') or (cfg.read_text().strip() if cfg.is_file() else ''))
     a=ap.parse_args();OUT.mkdir(parents=True,exist_ok=True)
     for group in a.groups:
         assignments=[]
         if group=='core': jobs=[('octabam-core',capture_core,[])]
+        elif group=='midi-loopback':jobs=[('midi-loopback',capture_midi_loopback,[])]
         elif group=='plocks': jobs=[('octabam-core',capture_plocks,[(1,'fx2','PLATE REV')])]
         elif group=='midi-scales':jobs=[('midi-scales',capture_midi_scales,[])]
         elif group=='features':

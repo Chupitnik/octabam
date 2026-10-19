@@ -652,5 +652,49 @@
       "source": "emulator panel UART",
       "firmware_sha256": "d3a2476762978a946d1733c2f153ea23ab67b81ee40017d0349e2cbc65a3edcf"
     }
+  },
+  "midi-loopback": {
+    "channel-ext": {
+      "image": "midi-loopback/channel-ext.png",
+      "caption": "MIDI NOTE SETUP: CHAN 1 uses external output.",
+      "remix": "midi-loopback",
+      "source": "emulator panel UART; composed-plane pixel equality checked",
+      "firmware_sha256": "3dd6d81365bca25e2346e057a6481410c1f413f788b1ea272218ae6f14d08592"
+    },
+    "routing-ext": {
+      "image": "midi-loopback/routing-ext.png",
+      "caption": "ROUTING: EXT sends to external MIDI.",
+      "remix": "midi-loopback",
+      "source": "emulator panel UART; composed-plane pixel equality checked",
+      "firmware_sha256": "3dd6d81365bca25e2346e057a6481410c1f413f788b1ea272218ae6f14d08592"
+    },
+    "routing-int": {
+      "image": "midi-loopback/routing-int.png",
+      "caption": "ROUTING: INT sends to the internal MIDI receiver.",
+      "remix": "midi-loopback",
+      "source": "emulator panel UART; composed-plane pixel equality checked",
+      "firmware_sha256": "3dd6d81365bca25e2346e057a6481410c1f413f788b1ea272218ae6f14d08592"
+    },
+    "channel-int": {
+      "image": "midi-loopback/channel-int.png",
+      "caption": "MIDI NOTE SETUP: CHAN 1I indicates internal routing.",
+      "remix": "midi-loopback",
+      "source": "emulator panel UART; composed-plane pixel equality checked",
+      "firmware_sha256": "3dd6d81365bca25e2346e057a6481410c1f413f788b1ea272218ae6f14d08592"
+    },
+    "routing-both": {
+      "image": "midi-loopback/routing-both.png",
+      "caption": "ROUTING: BOTH sends internally and externally.",
+      "remix": "midi-loopback",
+      "source": "emulator panel UART; composed-plane pixel equality checked",
+      "firmware_sha256": "3dd6d81365bca25e2346e057a6481410c1f413f788b1ea272218ae6f14d08592"
+    },
+    "channel-both": {
+      "image": "midi-loopback/channel-both.png",
+      "caption": "MIDI NOTE SETUP: CHAN 1B indicates both destinations.",
+      "remix": "midi-loopback",
+      "source": "emulator panel UART; composed-plane pixel equality checked",
+      "firmware_sha256": "3dd6d81365bca25e2346e057a6481410c1f413f788b1ea272218ae6f14d08592"
+    }
   }
 }

@@ -3,6 +3,23 @@
 Symptom → cause (measured, inferred or open) → fix. Add an entry the moment
 a mode is seen on hardware.
 
+## Warm restarts and emulator boots can miss cold-start failures
+
+- **Seen:** on radiohagen's MKII, an early-startup code change passed emulator
+  boots and quick power cycles but stalled at the logo after several minutes
+  powered off. Moving the activation helper into the main OS image resolved
+  the observed failures in repeated cold starts on that unit; the main module
+  still runs from RAM.
+- **Design consideration:** keep small startup gates and activation helpers
+  resident where practical, so entering them does not require executing newly
+  loaded runtime code. Publish callbacks only once their runtime is ready.
+- **Contributor check:** validate the exact final image after a sustained
+  power-off as well as a quick restart. Emulator success cannot validate
+  physical startup behavior that the emulator does not model.
+- **Limit:** the underlying failure mechanism was not established. The
+  successful placement change does not establish a general defect in RAM
+  execution, the shared loader or caching.
+
 ## MIDI TRACK → CHROMATIC halts at the LCD surface descriptor (#741)
 
 - **Seen:** BUKKAKEBOREALIS's MKII, octabam-core, reported 15 Oct 2026:

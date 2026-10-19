@@ -28,6 +28,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1])); import toolpath  # noqa: E402,F401  (every tools/ dir on sys.path)
 from remix import platform_build, registry  # noqa: E402
+from boot_mutable import resolve_ranges, compare_runtime  # noqa: E402
 
 EMU = ROOT / "out/emu/ot_emu"
 IMAGE = ROOT / "out/mainos_bus.bin"
@@ -78,6 +79,13 @@ fatal_hits = sum(1 for l in hits if f"at 0x{fatal:x}" in l)
 ok = handoff and entry_hits == 1 and fatal_hits == 0
 print(f"  [{'PASS' if ok else 'FAIL'}] verify_dram_boot: {remix.name} boots to the handoff; "
       f"loader ran {entry_hits}x, its fatal hang {fatal_hits}x")
+# Modules own their mutable-state declarations; this gate only verifies
+# their linked extent/initial contents and accounts for changes at handoff.
+try:
+    mutable_ranges = resolve_ranges(mods, layout, ROOT / "out/platform/runtime", raw)
+except ValueError as error:
+    sys.exit(f"[FAIL] verify_dram_boot: {error}")
+
 for (a, n, p), (label, raw) in zip(dumps, expects):
     got = p.read_bytes() if p.exists() else b""
     diff = [i for i in range(min(len(got), len(raw))) if got[i] != raw[i]]
@@ -86,9 +94,11 @@ for (a, n, p), (label, raw) in zip(dumps, expects):
     # 41-42 (brain_ts/brain_ts_last plus PLOCKS P2's INITED stamp, see the
     # module docstring above); 64 keeps headroom without going blind to a
     # new undeclared writer.
-    fine = len(got) == len(raw) and len(diff) <= 64
+    fine, transient, remaining = compare_runtime(a, raw, got, mutable_ranges)
     ok &= fine
+    changes = (f"{transient} declared mutable byte(s) and {remaining} other byte(s)"
+               if mutable_ranges else f"{len(diff)} byte(s)")
     print(f"  [{'PASS' if fine else 'FAIL'}] verify_dram_boot: {label} at 0x{a:08x} == linked "
-          f"runtime ({n:,} B) except {len(diff)} byte(s) the runtime wrote itself"
+          f"runtime ({n:,} B) except {changes} the runtime wrote itself"
           + (f" at +{diff[0]:#x}.." if diff else ""))
 sys.exit(0 if ok else 1)

@@ -1208,15 +1208,47 @@ class Linked:
     # CavePatch.registers_formatter: the build writes the unit's
     # `registers_formatter.symbol` into that module's descriptor clone.
     registers_formatter: FormatterReg | None = None
+    # Resident-only references resolved AFTER the platform runtime link.
+    # (local defsym name, DRAM unit label, symbol defined by that unit).
+    # Each local name must have a defsyms value for the author reference and
+    # first placement link. That value is never a fallback in a final image:
+    # the provider must exist, and relinking must preserve size and exports.
+    runtime_refs: tuple[tuple[str, str, str], ...] = ()
+    # Zero-initialized data allowed to change before the boot-check handoff.
+    # (symbol defined in this DRAM unit, byte length). The verifier resolves
+    # ownership and section bounds from the linked object/map, rejects overlap
+    # and nonzero initial bytes. Module gates must check the resulting values.
+    boot_mutable: tuple[tuple[str, int], ...] = ()
 
     def __post_init__(self):
         if self.registers_formatter is not None and not (
                 self.dram and self.registers_formatter.symbol):
             raise ValueError(f"Linked({self.label!r}): registers_formatter needs "
                              f"dram=True and a FormatterReg.symbol")
+        if self.boot_mutable:
+            if not self.dram or self.loader:
+                raise ValueError(f"Linked({self.label!r}): boot_mutable requires a DRAM unit")
+            seen = set()
+            for item in self.boot_mutable:
+                if (not isinstance(item, tuple) or len(item) != 2
+                        or not isinstance(item[0], str) or not item[0]
+                        or type(item[1]) is not int or item[1] <= 0):
+                    raise ValueError(f"Linked({self.label!r}): boot_mutable needs (symbol, positive size)")
+                if item[0] in seen:
+                    raise ValueError(f"Linked({self.label!r}): duplicate boot_mutable symbol")
+                seen.add(item[0])
         names = [n for n, _v in self.defsyms]
         if len(names) != len(set(names)):
             raise ValueError(f"Linked({self.label!r}): a defsym name declared twice")
+        if self.runtime_refs:
+            if self.dram or self.loader:
+                raise ValueError(f"Linked({self.label!r}): runtime_refs require a resident unit")
+            refs = [ref[0] for ref in self.runtime_refs if len(ref) == 3]
+            if len(refs) != len(self.runtime_refs) or any(
+                    not all(isinstance(v, str) and v for v in ref) for ref in self.runtime_refs):
+                raise ValueError(f"Linked({self.label!r}): runtime_refs need three nonempty names")
+            if len(refs) != len(set(refs)) or not set(refs) <= set(names):
+                raise ValueError(f"Linked({self.label!r}): runtime_refs need distinct declared defsyms")
         if self.reference is not None and not callable(self.reference):
             reference_shape(self.label, self.reference)
 
