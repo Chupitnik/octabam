@@ -204,6 +204,19 @@ def capture_analog(p,r):
     shot(p,'analog-bassdrum','setup','Analog BD source setup.',r)
 
 
+def capture_blackpyramids(p,r):
+    # BLKPYRAMD is the sixth row of the machine list (STATIC + 5).
+    press(p,'t1')
+    p.chord('func','pg_playback')
+    press(p,'down',5)
+    press(p,'yes')
+    close(p)
+    press(p,'pg_playback')
+    shot(p,'blackpyramids-303','source','BLKPYRAMD source controls: PTCH, CUT, RES, ENV, DEC, ACC.',r)
+    p.chord('func','pg_playback')
+    shot(p,'blackpyramids-303','setup','SRC SETUP with BLKPYRAMD: WAVE, TUNE, SLID, GATE, VOL.',r)
+
+
 def capture_synth(p,r):
     press(p,'t1');press(p,'pg_playback')
     shot(p,'synth','source','FM synth source page on a FLEX track assigned FMSYNTH.WAV.',r)
@@ -321,11 +334,11 @@ def main():
             assignments=[(i+1,'fx1' if i<5 else 'fx2',key) for i,key in enumerate(('SPECTRUM','CHARACTER','MODULATION','TRANSIENT','EUCLID','LOFI2','GATE VERB','DELAY'))]
             jobs=[('octabam-inserts',capture_fx,assignments)]
         elif group=='bus':jobs=[('octabam-bus',capture_bus,[])]
-        elif group=='machines':jobs=[('analog-bassdrum',capture_analog,[]),('octatrick',capture_synth,[])]
+        elif group=='machines':jobs=[('analog-bassdrum',capture_analog,[]),('octatrick',capture_synth,[]),('blackpyramids-303',capture_blackpyramids,[])]
         elif group=='probes':jobs=[('cfmeter',capture_fx,[(8,'fx2','CF METER')])]
         elif group=='utilities':jobs=[('buffer-saver',capture_buffer_saver,[])]
         else:
-            jobs=[(r,capture_fx,[(2,'fx1' if r in ('character-txtr','testgen') else 'fx2',k)]) for r,k in [('character-txtr','CHARACTER TXTR'),('testgen','TESTGEN'),('sidechain-compressor','SIDECHAIN_COMPRESSOR'),('miniverb','MINIVERB'),('tapeecho','TAPE ECHO'),('vocoder','VOCODER'),('wave','WAVE')]]
+            jobs=[(r,capture_fx,[(2,'fx1' if r in ('character-txtr','testgen') else 'fx2',k)]) for r,k in [('character-txtr','CHARACTER TXTR'),('testgen','TESTGEN'),('sidechain-compressor','SIDECHAIN_COMPRESSOR'),('miniverb','MINIVERB'),('bbd','BBD'),('tapeecho','TAPE ECHO'),('vocoder','VOCODER'),('wave','WAVE')]]
         for remix,fn,assignments in jobs:
             # Paths use a separate stable label even when registry selects a scratch file.
             label='manual-features' if remix.startswith('../') else remix
