@@ -14,6 +14,15 @@ Empty buffers (control-record length ≤ 64) are skipped. The saved path
 has **no** `!` prefix (`BUFFERS/…`, matching `nm_pbf`); a leading `!`
 makes `SLOT_LOAD` reject the name.
 
+## vs BUFFER SAVER
+
+[BUFFER SAVER](../buffer-saver/README.md) also writes recorder buffers on
+SAVE PROJECT, but only when a take is marked unsaved: it asks
+**SAVE SAMPLES?**, writes stock `R<n>-YYMMDD-HHMM` names, and assigns each
+buffer to itself. This module always dumps every non-empty slot to fixed
+`BUFFERS/RECn.wav` through STORE, with no dialog. Declared
+`conflicts` — both would write the same buffers on one save.
+
 ## Status
 
 `Proof.CHECK`. `verify_persistent_buffers` covers symbols, a save-smoke

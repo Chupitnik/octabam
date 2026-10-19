@@ -23,5 +23,9 @@ MODULE = Module(
         "(overwrite); on project load, restore them.",
     linked=(Linked("pbf", "modules/persistent-buffers/pbuf.s", dram=True),),
     requires=("STORE",),
+    conflicts=(
+        ("BUFFER SAVER",
+         "both write the recorder buffers at SAVE PROJECT, so a save could write them twice"),
+    ),
     gates=(Gate("tools/verify/verify_persistent_buffers.py", once=True),),
 )
