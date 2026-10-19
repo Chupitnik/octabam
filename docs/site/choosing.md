@@ -44,5 +44,5 @@ Test history belongs to a particular image and setup. Read the status on
 each remix page; a module tested on hardware does not establish that the
 whole remix has been tested.
 
-Continue to [Build and install](build-flash.md), or
+Continue to [Build and install](web-builder.md), or
 [create your own remix](own-remix.md) from the available modules.

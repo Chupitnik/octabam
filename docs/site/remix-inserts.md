@@ -60,8 +60,8 @@ not run on one.
 
 ## Build and Install
 
-The [build and flash guide](build-flash.md) has every step, from what to
-install to the way back to stock. For this remix:
+[Build and Install](web-builder.md) builds this remix in the browser. To build
+from source instead:
 
 1. **Build.** Pick a build number; it becomes the OS version the unit shows.
 
@@ -77,7 +77,7 @@ install to the way back to stock. For this remix:
    ```
 
    A project made on the unit after the flash needs no stamp.
-4. Follow [Build and flash](build-flash.md) to install the image and confirm
+4. Follow [Build and Install](web-builder.md#install-the-image) to install the image and confirm
    that SYSTEM STATUS → OS VERSION reads `OCTABAM91`.
 5. To restore stock OS, follow [Safety and recovery](safety.md).
 

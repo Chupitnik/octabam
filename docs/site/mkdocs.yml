@@ -27,8 +27,7 @@ nav:
   - Getting Started:
       - A love letter to the Octatrack: index.md
       - Choose a Remix: choosing.md
-      - Build and Install: build-flash.md
-      - Build in the Browser: web-builder.md
+      - Build and Install: web-builder.md
       - Feature Directory: reference/modules.md
   - Effects:
       - Send: reference/modules/send.md
