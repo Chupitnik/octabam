@@ -26,7 +26,7 @@ MODULE = Module(
     dsp=DspSection(asm="modules/miniverb/miniverb.asm", priority=15,
                    bus_role=BusRole.NONE, ybase=YBase.NEVER,
                    r7_latch_slot=None, gate_label=None),
-    claims=Claims(stock_instance_buffer=True, buffer_words=16384),
+    claims=Claims(stock_instance_buffer=True, buffer_words=15870),
     harness=Harness(layout_char="7", is_server=False),
     gates=(Gate('tools/verify/verify_miniverb.py', stage='image'),),
 )
