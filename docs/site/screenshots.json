@@ -733,5 +733,53 @@
       "source": "emulator panel UART",
       "firmware_sha256": "ed0816a7dead84eb11a3428e3a006bc30a2677b43b5c08051f7260b97cb8ed9e"
     }
+  },
+  "varispeed": {
+    "setup": {
+      "image": "varispeed/setup.png",
+      "caption": "SRC SETUP on a FLEX track: TSTR set to VARI.",
+      "remix": "varispeed",
+      "source": "emulator panel UART",
+      "firmware_sha256": "599149763f7d1d7011a7079466d234ba006a90068f31d882f54082c1e78ea4ff"
+    },
+    "quan": {
+      "image": "varispeed/quan.png",
+      "caption": "The SRC page of a VARI track: PTCH is QUAN, here 3/2.",
+      "remix": "varispeed",
+      "source": "emulator panel UART",
+      "firmware_sha256": "599149763f7d1d7011a7079466d234ba006a90068f31d882f54082c1e78ea4ff"
+    }
+  },
+  "bbd": {
+    "setup": {
+      "image": "bbd/setup.png",
+      "caption": "BBD: effect selection and setup parameters.",
+      "remix": "bbd",
+      "source": "emulator panel UART",
+      "firmware_sha256": "4fb5486c2ac5fef6bca4e388c4882a79c9a3d21c3b42f063dd31260ecea3f927"
+    },
+    "main": {
+      "image": "bbd/main.png",
+      "caption": "BBD: main parameter page.",
+      "remix": "bbd",
+      "source": "emulator panel UART",
+      "firmware_sha256": "4fb5486c2ac5fef6bca4e388c4882a79c9a3d21c3b42f063dd31260ecea3f927"
+    }
+  },
+  "blackpyramids-303": {
+    "source": {
+      "image": "blackpyramids-303/source.png",
+      "caption": "BLKPYRAMD source controls: PTCH, CUT, RES, ENV, DEC, ACC.",
+      "remix": "blackpyramids-303",
+      "source": "emulator panel UART",
+      "firmware_sha256": "eb922e1e66645072dea4b3f7c46b03e39f1d27933618e1d9b24aab724bac3bdb"
+    },
+    "setup": {
+      "image": "blackpyramids-303/setup.png",
+      "caption": "SRC SETUP with BLKPYRAMD: WAVE, TUNE, SLID, GATE, VOL.",
+      "remix": "blackpyramids-303",
+      "source": "emulator panel UART",
+      "firmware_sha256": "eb922e1e66645072dea4b3f7c46b03e39f1d27933618e1d9b24aab724bac3bdb"
+    }
   }
 }

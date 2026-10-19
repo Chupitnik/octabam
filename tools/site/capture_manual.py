@@ -204,6 +204,19 @@ def capture_analog(p,r):
     shot(p,'analog-bassdrum','setup','Analog BD source setup.',r)
 
 
+def capture_blackpyramids(p,r):
+    # BLKPYRAMD is the sixth row of the machine list (STATIC + 5).
+    press(p,'t1')
+    p.chord('func','pg_playback')
+    press(p,'down',5)
+    press(p,'yes')
+    close(p)
+    press(p,'pg_playback')
+    shot(p,'blackpyramids-303','source','BLKPYRAMD source controls: PTCH, CUT, RES, ENV, DEC, ACC.',r)
+    p.chord('func','pg_playback')
+    shot(p,'blackpyramids-303','setup','SRC SETUP with BLKPYRAMD: WAVE, TUNE, SLID, GATE, VOL.',r)
+
+
 def capture_synth(p,r):
     press(p,'t1');press(p,'pg_playback')
     shot(p,'synth','source','FM synth source page on a FLEX track assigned FMSYNTH.WAV.',r)
@@ -215,6 +228,21 @@ def capture_synth(p,r):
         current=p.peek(0x8000004e,1)[0]
         enc(p,6,-1 if current > 1 else 1)
     shot(p,'direct-jump','settings','CHAIN AFTER set to DIRECT in sequencer settings.',r)
+
+
+def capture_varispeed(p,r):
+    # Track 1 to FLEX (the machine list on SRC SETUP), TSTR to VARI: a 5-position
+    # select, so a long turn of encoder E lands on the last position.
+    press(p,'t1')
+    p.chord('func','pg_playback')
+    press(p,'down')
+    press(p,'yes')
+    enc(p,4,40)
+    shot(p,'varispeed','setup','SRC SETUP on a FLEX track: TSTR set to VARI.',r)
+    close(p)
+    press(p,'pg_playback')
+    enc(p,0,3)  # one detent a ratio: 1/1 -> 5/4 -> 4/3 -> 3/2
+    shot(p,'varispeed','quan','The SRC page of a VARI track: PTCH is QUAN, here 3/2.',r)
 
 
 def press_encoder(p, n):
@@ -302,7 +330,7 @@ def prepare(remix,project,assignments):
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('groups',nargs='+',choices=['core','plocks','features','inserts','bus','extras','machines','probes','midi-scales','midi-loopback','utilities'])
+    ap.add_argument('groups',nargs='+',choices=['core','plocks','features','inserts','bus','extras','machines','probes','midi-scales','midi-loopback','utilities','varispeed'])
     cfg=Path.home()/'.octabam_project'
     ap.add_argument('--project',default=os.environ.get('OT_PROJECT') or (cfg.read_text().strip() if cfg.is_file() else ''))
     a=ap.parse_args();OUT.mkdir(parents=True,exist_ok=True)
@@ -321,11 +349,12 @@ def main():
             assignments=[(i+1,'fx1' if i<5 else 'fx2',key) for i,key in enumerate(('SPECTRUM','CHARACTER','MODULATION','TRANSIENT','EUCLID','LOFI2','GATE VERB','DELAY'))]
             jobs=[('octabam-inserts',capture_fx,assignments)]
         elif group=='bus':jobs=[('octabam-bus',capture_bus,[])]
-        elif group=='machines':jobs=[('analog-bassdrum',capture_analog,[]),('octatrick',capture_synth,[])]
+        elif group=='machines':jobs=[('analog-bassdrum',capture_analog,[]),('octatrick',capture_synth,[]),('blackpyramids-303',capture_blackpyramids,[])]
         elif group=='probes':jobs=[('cfmeter',capture_fx,[(8,'fx2','CF METER')])]
         elif group=='utilities':jobs=[('buffer-saver',capture_buffer_saver,[])]
+        elif group=='varispeed':jobs=[('varispeed',capture_varispeed,[])]
         else:
-            jobs=[(r,capture_fx,[(2,'fx1' if r in ('character-txtr','testgen') else 'fx2',k)]) for r,k in [('character-txtr','CHARACTER TXTR'),('testgen','TESTGEN'),('sidechain-compressor','SIDECHAIN_COMPRESSOR'),('miniverb','MINIVERB'),('tapeecho','TAPE ECHO'),('vocoder','VOCODER'),('wave','WAVE')]]
+            jobs=[(r,capture_fx,[(2,'fx1' if r in ('character-txtr','testgen') else 'fx2',k)]) for r,k in [('character-txtr','CHARACTER TXTR'),('testgen','TESTGEN'),('sidechain-compressor','SIDECHAIN_COMPRESSOR'),('miniverb','MINIVERB'),('bbd','BBD'),('tapeecho','TAPE ECHO'),('vocoder','VOCODER'),('wave','WAVE')]]
         for remix,fn,assignments in jobs:
             # Paths use a separate stable label even when registry selects a scratch file.
             label='manual-features' if remix.startswith('../') else remix

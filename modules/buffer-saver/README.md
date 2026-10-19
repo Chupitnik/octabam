@@ -108,6 +108,15 @@ On a unit (Chupitnik's MKII, 16 Oct 2026, AUTOSAVE2):
   failed write left `R5-…-0744.wav` cut at 256 KB and its `.ot` empty, with
   nothing pointing at them.
 
+## vs PERSISTENT BUFFERS
+
+[PERSISTENT BUFFERS](../persistent-buffers/README.md) also writes recorder
+buffers on SAVE PROJECT, but always dumps every non-empty slot to fixed
+`BUFFERS/RECn.wav` through STORE (no dialog). This module only offers
+**SAVE SAMPLES?** for marked unsaved takes and uses stock
+`R<n>-YYMMDD-HHMM` names. Declared `conflicts` on PERSISTENT BUFFERS —
+both would write the same buffers on one save. Pick one.
+
 ## Open
 
 - An MKI.
