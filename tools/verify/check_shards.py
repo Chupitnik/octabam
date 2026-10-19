@@ -213,6 +213,18 @@ def run_remix(shard, remix, logdir, deps=None):
     return res
 
 
+FAIL_LINE = re.compile(r"\[FAIL\]|FAILED|Traceback|Error\b|error:|\*\*\*", re.I)
+
+
+def failure_excerpt(text, fails=30, tail=40):
+    """What a failed job's log says about why: its failure lines (first `fails`)
+    and its last `tail` lines, in log order, each once."""
+    lines = text.splitlines()
+    keep = {i for i, l in enumerate(lines) if FAIL_LINE.search(l)}
+    keep = set(sorted(keep)[:fails]) | set(range(max(0, len(lines) - tail), len(lines)))
+    return [lines[i] for i in sorted(keep)]
+
+
 def make_text():
     return (ROOT / "Makefile").read_text()
 
@@ -566,6 +578,13 @@ def main(argv=None):
               + (f"  (pass at {r['cached'].get('head', '?')}, {r['cached'].get('seconds', 0):.0f} s)" if r.get("cached") else ""))
         for s in r["skips"]:
             print(f"               {s}")
+    for remix in names:
+        r = results[remix]
+        if r["rc"]:
+            print(f"\ncheck_shards: {remix} failed (exit {r['rc']}); the failure lines and the last lines of "
+                  f"{r['log'].relative_to(ROOT)}:")
+            for l in failure_excerpt(r["log"].read_text(errors="replace")):
+                print(f"  | {l}")
     if a.rm:
         for s in shards:
             remove_shard(s)
