@@ -40,7 +40,8 @@ date branch is CREATE `0x400644f0`, SAVEAS `0x40063d30`, CHOOSE
 - **Inferred:** KITS SAVE KIT is any name-editor callback in the DRAM
   arena (`0x40a00000..0x4f000000`); falsifier: another DRAM module opens
   this editor with a different done-cb and gets an unwanted fill.
-- **Not gated under the port:** sample / new dir / set / kits chord paths.
+- **Not gated under the port:** sample / new dir / set / kits / COPY PROJECT
+  chord paths.
 
 ## Remix
 
