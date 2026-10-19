@@ -62,6 +62,7 @@ from the card (section 5).
 
 | module | author | what it does | proof |
 |---|---|---|---|
+| [**BBD**](modules/bbd/README.md) | [JamCones](https://github.com/JamCones) | Clocked BBD delay: compander, clock/3 filters, bucket noise, freeze, governor; FX2. | on hardware: JamCones' MKII, BBDOB4 (remixes/test/bbd, BUILD 4), 17 Oct 2026 |
 | [**CHARACTER**](modules/character/README.md) | [sambanks](https://github.com/sambanks) | FX1 station: fold, saturation, tilt, compressor, width. | on hardware: Sam's MKII |
 | [**CHARACTER TXTR**](modules/character-txtr/README.md) | [sambanks](https://github.com/sambanks) | Character plus TXTR (Airwindows Pockey2): fold, texture, saturation, tilt, compressor, width. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026) |
 | [**EUCLID**](modules/euclid/README.md) | [repeat98](https://github.com/repeat98) | Euclidean LP/BP/HP/notch/amp sequencer: swing, envelope, gate, random and loop. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); its own render gates |
@@ -82,6 +83,7 @@ from the card (section 5).
 | module | author | what it does | proof |
 |---|---|---|---|
 | [**ANALOG BD**](modules/analog-bassdrum/README.md) | [repeat98](https://github.com/repeat98) | Analog BD track machine: switchable 808/909 circuit-informed synthesis. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); source/AMP/main on both cores and engine-browser/hidden-control gates |
+| [**BLACKPYRAMIDS_303**](modules/blackpyramids-303/README.md) | [Zac-Kyoti/octatrack-kyoti-fw](https://github.com/Zac-Kyoti/octatrack-kyoti-fw) | BLKPYRAMD: a TB-303 voice (Open303) as a track machine, one per DSP core, played by the sequencer, the chromatic keys and MIDI. | on hardware: the author's standalone images on their MKI, 14-16 Oct 2026 (this octabam form not flashed) |
 | [**DIRECT JUMP**](modules/direct-jump/README.md) | [timhastie/octatrick-modules](https://github.com/timhastie/octatrick-modules) | CHAIN AFTER: DIRECT (its unused value 1) -- a pattern change lands at the next step, the step count continuing (A4/Rytm direct jump). | on hardware: `octatrick-usb` on his MKI, 26 Sep 2026 (OCTATRICK9) through 2.9; the last two 2.9 fixes under the port |
 | [**DIRECT_JUMP_KYOTI**](modules/direct-jump-kyoti/README.md) | [Zac-Kyoti/octatrack-kyoti-fw](https://github.com/Zac-Kyoti/octatrack-kyoti-fw) | Clock-locked DIRECT JUMP ([PTN]+[YES]): a cued pattern lands on the next step exactly where it would be had it played since START. | on hardware: the author's MKI, 27-28 Sep 2026 (standalone 140C_KDJ7 and the KYOTI V1.0 combined image) and 1 Oct 2026 from DRAM (an octabam image with all six KYOTI modules); Program Change re-cues, MIDI tracks, START SILENT and the trig-condition reset emulator-verified |
 | [**EUCLID FILL**](modules/euclid-fill/README.md) | [ilia-murzinov](https://github.com/ilia-murzinov) | TRACK + PAGE: Euclidean sample-trig fill (STEPS=pattern len / PULSE / ROT / RAND VEL / RAND PTCH; CUE = random k-subset; RAND VEL = VOL locks; RAND PTCH = in-scale range around Part PLAYBACK PTCH). | on hardware: YES/CUE with RAND PTCH>0 on sample + FM (SY encoding path in source, not tried on an SY track), SCALE on/off, relative RAND VEL — author BUILD 34 / minimal on CF, MKII, 16 Oct 2026; also cursory on Sam's MKII (owner report, 16 Oct 2026); builds and boots under the port; fill math gated in verify_euclid_fill |
@@ -105,7 +107,7 @@ from the card (section 5).
 | [**MIDI PART STATE**](modules/midi-part-state/README.md) | [radiohagen](https://github.com/radiohagen/octatrack-modules) | Shared native Part settings and coherent copy/clear publication; no KITS dependency. | on hardware |
 | [**MIDI SCENES**](modules/midi-scenes/README.md) | [bkkbrls-del/midisc](https://github.com/bkkbrls-del/midisc) | Scene locks for the MIDI tracks (hold-to-lock, readout, unlock, lock LEDs, XF morph, scene clear / copy / paste), kept per Part in scenes.work and CS1. Port of bkkbrls-del's midisc project. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); `verify_scenes` against MIDISC2.1 under the port, phase 1 scenarios (b1, b7, b3, b29copy, b29clear); MIDISC 2.0 ran on the author's unit as `ok-ms` (14 Sep 2026) |
 | [**SCENES P2**](modules/scenes-p2/README.md) | [sambanks](https://github.com/sambanks) | Scene locks and the crossfader on FX1/FX2 page 2 (hold a scene, turn a page-2 knob). | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); 26 Sep 2026 |
-| [**STORE**](modules/store/README.md) | [sambanks](https://github.com/sambanks) | Platform: the stock save, load, copy, CS1 and Part sites KITS and PLOCKS P2 share. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026) |
+| [**STORE**](modules/store/README.md) | [sambanks](https://github.com/sambanks) | Platform: the stock save, load, copy, CS1 and Part sites STORE clients share. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026) |
 
 ### MIDI and USB
 
@@ -133,6 +135,7 @@ from the card (section 5).
 |---|---|---|---|
 | [**BRAIN**](modules/brain/README.md) | [Sam Banks](https://github.com/sambanks) | The settings store on the unit: card-wide knob defaults read from BRAIN/card.work at each project load (docs/proposals/BRAIN.md). | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); `verify_brain` under the port (6 Oct 2026) |
 | [**MEMORY**](modules/memory/README.md) | [Sam Banks](https://github.com/sambanks) | Platform: the DRAM reserve in stock's audio page arena, sized from what the remix's modules claim. | on hardware: cursory testing on Sam's MKII (owner report, 16 Oct 2026); the reserve's size per remix in the build report; `verify_dram_boot` under the port |
+| [**PERSISTENT BUFFERS**](modules/persistent-buffers/README.md) | [ilia-murzinov](https://github.com/ilia-murzinov) | On project save, dump non-empty recorder buffers to BUFFERS/REC1.wav..REC8.wav (overwrite); on project load, restore them. | `make check`: verify_persistent_buffers: symbols + port save/load; author MKII R2–R6 (17 Oct 2026): head is R6, path BUFFERS/RECn.wav (no !) |
 
 ### Utilities
 
