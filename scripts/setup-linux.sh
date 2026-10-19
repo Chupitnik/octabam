@@ -3,6 +3,9 @@
 # m68k-elf cross-compiler with scripts/m68k-toolchain.sh, then run
 # scripts/setup.sh. Idempotent. M68K_PREFIX overrides the toolchain prefix
 # (default $HOME/.local/m68k-elf); add its bin/ to PATH for later shells.
+# The gcc build dependencies are installed only when the toolchain is absent;
+# OPTIONAL_TOOLS=0 leaves out binwalk and radare2; EXTRA_PACKAGES adds
+# packages (CI: ccache).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -11,14 +14,18 @@ command -v apt-get >/dev/null 2>&1 \
 
 SUDO=""
 [ "$(id -u)" -eq 0 ] || SUDO="sudo"
+PREFIX="${M68K_PREFIX:-$HOME/.local/m68k-elf}"
+pkgs=(build-essential cmake git curl unzip xxd binutils python3 python3-numpy)
+[ "${OPTIONAL_TOOLS:-1}" = 0 ] || pkgs+=(binwalk radare2)
+scripts/m68k-toolchain.sh --check "$PREFIX" \
+  || pkgs+=(pkgconf texinfo libgmp-dev libmpfr-dev libmpc-dev libisl-dev libzstd-dev zlib1g-dev)
+# shellcheck disable=SC2206
+pkgs+=(${EXTRA_PACKAGES:-})
 $SUDO apt-get update
-$SUDO apt-get install -y build-essential cmake git curl unzip xxd binutils python3 python3-numpy \
-  binwalk radare2 pkgconf texinfo \
-  libgmp-dev libmpfr-dev libmpc-dev libisl-dev libzstd-dev zlib1g-dev
+$SUDO apt-get install -y "${pkgs[@]}"
 command -v uv >/dev/null 2>&1 \
   || echo "setup-linux: uv not installed; make emu-setup needs it (curl -LsSf https://astral.sh/uv/install.sh | sh)"
 
-PREFIX="${M68K_PREFIX:-$HOME/.local/m68k-elf}"
 scripts/m68k-toolchain.sh "$PREFIX"
 export PATH="$PREFIX/bin:$PATH"
 echo "setup-linux: add $PREFIX/bin to PATH for later shells"

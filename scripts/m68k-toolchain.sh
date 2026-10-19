@@ -5,6 +5,7 @@
 # m68k-elf-gcc formula.
 #
 #   scripts/m68k-toolchain.sh [PREFIX]    # default $HOME/.local/m68k-elf
+#   scripts/m68k-toolchain.sh --check [PREFIX]   # exit 0 when PREFIX has a working gcc of this version
 #
 # Needs: a C/C++ compiler, make, curl, xz, and the gmp, mpfr, mpc, isl, zstd
 # and zlib development packages (Debian/Ubuntu: build-essential libgmp-dev
@@ -18,15 +19,21 @@ BINUTILS_SHA256=154ab23b60070e8f27013c22977f1129425d67d1e8acd6e13010e617811e4cff
 GCC_VER=16.2.0
 GCC_SHA256=e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e
 
-PREFIX=$(mkdir -p "${1:-$HOME/.local/m68k-elf}" && cd "${1:-$HOME/.local/m68k-elf}" && pwd)
+CHECK=0
+[ "${1:-}" = "--check" ] && { CHECK=1; shift; }
+PREFIX="${1:-$HOME/.local/m68k-elf}"
+[ "$CHECK" = 1 ] || PREFIX=$(mkdir -p "$PREFIX" && cd "$PREFIX" && pwd)
 TARGET=m68k-elf
 JOBS=$( (nproc || sysctl -n hw.ncpu) 2>/dev/null || echo 2)
 
+# the compile runs cc1, which needs the gmp, mpfr, mpc and isl runtime libraries
 if [ -x "$PREFIX/bin/$TARGET-gcc" ] && [ "$("$PREFIX/bin/$TARGET-gcc" -dumpfullversion)" = "$GCC_VER" ] \
-   && [ -x "$PREFIX/bin/$TARGET-as" ]; then
-  echo "[m68k] $TARGET-gcc $GCC_VER already in $PREFIX"
+   && [ -x "$PREFIX/bin/$TARGET-as" ] \
+   && echo 'int x;' | "$PREFIX/bin/$TARGET-gcc" -x c -c -o /dev/null - 2>/dev/null; then
+  [ "$CHECK" = 1 ] || echo "[m68k] $TARGET-gcc $GCC_VER already in $PREFIX"
   exit 0
 fi
+[ "$CHECK" = 0 ] || exit 1
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
