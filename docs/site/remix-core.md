@@ -48,8 +48,8 @@ a unit.
 
 ## Build and Install
 
-The [build and flash guide](build-flash.md) has every step, from what to
-install to the way back to stock. For this remix:
+[Build and Install](web-builder.md) builds this remix in the browser. To build
+from source instead:
 
 1. **Build.** Pick a build number; it becomes the OS version the unit shows.
 
@@ -58,7 +58,7 @@ install to the way back to stock. For this remix:
    ```
 
 2. **Back up the card.** KITS writes `kits.work` into each project it loads.
-3. Follow [Build and flash](build-flash.md) to install the image and confirm
+3. Follow [Build and Install](web-builder.md#install-the-image) to install the image and confirm
    that SYSTEM STATUS → OS VERSION reads `OCTABAM91`.
 4. To restore stock OS, follow [Safety and recovery](safety.md).
 

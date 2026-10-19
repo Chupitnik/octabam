@@ -12,7 +12,7 @@ with tracks, Parts, patterns, scenes, and the Octatrack's front panel.
 
 1. [Choose a remix](choosing.md) for the effects and workflow you want.
 2. Read [Safety and recovery](safety.md), then back up your CF card.
-3. Follow [Build and install](build-flash.md) to prepare and install your image.
+3. Follow [Build and install](web-builder.md) to build and install your image.
 
 ## Everyday Use
 

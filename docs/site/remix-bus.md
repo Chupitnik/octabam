@@ -102,8 +102,8 @@ flash needs neither command.
 
 ## Build and Install
 
-Use [Build and flash](build-flash.md) for the full procedure. Build this
-remix with:
+Build this remix in the browser on [Build and Install](web-builder.md), or from
+source with:
 
 ```bash
 make image REMIX=octabam-bus BUILD=91

@@ -12,7 +12,7 @@ and the [module author guide](https://github.com/sambanks/octabam/blob/main/docs
 
 ## 1. Prepare the Build Environment
 
-Follow the [build guide](build-flash.md) through installing the toolchain and
+Follow the [build guide](https://github.com/sambanks/octabam/blob/main/docs/guide/BUILDING.md) through installing the toolchain and
 preparing your own OS 1.40C. The interactive remixer also needs its optional
 Python environment:
 
@@ -61,7 +61,7 @@ make check REMIX=<name>
 `make check` builds the image, runs its gates and boots it under the port.
 It is the minimum check before flashing; a successful build alone does not
 show that the remix works on hardware. For image creation and installation,
-continue to [Build and flash](build-flash.md).
+continue to [Build and Install](web-builder.md#install-the-image).
 
 ## Next Steps
 
