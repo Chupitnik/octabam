@@ -43,6 +43,9 @@ or [FUNC] + [SRC] > MACHINE.
 - The track is a FLEX track underneath: a stock OS opens the project with
   it as FLEX, and FLEX's own values come back when the track leaves the
   machine.
+- Like any machine, BLKPYRAMD keeps its knobs when the track switches to
+  another machine and back. On another machine's track, its row in
+  [FUNC] + [SRC] shows and edits those kept SETUP values.
 - The voice takes SPRING REV's place on the DSP, so SPRING REV is not in a
   remix with it. A Part that still names SPRING REV shows its page and
   passes audio through.
