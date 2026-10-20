@@ -122,6 +122,11 @@ def check_create(image: pathlib.Path, card: pathlib.Path, set_name: str,
     if win == 0:
         sys.exit(f"verify_rnd_name: name-editor window handle is 0 -- {log}")
     assert_dated_pool(filled, "CREATE", ed_max, log)
+    # Cold seed used to take only tempo^clock^K and the low 6 LCG bits:
+    # at 120 BPM with the clock stopped that was always FOGRET.
+    if filled[len(DATE_PREFIX):] == "FOGRET":
+        sys.exit(f"verify_rnd_name: CREATE still draws FOGRET ({filled!r}) "
+                 f"-- cold-seed / low-bit bias -- {log}")
     print(f"  [PASS] verify_rnd_name: FUNC+CUE -> {filled!r} "
           f"(CREATE editor open, ED_MAX={ed_max})")
 

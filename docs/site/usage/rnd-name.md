@@ -11,7 +11,7 @@ build the test remix `rnd-name`.
 
 | Editor | FUNC + CUE writes |
 |---|---|
-| NAME THE NEW PROJECT | a date `YYMMDD ` and two words, for example `261014 FOGBED` |
+| NAME THE NEW PROJECT | a date `YYMMDD ` and two words, for example `261014 SWEEPPAD` |
 | SAVE PROJECT AS, CHOOSE NEW PROJECT NAME | a date `YYMMDD ` and two words |
 | COPY PROJECT (with COPY PROJECT in the remix) | a date `YYMMDD ` and two words |
 | SAVE SAMPLE AS | two words, no date |
